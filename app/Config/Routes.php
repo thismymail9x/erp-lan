@@ -39,4 +39,18 @@ $routes->group('users', function($routes) {
     $routes->get('edit/(:num)', 'UserController::edit/$1');
     $routes->post('update/(:num)', 'UserController::update/$1');
     $routes->get('delete/(:num)', 'UserController::delete/$1');
+    $routes->post('bulk-delete', 'UserController::bulkDelete');
+});
+
+// System Log Routes
+$routes->get('system-logs', 'SystemLogController::index');
+
+// Attendance Routes
+$routes->group('attendance', function($routes) {
+    $routes->get('/', 'AttendanceController::index');     // Camera check-in screen
+    $routes->get('list', 'AttendanceController::list');   // Management list (Admin/Manager/Staff)
+    $routes->get('status', 'AttendanceController::status');
+    $routes->post('submit', 'AttendanceController::submit');
+    $routes->get('export', 'AttendanceController::export');
+    $routes->post('bulk-update', 'AttendanceController::bulkUpdate');
 });

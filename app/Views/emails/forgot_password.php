@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Đặt lại mật khẩu | LawFirm ERP</title>
+    <title>Đặt lại mật khẩu | L.A.N ERP</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -65,15 +65,15 @@
         </div>
         <div class="content">
             <p>Xin chào,</p>
-            <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn tại hệ thống LawFirm ERP. Vui lòng nhấn vào nút bên dưới để tiến hành thay đổi mật khẩu:</p>
+            <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn tại hệ thống L.A.N ERP. Vui lòng nhấn vào nút bên dưới để tiến hành thay đổi mật khẩu:</p>
             <div class="btn-container">
                 <a href="<?= $resetLink ?>" class="btn">Đặt lại mật khẩu</a>
             </div>
             <p>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này. Link này sẽ hết hạn trong vòng 1 giờ.</p>
-            <p>Trân trọng,<br>Đội ngũ hỗ trợ LawFirm ERP</p>
+            <p>Trân trọng,<br>Đội ngũ hỗ trợ L.A.N ERP</p>
         </div>
         <div class="footer">
-            &copy; <?= date('Y') ?> LawFirm ERP. All rights reserved.
+            &copy; <?= date('Y') ?> L.A.N ERP. All rights reserved.
         </div>
     </div>
 </body>

@@ -50,12 +50,13 @@ class AccessControlService extends BaseService
             ['title' => 'Vụ việc pháp lý', 'url' => 'cases', 'icon' => 'fas fa-briefcase'],
             ['title' => 'Khách hàng', 'url' => 'customers', 'icon' => 'fas fa-users'],
             ['title' => 'Hợp đồng', 'url' => 'contracts', 'icon' => 'fas fa-file-contract'],
-            ['title' => 'Chấm công', 'url' => 'attendance', 'icon' => 'fas fa-clock'],
+            ['title' => 'Nhật ký chấm công', 'url' => 'attendance/list', 'icon' => 'fas fa-clock'],
             ['title' => 'Kế toán', 'url' => 'accounting', 'icon' => 'fas fa-calculator'],
             ['title' => 'Marketing', 'url' => 'marketing', 'icon' => 'fas fa-bullhorn'],
             ['title' => 'Kinh doanh', 'url' => 'sales', 'icon' => 'fas fa-handshake'],
             ['title' => 'Hành chính', 'url' => 'admin-tasks', 'icon' => 'fas fa-tasks'],
             ['title' => 'Đối tác', 'url' => 'partners', 'icon' => 'fas fa-handshake-alt'],
+            ['title' => 'Nhật ký', 'url' => 'system-logs', 'icon' => 'fas fa-history'],
         ];
     }
 
@@ -63,6 +64,7 @@ class AccessControlService extends BaseService
     {
         return [
             ['title' => 'Dashboard', 'url' => 'dashboard', 'icon' => 'fas fa-th-large'],
+            ['title' => 'Lịch sử chấm công', 'url' => 'attendance/list', 'icon' => 'fas fa-history'],
         ];
     }
 
@@ -70,9 +72,10 @@ class AccessControlService extends BaseService
     {
         switch ($departmentId) {
             case \Config\AppConstants::DEPT_MARKETING:
-                return [['title' => 'Marketing', 'url' => 'marketing', 'icon' => 'fas fa-bullhorn']];
+                return [
+                    ['title' => 'Marketing', 'url' => 'marketing', 'icon' => 'fas fa-bullhorn']];
             case \Config\AppConstants::DEPT_SALE:
-                return [['title' => 'Kinh doanh', 'url' => 'sales', 'icon' => 'fas fa-handshake']];
+                return [['title' => 'Kinh doanh', 'url' => 'sales', 'icon' => 'fas fa-handshake'],];
             case \Config\AppConstants::DEPT_PHAP_LY:
                 return [
                     ['title' => 'Vụ việc pháp lý', 'url' => 'cases', 'icon' => 'fas fa-briefcase'],
@@ -95,6 +98,7 @@ class AccessControlService extends BaseService
             case \Config\AppConstants::ROLE_TRUONG_PHONG:
                 return [
                     ['title' => 'Báo cáo bộ phận', 'url' => 'dept-reports', 'icon' => 'fas fa-chart-line'],
+                    ['title' => 'Nhật ký chấm công', 'url' => 'attendance/list', 'icon' => 'fas fa-clock'],
                     ['title' => 'Tài khoản', 'url' => 'users', 'icon' => 'fas fa-users-cog']
                 ];
             case \Config\AppConstants::ROLE_MOD:

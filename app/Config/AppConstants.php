@@ -24,6 +24,8 @@ class AppConstants
     public const DEPT_CONG_TAC_VIEN    = 5;
     public const DEPT_DOI_TAC          = 6;
 
+    public const DEPT_NAME_HANH_CHINH  = 'Hành chính';
+
     // === VAI TRÒ MẶC ĐỊNH (DEFAULT ROLE) ===
     public const ROLE_DEFAULT           = self::ROLE_THUC_TAP_SINH;
 
@@ -42,4 +44,21 @@ class AppConstants
         self::ROLE_MOD,
         self::ROLE_TRUONG_PHONG
     ];
+
+    // === CHẤM CÔNG (ATTENDANCE) ===
+    public const ATT_STANDARD_IN    = '08:00:00';
+    public const ATT_STANDARD_OUT   = '17:30:00';
+    public const ATT_OFFICE_LAT     = 21.051701;
+    public const ATT_OFFICE_LNG     = 105.780193;
+    public const ATT_RADIUS_KM      = 0.2; // Tăng lên 200m để ổn định hơn
+    
+    // Status types
+    public const ATT_STATUS_REGULAR       = 'REGULAR';
+    public const ATT_STATUS_LATE          = 'LATE';
+    public const ATT_STATUS_EARLY_LEAVE   = 'EARLY_LEAVE';
+    public const ATT_STATUS_INVALID_LOC   = 'INVALID_LOCATION';
+    public const ATT_STATUS_LEAVE         = 'LEAVE'; // Nghỉ phép
+    
+    // IP mạng LAN nội bộ được phép điểm danh không cần camera
+    public const ATT_LAN_IPS = ['118.71.210.184', '::1', '192.168.', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.2', '172.3'];
 }

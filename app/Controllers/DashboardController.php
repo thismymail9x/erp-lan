@@ -15,8 +15,17 @@ class DashboardController extends BaseController
             return redirect()->to('/login');
         }
 
+        $attendanceService = new \App\Services\AttendanceService();
+        $employeeId = session()->get('employee_id');
+        $attendanceStatus = null;
+        
+        if ($employeeId) {
+            $attendanceStatus = $attendanceService->getTodayStatus($employeeId);
+        }
+
         $data = [
-            'title' => 'Bảng điều khiển | LawFirm ERP',
+            'title'            => 'Bảng điều khiển | L.A.N ERP',
+            'attendanceStatus' => $attendanceStatus,
             'user'  => [
                 'email' => session()->get('email'),
                 'role'  => session()->get('role_id') == 1 ? 'Quản trị viên' : 'Nhân viên'

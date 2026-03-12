@@ -78,7 +78,7 @@ class AuthController extends BaseController
         $result = $this->authService->register($data);
 
         if ($result['status'] === 'success') {
-            return redirect()->to('/login')->with('message', 'Đăng ký thành công. Vui lòng đăng nhập.');
+            return redirect()->to('/login')->with('message', 'Đăng ký thành công. Tài khoản đang chờ Admin kích hoạt.');
         }
 
         return redirect()->back()->withInput()->with('error', $result['message']);
@@ -98,7 +98,7 @@ class AuthController extends BaseController
      */
     public function forgotPassword()
     {
-        return view('auth/forgot_password', ['title' => 'Quên mật khẩu | LawFirm ERP']);
+        return view('auth/forgot_password', ['title' => 'Quên mật khẩu | L.A.N ERP']);
     }
 
     /**
@@ -129,7 +129,7 @@ class AuthController extends BaseController
         }
 
         return view('auth/reset_password', [
-            'title' => 'Đặt lại mật khẩu | LawFirm ERP',
+            'title' => 'Đặt lại mật khẩu | L.A.N ERP',
             'token' => $token
         ]);
     }

@@ -33,3 +33,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// Select2 Initialization
+$(document).ready(function() {
+    $('select').select2({
+        width: '100%',
+        minimumResultsForSearch: 10 // Show search only if there are more than 10 options
+    });
+});

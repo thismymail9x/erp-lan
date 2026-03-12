@@ -171,22 +171,33 @@ CREATE TABLE `contracts` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Bảng quản lý hợp đồng pháp lý';
 
 -- ----------------------------
--- Table structure for attendance (Chấm công)
+-- Table structure for attendances (Nhật ký chấm công thông minh)
 -- ----------------------------
-DROP TABLE IF EXISTS `attendance`;
-CREATE TABLE `attendance` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT COMMENT 'ID khóa chính',
+DROP TABLE IF EXISTS `attendances`;
+CREATE TABLE `attendances` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `employee_id` int(11) unsigned NOT NULL COMMENT 'ID nhân viên',
-  `date` date NOT NULL COMMENT 'Ngày chấm công',
-  `check_in` time DEFAULT NULL COMMENT 'Giờ vào làm',
-  `check_out` time DEFAULT NULL COMMENT 'Giờ tan làm',
-  `note` text DEFAULT NULL COMMENT 'Ghi chú chấm công',
-  `created_at` datetime DEFAULT NULL COMMENT 'Ngày ghi nhận',
-  `updated_at` datetime DEFAULT NULL COMMENT 'Ngày cập nhật',
+  `attendance_date` date NOT NULL COMMENT 'Ngày chấm công',
+  `check_in_time` datetime DEFAULT NULL COMMENT 'Thời gian vào',
+  `check_in_latitude` decimal(10,8) DEFAULT NULL,
+  `check_in_longitude` decimal(11,8) DEFAULT NULL,
+  `check_in_photo` varchar(255) DEFAULT NULL COMMENT 'Ảnh chụp lúc vào',
+  `check_in_note` text DEFAULT NULL,
+  `check_out_time` datetime DEFAULT NULL COMMENT 'Thời gian ra',
+  `check_out_latitude` decimal(10,8) DEFAULT NULL,
+  `check_out_longitude` decimal(11,8) DEFAULT NULL,
+  `check_out_photo` varchar(255) DEFAULT NULL COMMENT 'Ảnh chụp lúc ra',
+  `check_out_note` text DEFAULT NULL,
+  `worked_hours` decimal(5,2) DEFAULT '0.00' COMMENT 'Số giờ làm việc',
+  `status` varchar(50) DEFAULT 'REGULAR' COMMENT 'Trạng thái (REGULAR, LATE, EARLY_LEAVE, ...)',
+  `is_valid_location` tinyint(1) DEFAULT '1' COMMENT 'Vị trí hợp lệ?',
+  `created_at` datetime DEFAULT NULL,
+  `updated_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `employee_id` (`employee_id`),
-  CONSTRAINT `attendance_ibfk_1` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Bảng theo dõi chấm công hàng ngày';
+  KEY `idx_attendance_date` (`attendance_date`),
+  CONSTRAINT `fk_attendance_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Bảng theo dõi chấm công bằng hình ảnh và GPS';
 
 -- ----------------------------
 -- Table structure for accounting (Kế toán/Giao dịch)
@@ -378,3 +389,29 @@ CREATE TABLE `system_settings` (
 INSERT INTO `system_settings` (`key`, `value`) VALUES ('quote_state', '{\"shuffled_indices\": [], \"current_index\": 0, \"last_updated_at\": \"2000-01-01 00:00:00\"}');
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- ----------------------------
+-- Bổ sung cột cho bảng employees (Nhân sự)
+-- ----------------------------
+ALTER TABLE `employees` 
+ADD COLUMN `bank_name` varchar(100) DEFAULT NULL COMMENT 'Tên ngân hàng' AFTER `position`,
+ADD COLUMN `bank_account` varchar(50) DEFAULT NULL COMMENT 'Số tài khoản ngân hàng' AFTER `bank_name`;
+
+-- ----------------------------
+-- Table structure for system_logs (Nhật ký hệ thống)
+-- ----------------------------
+DROP TABLE IF EXISTS `system_logs`;
+CREATE TABLE `system_logs` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) unsigned DEFAULT NULL COMMENT 'Người thực hiện',
+  `action` varchar(50) NOT NULL COMMENT 'Hành động (LOGIN, CREATE, UPDATE, DELETE)',
+  `module` varchar(100) NOT NULL COMMENT 'Tên Module tác động',
+  `entity_id` int(11) DEFAULT NULL COMMENT 'ID của bản ghi bị tác động',
+  `details` text DEFAULT NULL COMMENT 'Chi tiết dữ liệu (JSON)',
+  `ip_address` varchar(45) NOT NULL COMMENT 'Địa chỉ IP người thao tác',
+  `user_agent` text NOT NULL COMMENT 'Thông tin trình duyệt/thiết bị',
+  `created_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`),
+  CONSTRAINT `system_logs_user_id_foreign_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -3,22 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $title ?? 'LawFirm ERP' ?></title>
+    <title><?= $title ?? 'L.A.N ERP' ?></title>
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Core styles -->
     <link rel="stylesheet" href="<?= base_url('css/dashboard.css') ?>">
+    <link rel="stylesheet" href="<?= base_url('vendor/select2/select2.min.css') ?>">
     <!-- Page specific styles -->
     <?= $this->renderSection('styles') ?>
 </head>
 <body>
     <div class="app-wrapper">
+        <div class="mobile-toggle-btn" id="mobile-toggle">
+            <i class="fas fa-bars"></i>
+        </div>
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <h2>LawFirm ERP</h2>
+                <div class="brand">
+                    <h2>L.A.N <span class="text-blue">ERP</span></h2>
+                </div>
+                <div class="user-mini-profile">
+                    <div class="user-avatar" title="<?= esc(session()->get('full_name')) ?>">
+                        <?= strtoupper(substr(session()->get('full_name') ?? 'U', 0, 1)) ?>
+                    </div>
+                    <a href="<?= base_url('logout') ?>" class="logout-mini" title="Đăng xuất">
+                        <i class="fas fa-power-off"></i>
+                    </a>
+                </div>
             </div>
             <nav class="nav-menu">
                 <?php 
@@ -35,47 +49,38 @@
                 </li>
                 <?php endforeach; ?>
             </nav>
+            <div class="sidebar-footer">
+                &copy; 2026 L.A.N
+            </div>
         </aside>
 
         <!-- Main Content -->
         <main class="main-content">
-            <header class="header">
-                <div>
-                    <div class="mobile-toggle" id="mobile-toggle">
-                        <i class="fas fa-bars"></i>
-                    </div>
-                    <div class="header-text">
-                        <h1 style="margin:0; font-size: 1.5rem;"><?= $page_title ?? 'Xin chào!' ?></h1>
-                        <p style="color: var(--apple-text-muted); margin-top: 5px; font-size: 0.9rem;">Hệ thống quản trị LawFirm chuyên nghiệp.</p>
-                    </div>
-                </div>
-                <div class="user-profile">
-                    <div class="user-info-text" style="text-align: right">
-                        <div style="font-weight: 600"><?= session()->get('full_name') ?? 'Người dùng' ?></div>
-                        <div style="font-size: 0.8rem; color: var(--apple-text-muted)">
-                            <?= session()->get('role_name') ?? 'Nhân viên' ?>
-                            <?php if(session()->get('department_name')): ?>
-                                - <?= session()->get('department_name') ?>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                    <div class="user-avatar" title="<?= session()->get('email') ?>">
-                        <?= strtoupper(substr(session()->get('full_name') ?? 'U', 0, 1)) ?>
-                    </div>
-                    <a href="<?= base_url('logout') ?>" class="btn-logout" title="Đăng xuất">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </a>
-                </div>
-            </header>
-
             <section class="content-body">
                 <?= $this->renderSection('content') ?>
             </section>
         </main>
     </div>
 
+    <!-- Common Image Modal -->
+    <div id="imgModal" class="img-modal" onclick="closeImgModal()">
+        <span class="img-modal-close">&times;</span>
+        <img class="img-modal-content" id="imgFull">
+    </div>
+
     <!-- Core scripts -->
+    <script src="<?= base_url('vendor/jquery/jquery.min.js') ?>"></script>
+    <script src="<?= base_url('vendor/select2/select2.min.js') ?>"></script>
     <script src="<?= base_url('js/dashboard.js') ?>"></script>
+    <script>
+    function previewImage(src) {
+        document.getElementById('imgModal').style.display = "block";
+        document.getElementById('imgFull').src = src;
+    }
+    function closeImgModal() {
+        document.getElementById('imgModal').style.display = "none";
+    }
+    </script>
     <!-- Page specific scripts -->
     <?= $this->renderSection('scripts') ?>
 </body>

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\EmployeeModel;
 use App\Models\UserModel;
+use App\Models\DepartmentModel;
 
 /**
  * EmployeeService
@@ -14,20 +15,50 @@ class EmployeeService extends BaseService
 {
     protected $employeeModel;
     protected $userModel;
+    protected $logService;
 
     public function __construct()
     {
         parent::__construct();
         $this->employeeModel = new EmployeeModel();
         $this->userModel = new UserModel();
+        $this->logService = new SystemLogService();
     }
 
     /**
-     * Lấy danh sách toàn bộ nhân viên
+     * Lấy danh sách nhân viên có lọc theo quyền và bộ phận.
      */
-    public function getAllEmployees()
+    /**
+     * Lấy danh sách nhân viên có lọc theo quyền và bộ phận.
+     */
+    public function getAllEmployees(string $sort = 'id', string $order = 'desc')
     {
-        return $this->employeeModel->findAll();
+        $roleName = session()->get('role_name');
+        $departmentName = session()->get('department_name'); // Cần đảm bảo session có lưu department_name
+
+        $sortMap = [
+            'name' => 'employees.full_name',
+            'position' => 'employees.position',
+            'join_date' => 'employees.join_date',
+            'salary' => 'employees.salary_base',
+            'id' => 'employees.id'
+        ];
+
+        $orderField = $sortMap[$sort] ?? 'employees.id';
+        $direction  = (strtolower($order) === 'asc') ? 'asc' : 'desc';
+
+        $this->employeeModel->select('employees.*, departments.name as department_name')
+                            ->join('departments', 'departments.id = employees.department_id', 'left')
+                            ->orderBy($orderField, $direction);
+
+        // Admin, Mod và người thuộc phòng Hành chính được xem tất cả
+        if ($roleName === \Config\AppConstants::ROLE_ADMIN || 
+            $roleName === \Config\AppConstants::ROLE_MOD || 
+            $departmentName === \Config\AppConstants::DEPT_NAME_HANH_CHINH) {
+            return $this->employeeModel->findAll();
+        }
+
+        return [];
     }
 
     /**
@@ -50,7 +81,9 @@ class EmployeeService extends BaseService
         // Nếu có yêu cầu tạo tài khoản, xử lý tại đây (chưa triển khai chi tiết)
         
         if ($this->employeeModel->insert($data)) {
-            return $this->success(['id' => $this->employeeModel->getInsertID()], 'Tạo nhân viên thành công.');
+            $empId = $this->employeeModel->getInsertID();
+            $this->logService->log('CREATE', 'Employees', $empId, ['full_name' => $data['full_name']]);
+            return $this->success(['id' => $empId], 'Tạo nhân viên thành công.');
         }
 
         return $this->fail('Không thể tạo nhân viên. Vui lòng kiểm tra dữ liệu.');
@@ -61,7 +94,18 @@ class EmployeeService extends BaseService
      */
     public function updateEmployee(int $id, array $data)
     {
+        $oldData = $this->employeeModel->find($id);
+        
         if ($this->employeeModel->update($id, $data)) {
+            $newData = $this->employeeModel->find($id);
+            
+            // So sánh và chỉ ghi lại những gì thực sự thay đổi cho gọn log
+            $changes = [
+                'before' => array_diff_assoc($oldData, $newData),
+                'after'  => array_diff_assoc($newData, $oldData)
+            ];
+
+            $this->logService->log('UPDATE', 'Employees', $id, $changes);
             return $this->success(null, 'Cập nhật thông tin thành công.');
         }
         return $this->fail('Cập nhật thất bại.');
@@ -72,9 +116,32 @@ class EmployeeService extends BaseService
      */
     public function deleteEmployee(int $id)
     {
+        $oldData = $this->employeeModel->find($id);
+        
         if ($this->employeeModel->delete($id)) {
+            $this->logService->log('DELETE', 'Employees', $id, ['deleted_record' => $oldData]);
             return $this->success(null, 'Đã xóa nhân viên.');
         }
         return $this->fail('Xóa thất bại.');
+    }
+
+    /**
+     * Lấy danh sách các tài khoản chưa được gán cho nhân viên nào.
+     */
+    public function getUnlinkedUsers()
+    {
+        return $this->userModel->select('users.id, users.email')
+                               ->join('employees', 'employees.user_id = users.id', 'left')
+                               ->where('employees.user_id', null)
+                               ->findAll();
+    }
+
+    /**
+     * Lấy danh sách toàn bộ phòng ban.
+     */
+    public function getDepartments()
+    {
+        $departmentModel = new DepartmentModel();
+        return $departmentModel->findAll();
     }
 }

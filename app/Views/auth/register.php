@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đăng ký | LawFirm ERP</title>
+    <title>Đăng ký | L.A.N ERP</title>
     <link rel="stylesheet" href="<?= base_url('css/premium_auth.css') ?>">
 </head>
 <body>

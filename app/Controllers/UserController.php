@@ -2,6 +2,8 @@
 
 namespace App\Controllers;
 
+use App\Models\DepartmentModel;
+use App\Models\EmployeeModel;
 use App\Services\UserService;
 use App\Models\RoleModel;
 
@@ -16,12 +18,16 @@ class UserController extends BaseController
 {
     protected $userService;
     protected $roleModel;
+    protected $departmentModel;
+    protected $employeeModel;
 
     public function __construct()
     {
         // Khởi tạo các Service và Model cần thiết khi Controller được gọi
         $this->userService = new UserService();
         $this->roleModel = new RoleModel();
+        $this->departmentModel = new DepartmentModel();
+        $this->employeeModel = new EmployeeModel();
     }
 
     /**
@@ -32,7 +38,12 @@ class UserController extends BaseController
      */
     public function index()
     {
-        $users = $this->userService->getUsers();
+        // Lấy tham số sắp xếp và phân trang từ Request
+        $sort    = $this->request->getGet('sort') ?? 'id';
+        $order   = $this->request->getGet('order') ?? 'desc';
+        $perPage = 10; // Cấu hình số lượng bản ghi mỗi trang
+
+        $users = $this->userService->getUsers($sort, $order, $perPage);
 
         $roleName = session()->get('role_name');
         // Chỉ cấp phát quyền truy cập trang danh sách cho Admin, Giám đốc (Mod), Trưởng phòng
@@ -41,8 +52,11 @@ class UserController extends BaseController
         }
 
         $data = [
-            'title' => 'Quản lý tài khoản | LawFirm ERP',
-            'users' => $users,
+            'title'        => 'Quản lý tài khoản | L.A.N ERP',
+            'users'        => $users,
+            'pager'        => $this->userService->getPager(), // Lấy đối tượng phân trang
+            'currentSort'  => $sort,
+            'currentOrder' => $order
         ];
         return view('dashboard/users/index', $data);
     }
@@ -59,8 +73,9 @@ class UserController extends BaseController
         }
 
         $data = [
-            'title' => 'Thêm tài khoản mới | LawFirm ERP',
-            'roles' => $this->roleModel->findAll() // Lấy toàn bộ danh sách chức danh để hiển thị ở Dropdown
+            'title' => 'Thêm tài khoản mới | L.A.N ERP',
+            'roles' => $this->roleModel->findAll(), // Lấy toàn bộ danh sách chức danh để hiển thị ở Dropdown
+            'departments' => $this->departmentModel->findAll() // Lấy toàn danh sách phòng ban
         ];
         return view('dashboard/users/create', $data);
     }
@@ -96,9 +111,10 @@ class UserController extends BaseController
         }
 
         $data = [
-            'title' => 'Cập nhật phân quyền / tài khoản | LawFirm ERP',
+            'title' => 'Cập nhật phân quyền / tài khoản | L.A.N ERP',
             'user'  => $result['data'],
             'roles' => $this->roleModel->findAll(),
+            'departments' => $this->departmentModel->findAll(),
             'currentRoleName' => session()->get('role_name') // Trích xuất Role Name của người đang xem để View tự động ẩn hiện box Password
         ];
         return view('dashboard/users/edit', $data);
@@ -134,5 +150,53 @@ class UserController extends BaseController
         }
 
         return redirect()->to('/users')->with('error', $result['message']);
+    }
+
+    /**
+     * Xóa nhiều tài khoản cùng lúc
+     */
+    public function bulkDelete()
+    {
+        $roleName = session()->get('role_name');
+        
+        if ($roleName != \Config\AppConstants::ROLE_ADMIN) {
+            return $this->response->setJSON([
+                'code' => 1,
+                'error' => 'Chỉ Admin mới có quyền xóa tài khoản.'
+            ]);
+        }
+
+        $ids = $this->request->getPost('ids');
+        
+        if (empty($ids) || !is_array($ids)) {
+            return $this->response->setJSON([
+                'code' => 1,
+                'error' => 'Không có tài khoản nào được chọn.'
+            ]);
+        }
+
+        $successCount = 0;
+        $failCount = 0;
+
+        foreach ($ids as $id) {
+            $result = $this->userService->deleteUser((int)$id);
+            if ($result['status'] === 'success') {
+                $successCount++;
+            } else {
+                $failCount++;
+            }
+        }
+
+        if ($successCount > 0) {
+            return $this->response->setJSON([
+                'code' => 0,
+                'message' => "Đã xóa thành công {$successCount} tài khoản." . ($failCount > 0 ? " Lỗi {$failCount} tài khoản." : '')
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'code' => 1,
+            'error' => 'Không thể xóa các tài khoản đã chọn.'
+        ]);
     }
 }

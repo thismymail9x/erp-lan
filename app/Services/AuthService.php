@@ -15,6 +15,7 @@ class AuthService extends BaseService
     protected $userModel;
     protected $session;
     protected $mailService;
+    protected $logService;
 
     public function __construct()
     {
@@ -22,6 +23,7 @@ class AuthService extends BaseService
         $this->userModel = model('UserModel');
         $this->session = Services::session();
         $this->mailService = new MailService();
+        $this->logService = new SystemLogService();
     }
 
     /**
@@ -41,11 +43,14 @@ class AuthService extends BaseService
         }
 
         if ($user['active_status'] != 1) {
-            return $this->fail('Tài khoản của bạn đã bị khóa.');
+            return $this->fail('Tài khoản chưa được kích hoạt hoặc đã bị khóa. Vui lòng liên hệ Admin.');
         }
 
         // Thiết lập session
         $this->setSession($user);
+
+        // Ghi log đăng nhập
+        $this->logService->log('LOGIN', 'Auth', $user['id']);
 
         return $this->success($user, 'Đăng nhập thành công.');
     }
@@ -58,20 +63,42 @@ class AuthService extends BaseService
      */
     public function register(array $data)
     {
+        // Get email before hashing password
+        $emailPrefix = explode('@', $data['email'])[0];
+
         // Mã hóa mật khẩu
         $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
         // Mặc định vai trò là 'Thực tập sinh' nếu không chỉ định
         $roleModel = model('RoleModel');
-        $defaultRole = $roleModel->where('name', \Config\AppConstants::ROLE_DEFAULT)->first();
+        $defaultRole = $roleModel->where('name', \Config\AppConstants::ROLE_THUC_TAP_SINH)->first();
         $data['role_id'] = $data['role_id'] ?? ($defaultRole ? $defaultRole['id'] : null);
-        $data['active_status'] = 1;
+        $data['active_status'] = 0; // Requires admin activation
 
+        $this->userModel->transStart();
         try {
-            if ($this->userModel->insert($data)) {
-                return $this->success(null, 'Đăng ký tài khoản thành công.');
+            $this->userModel->insert($data);
+            $userId = $this->userModel->getInsertID();
+
+            // Default employee creation linked to "Pháp lý" (ID: 3)
+            $employeeModel = model('EmployeeModel');
+            $employeeModel->insert([
+                'user_id' => $userId,
+                'department_id' => \Config\AppConstants::DEPT_PHAP_LY,
+                'full_name' => 'Nhân sự mới (' . $emailPrefix . ')',
+                'position' => 'Chưa xác định',
+                'salary_base' => 0,
+                'join_date' => date('Y-m-d')
+            ]);
+            
+            $this->userModel->transComplete();
+            
+            if ($this->userModel->transStatus() === false) {
+                return $this->fail('Không thể đăng ký tài khoản. Vui lòng kiểm tra dữ liệu.');
             }
-            return $this->fail('Không thể đăng ký tài khoản. Vui lòng kiểm tra dữ liệu.');
+
+            return $this->success(null, 'Đăng ký tài khoản thành công.');
         } catch (\Exception $e) {
+            $this->userModel->transRollback();
             $this->logError('Lỗi đăng ký: ' . $e->getMessage());
             return $this->fail('Email này đã được sử dụng.');
         }
@@ -82,6 +109,8 @@ class AuthService extends BaseService
      */
     public function logout()
     {
+        // Ghi log đăng xuất trước khi hủy session
+        $this->logService->log('LOGOUT', 'Auth', session()->get('user_id'));
         $this->session->destroy();
     }
 
@@ -125,7 +154,7 @@ class AuthService extends BaseService
         
         $emailSent = $this->mailService->sendWithTemplate(
             $email,
-            'Đặt lại mật khẩu | LawFirm ERP',
+            'Đặt lại mật khẩu | L.A.N ERP',
             'emails/forgot_password',
             ['resetLink' => $resetLink]
         );
@@ -203,6 +232,7 @@ class AuthService extends BaseService
         
         $data = [
             'user_id'         => $user['id'],
+            'employee_id'     => $employee ? $employee['id'] : null,
             'role_id'         => $user['role_id'],
             'role_name'       => $role ? $role['name'] : \Config\AppConstants::ROLE_DEFAULT,
             'department_id'   => $employee ? $employee['department_id'] : null,

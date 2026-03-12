@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\UserModel;
 use App\Models\EmployeeModel;
 use App\Models\RoleModel;
+use App\Services\SystemLogService;
 
 /**
  * UserService
@@ -17,6 +18,7 @@ class UserService extends BaseService
     protected $userModel;
     protected $employeeModel;
     protected $roleModel;
+    protected $logService;
 
     public function __construct()
     {
@@ -24,39 +26,61 @@ class UserService extends BaseService
         $this->userModel = new UserModel();
         $this->employeeModel = new EmployeeModel();
         $this->roleModel = new RoleModel();
+        $this->logService = new SystemLogService();
     }
 
     /**
-     * Lấy danh sách tài khoản hợp lệ dựa trên hạng mức phân quyền của người đang thao tác.
+     * Lấy danh sách tài khoản hợp lệ dựa trên hạng mức phân quyền, kèm sorting và phân trang.
      * 
-     * @return array Danh sách tài khoản kèm theo thông tin Nhân viên và Bộ phận.
+     * @param string $sort Trường cần sắp xếp
+     * @param string $order Hướng sắp xếp (asc/desc)
+     * @param int $perPage Số bản ghi mỗi trang
+     * @return array Danh sách tài khoản đã phân trang.
      */
-    public function getUsers()
+    public function getUsers(string $sort = 'id', string $order = 'desc', int $perPage = 10)
     {
         // Lấy thông tin quyền và bộ phận của người dùng hiện tại từ Session
         $roleName = session()->get('role_name');
         $departmentId = session()->get('department_id');
 
-        // Khởi tạo câu truy vấn kết nối (JOIN) thông tin từ bảng users sang bảng employees và roles, departments
+        // Mapping các trường sort thân thiện sang trường trong DB thực tế
+        $sortMap = [
+            'role'   => 'roles.name',
+            'status' => 'users.active_status',
+            'email'  => 'users.email',
+            'id'     => 'users.id'
+        ];
+
+        $orderField = $sortMap[$sort] ?? 'users.id';
+        $direction  = (strtolower($order) === 'asc') ? 'asc' : 'desc';
+
+        // Khởi tạo câu truy vấn kết nối (JOIN)
         $this->userModel->select('users.*, roles.name as role_title, employees.full_name, employees.department_id, departments.name as department_name')
                         ->join('roles', 'roles.id = users.role_id', 'left')
                         ->join('employees', 'employees.user_id = users.id', 'left')
-                        ->join('departments', 'departments.id = employees.department_id', 'left');
+                        ->join('departments', 'departments.id = employees.department_id', 'left')
+                        ->orderBy($orderField, $direction);
 
         if ($roleName == \Config\AppConstants::ROLE_ADMIN || $roleName == \Config\AppConstants::ROLE_MOD) {
-            // Cấp cao nhất (Admin, Giám đốc/Mod): Xem được tất cả tài khoản hệ thống
-            return $this->userModel->findAll();
+            // Cấp cao nhất: Xem được tất cả. Sử dụng paginate để hỗ trợ phân trang.
+            return $this->userModel->paginate($perPage);
         } elseif ($roleName == \Config\AppConstants::ROLE_TRUONG_PHONG) {
-            // Cấp Trưởng phòng: Chỉ được xem tài khoản của nhân viên có cùng Department ID (thuộc cùng bộ phận)
+            // Cấp Trưởng phòng: Chỉ được xem tài khoản của nhân viên cùng bộ phận
             if ($departmentId) {
-                return $this->userModel->where('employees.department_id', $departmentId)->findAll();
+                return $this->userModel->where('employees.department_id', $departmentId)->paginate($perPage);
             }
-            // Nếu trưởng phòng không thuộc bộ phận nào, trả về rỗng
             return [];
         }
 
-        // Nếu là Nhân viên thông thường hoặc Thực tập sinh: Không có quyền truy vấn dữ liệu này
         return [];
+    }
+
+    /**
+     * Trả về object pager của UserModel để render links ở View
+     */
+    public function getPager()
+    {
+        return $this->userModel->pager;
     }
 
     /**
@@ -112,8 +136,30 @@ class UserService extends BaseService
         // Luôn đặt trạng thái rảnh rỗi = 1 (Đang kích hoạt) mặc định
         $data['active_status'] = 1;
 
+        // Tách dữ liệu nhân viên (nếu có)
+        $employeeData = [];
+        if (isset($data['department_id'])) {
+            $employeeData['department_id'] = $data['department_id'];
+            unset($data['department_id']);
+        }
+        if (isset($data['full_name'])) {
+            $employeeData['full_name'] = $data['full_name'];
+            unset($data['full_name']);
+        }
+
         if ($this->userModel->insert($data)) {
             $userId = $this->userModel->getInsertID();
+
+            // Khởi tạo hồ sơ nhân viên cơ bản nếu có thông tin
+            if (!empty($employeeData)) {
+                $employeeData['user_id'] = $userId;
+                $employeeData['position'] = $employeeData['position'] ?? 'Chưa xác định';
+                $this->employeeModel->insert($employeeData);
+            }
+
+            // Ghi log
+            $this->logService->log('CREATE', 'Users', $userId, ['email' => $data['email']]);
+
             return $this->success(['id' => $userId], 'Đã khởi tạo tài khoản bảo mật thành công.');
         }
 
@@ -165,8 +211,45 @@ class UserService extends BaseService
             return $this->fail('Vượt rào hệ thống: Không có thẩm quyền thao tác sửa đổi.');
         }
 
-        // Bắt đầu cập nhật thông tin
+        // Tách dữ liệu nhân viên
+        $employeeData = [];
+        if (isset($data['department_id'])) {
+            $employeeData['department_id'] = $data['department_id'];
+            unset($data['department_id']);
+        }
+        if (isset($data['full_name'])) {
+            $employeeData['full_name'] = $data['full_name'];
+            unset($data['full_name']);
+        }
+
+        // Lấy dữ liệu cũ để đối soát
+        $oldData = $this->userModel->find($id);
+
+        // Bắt đầu cập nhật thông tin User
         if ($this->userModel->update($id, $data)) {
+            $newData = $this->userModel->find($id);
+            
+            // Ghi log chi tiết thay đổi
+            $changes = [
+                'before' => array_diff_assoc($oldData, $newData),
+                'after'  => array_diff_assoc($newData, $oldData)
+            ];
+
+            // Cập nhật thông tin phòng ban/tên ở bảng Employees
+            if (!empty($employeeData)) {
+                $employee = $this->employeeModel->where('user_id', $id)->first();
+                if ($employee) {
+                    $this->employeeModel->update($employee['id'], $employeeData);
+                } else {
+                    $employeeData['user_id'] = $id;
+                    $employeeData['position'] = 'Chưa xác định';
+                    $this->employeeModel->insert($employeeData);
+                }
+            }
+
+            // Ghi log
+            $this->logService->log('UPDATE', 'Users', $id, $changes);
+
             return $this->success(null, 'Cập nhật phân quyền / thông số thành công.');
         }
 
@@ -185,7 +268,11 @@ class UserService extends BaseService
             return $this->fail('Nghiêm cấm: Thao tác xóa dữ liệu mật thiết chỉ dành riêng cho Admin.');
         }
 
+        $oldData = $this->userModel->find($id);
+
         if ($this->userModel->delete($id)) {
+            // Ghi log
+            $this->logService->log('DELETE', 'Users', $id, ['deleted_record' => $oldData]);
             return $this->success(null, 'Đã gỡ vĩnh viễn tài khoản ra khỏi hệ thống.');
         }
         return $this->fail('Lỗi hệ thống: Không thể xóa tài khoản hiện tại.');
