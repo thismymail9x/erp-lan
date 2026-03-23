@@ -10,105 +10,59 @@ namespace App\Services;
 class AccessControlService extends BaseService
 {
     /**
-     * Kiểm tra xem người dùng có quyền xem toàn bộ dữ liệu hệ thống không
+     * Dựa trên phân quyền chi tiết của User để quyết định xem họ có thể view toàn bộ dữ liệu (All Data) hay không.
      */
-    public function canViewAllData(string $roleName)
+    public function canViewAllData($roleName = null)
     {
-        return in_array($roleName, \Config\AppConstants::PRIVILEGED_ROLES);
+        // Có thể view tất cả nếu là admin hoặc có quyền quản lý cấp cao
+        return has_permission('sys.admin') || has_permission('case.manage');
     }
 
     /**
-     * Lấy cấu trúc Menu dựa trên Department và Role
+     * Lấy cấu trúc Menu động hoàn toàn dựa vào Custom Permissions
      */
-    public function getSidebarMenu(?int $departmentId, ?string $roleName)
+    public function getSidebarMenu(?int $departmentId = null, ?string $roleName = null)
     {
-        $roleName = $roleName ?? \Config\AppConstants::ROLE_DEFAULT;
-        // Nếu là Admin, trả về toàn bộ menu
-        if ($roleName === \Config\AppConstants::ROLE_ADMIN) {
-            return $this->getFullMenu();
-        }
-
-        $menu = $this->getCommonMenu();
-
-        // Menu theo Bộ phận (Department)
-        $departmentMenu = $this->getMenuByDepartment($departmentId);
-        $menu = array_merge($menu, $departmentMenu);
-
-        // Menu/Tính năng cộng thêm theo Chức danh (Role)
-        $roleSpecificMenu = $this->getMenuByRole($roleName);
-        $menu = array_merge($menu, $roleSpecificMenu);
-
-        return $this->uniqueMenu($menu);
-    }
-
-    private function getFullMenu()
-    {
-        return [
+        $menu = [
             ['title' => 'Dashboard', 'url' => 'dashboard', 'icon' => 'fas fa-th-large'],
-            ['title' => 'Tài khoản', 'url' => 'users', 'icon' => 'fas fa-users-cog'],
-            ['title' => 'Nhân viên', 'url' => 'employees', 'icon' => 'fas fa-user-tie'],
-            ['title' => 'Vụ việc pháp lý', 'url' => 'cases', 'icon' => 'fas fa-briefcase'],
-            ['title' => 'Khách hàng', 'url' => 'customers', 'icon' => 'fas fa-users'],
-            ['title' => 'Hợp đồng', 'url' => 'contracts', 'icon' => 'fas fa-file-contract'],
-            ['title' => 'Nhật ký chấm công', 'url' => 'attendance/list', 'icon' => 'fas fa-clock'],
-            ['title' => 'Kế toán', 'url' => 'accounting', 'icon' => 'fas fa-calculator'],
-            ['title' => 'Marketing', 'url' => 'marketing', 'icon' => 'fas fa-bullhorn'],
-            ['title' => 'Kinh doanh', 'url' => 'sales', 'icon' => 'fas fa-handshake'],
-            ['title' => 'Hành chính', 'url' => 'admin-tasks', 'icon' => 'fas fa-tasks'],
-            ['title' => 'Đối tác', 'url' => 'partners', 'icon' => 'fas fa-handshake-alt'],
-            ['title' => 'Nhật ký', 'url' => 'system-logs', 'icon' => 'fas fa-history'],
         ];
-    }
 
-    private function getCommonMenu()
-    {
-        return [
-            ['title' => 'Dashboard', 'url' => 'dashboard', 'icon' => 'fas fa-th-large'],
-            ['title' => 'Lịch sử chấm công', 'url' => 'attendance/list', 'icon' => 'fas fa-history'],
-        ];
-    }
-
-    private function getMenuByDepartment(?int $departmentId)
-    {
-        switch ($departmentId) {
-            case \Config\AppConstants::DEPT_MARKETING:
-                return [
-                    ['title' => 'Marketing', 'url' => 'marketing', 'icon' => 'fas fa-bullhorn']];
-            case \Config\AppConstants::DEPT_SALE:
-                return [['title' => 'Kinh doanh', 'url' => 'sales', 'icon' => 'fas fa-handshake'],];
-            case \Config\AppConstants::DEPT_PHAP_LY:
-                return [
-                    ['title' => 'Vụ việc pháp lý', 'url' => 'cases', 'icon' => 'fas fa-briefcase'],
-                    ['title' => 'Khách hàng', 'url' => 'customers', 'icon' => 'fas fa-users'],
-                    ['title' => 'Hợp đồng', 'url' => 'contracts', 'icon' => 'fas fa-file-contract'],
-                ];
-            case \Config\AppConstants::DEPT_HANH_CHINH:
-                return [
-                    ['title' => 'Nhân viên', 'url' => 'employees', 'icon' => 'fas fa-user-tie'],
-                    ['title' => 'Hành chính', 'url' => 'admin-tasks', 'icon' => 'fas fa-tasks'],
-                ];
-            default:
-                return [];
+        // 1. Chấm công
+        if (has_permission('attendance.view') || has_permission('sys.admin')) {
+            $menu[] = ['title' => 'Chấm công', 'url' => 'attendance/list', 'icon' => 'fas fa-clock'];
         }
-    }
 
-    private function getMenuByRole(string $roleName)
-    {
-        switch ($roleName) {
-            case \Config\AppConstants::ROLE_TRUONG_PHONG:
-                return [
-                    ['title' => 'Báo cáo bộ phận', 'url' => 'dept-reports', 'icon' => 'fas fa-chart-line'],
-                    ['title' => 'Nhật ký chấm công', 'url' => 'attendance/list', 'icon' => 'fas fa-clock'],
-                    ['title' => 'Tài khoản', 'url' => 'users', 'icon' => 'fas fa-users-cog']
-                ];
-            case \Config\AppConstants::ROLE_MOD:
-                return [
-                    ['title' => 'Điều hành hệ thống', 'url' => 'mod-panel', 'icon' => 'fas fa-cogs'],
-                    ['title' => 'Tài khoản', 'url' => 'users', 'icon' => 'fas fa-users-cog']
-                ];
-            default:
-                return [];
+        // 2. Vụ việc pháp lý (Cấp cho nhân viên được phân công hoặc có quyền View)
+        if (has_permission('case.view') || has_permission('case.manage')) {
+            $menu[] = ['title' => 'Vụ việc pháp lý', 'url' => 'cases', 'icon' => 'fas fa-briefcase'];
         }
+        
+        // 3. Khách hàng
+        if (has_permission('customer.view')) {
+            $menu[] = ['title' => 'Khách hàng', 'url' => 'customers', 'icon' => 'fas fa-users'];
+        }
+
+        // 4. Quản trị Tài khoản & Nhân sự
+        if (has_permission('user.view')) {
+            $menu[] = ['title' => 'Tài khoản', 'url' => 'users', 'icon' => 'fas fa-users-cog'];
+            $menu[] = ['title' => 'Nhân sự', 'url' => 'employees', 'icon' => 'fas fa-user-tie'];
+        }
+
+        // 5. Cài đặt hệ thống (Admin Tối Cao)
+        if (has_permission('sys.admin')) {
+            $menu[] = ['title' => 'Quy trình mẫu', 'url' => 'workflows', 'icon' => 'fas fa-project-diagram'];
+            $menu[] = ['title' => 'Log hệ thống', 'url' => 'system-logs', 'icon' => 'fas fa-history'];
+        }
+
+        $uniqueMenu = [];
+        $titles = [];
+        foreach ($menu as $item) {
+            if (!in_array($item['title'], $titles)) {
+                $uniqueMenu[] = $item;
+                $titles[] = $item['title'];
+            }
+        }
+        return $uniqueMenu;
     }
 
     private function uniqueMenu($menu)

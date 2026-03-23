@@ -38,12 +38,14 @@ class UserController extends BaseController
      */
     public function index()
     {
-        // Lấy tham số sắp xếp và phân trang từ Request
+        // Lấy tham số sắp xếp, phân trang và tìm kiếm từ Request
         $sort    = $this->request->getGet('sort') ?? 'id';
         $order   = $this->request->getGet('order') ?? 'desc';
+        $search  = $this->request->getGet('search') ?? '';
         $perPage = 10; // Cấu hình số lượng bản ghi mỗi trang
 
-        $users = $this->userService->getUsers($sort, $order, $perPage);
+        $users = $this->userService->getUsers($sort, $order, $perPage, $search);
+        $stats = $this->userService->getStats();
 
         $roleName = session()->get('role_name');
         // Chỉ cấp phát quyền truy cập trang danh sách cho Admin, Giám đốc (Mod), Trưởng phòng
@@ -54,10 +56,18 @@ class UserController extends BaseController
         $data = [
             'title'        => 'Quản lý tài khoản | L.A.N ERP',
             'users'        => $users,
+            'stats'        => $stats,
             'pager'        => $this->userService->getPager(), // Lấy đối tượng phân trang
             'currentSort'  => $sort,
-            'currentOrder' => $order
+            'currentOrder' => $order,
+            'search'       => $search
         ];
+
+        // Nếu là yêu cầu AJAX cho tìm kiếm real-time, chỉ trả về view phần bảng
+        if ($this->request->isAJAX()) {
+            return view('dashboard/users/index_table', $data);
+        }
+
         return view('dashboard/users/index', $data);
     }
 

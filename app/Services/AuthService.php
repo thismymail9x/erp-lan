@@ -218,6 +218,77 @@ class AuthService extends BaseService
     }
 
     /**
+     * Bắt đầu phiên đăng nhập với tư cách người dùng khác (Impersonation)
+     * 
+     * @param int $targetUserId ID của người dùng cần đăng nhập
+     * @return array
+     */
+    public function impersonate(int $targetUserId)
+    {
+        $currentUserId = session()->get('user_id');
+        $currentRole = session()->get('role_name');
+
+        // 1. Phải là Admin mới được dùng tính năng này
+        if ($currentRole !== \Config\AppConstants::ROLE_ADMIN) {
+            return $this->fail('Bạn không có quyền thực hiện hành động này.');
+        }
+
+        // 2. Không được tự giả dạng chính mình
+        if ($currentUserId == $targetUserId) {
+            return $this->fail('Bạn đã đang đăng nhập vào tài khoản này.');
+        }
+
+        $targetUser = $this->userModel->find($targetUserId);
+        if (!$targetUser || $targetUser['active_status'] != 1) {
+            return $this->fail('Người dùng không tồn tại hoặc đã bị khóa.');
+        }
+
+        // 3. Lưu thông tin Admin gốc để có thể quay lại
+        $adminId = session()->get('admin_user_id') ?: $currentUserId;
+        
+        // 4. Thiết lập session cho người dùng đích
+        $this->setSession($targetUser);
+        
+        // 5. Đánh dấu trạng thái giả dạng
+        session()->set([
+            'admin_user_id' => $adminId,
+            'is_impersonating' => true
+        ]);
+
+        $this->logService->log('IMPERSONATE_START', 'Auth', (int)$targetUserId, ['note' => "Admin $adminId đăng nhập vào account $targetUserId"]);
+
+        return $this->success(null, 'Đã chuyển sang tài khoản: ' . $targetUser['email']);
+    }
+
+    /**
+     * Dừng phiên giả dạng và quay lại tài khoản Admin
+     */
+    public function stopImpersonating()
+    {
+        $adminId = session()->get('admin_user_id');
+        
+        if (!$adminId) {
+            return $this->fail('Không tìm thấy thông tin phiên làm việc gốc.');
+        }
+
+        $adminUser = $this->userModel->find($adminId);
+        if (!$adminUser) {
+            return $this->fail('Không thể khôi phục tài khoản Admin.');
+        }
+
+        // Khôi phục session Admin
+        $this->setSession($adminUser);
+        
+        // Xóa các flag giả dạng
+        session()->remove('admin_user_id');
+        session()->remove('is_impersonating');
+
+        $this->logService->log('IMPERSONATE_STOP', 'Auth', (int)$adminId, ['note' => "Admin $adminId đã quay lại tài khoản gốc"]);
+
+        return $this->success(null, 'Đã quay lại tài khoản quản trị.');
+    }
+
+    /**
      * Thiết lập dữ liệu session
      */
     private function setSession($user)
@@ -240,8 +311,13 @@ class AuthService extends BaseService
             'full_name'       => $employee ? $employee['full_name'] : 'User',
             'email'           => $user['email'],
             'isLoggedIn'      => true,
+            // (permissions Array will be injected below by PermissionService)
         ];
 
         $this->session->set($data);
+
+        // Load the new RBAC Custom Permissions into Session
+        $permService = new \App\Services\PermissionService();
+        $permService->loadUserPermissions($user['id'], $user['role_id']);
     }
 }

@@ -37,7 +37,7 @@ class UserService extends BaseService
      * @param int $perPage Số bản ghi mỗi trang
      * @return array Danh sách tài khoản đã phân trang.
      */
-    public function getUsers(string $sort = 'id', string $order = 'desc', int $perPage = 10)
+    public function getUsers(string $sort = 'id', string $order = 'desc', int $perPage = 10, string $search = '')
     {
         // Lấy thông tin quyền và bộ phận của người dùng hiện tại từ Session
         $roleName = session()->get('role_name');
@@ -55,19 +55,29 @@ class UserService extends BaseService
         $direction  = (strtolower($order) === 'asc') ? 'asc' : 'desc';
 
         // Khởi tạo câu truy vấn kết nối (JOIN)
-        $this->userModel->select('users.*, roles.name as role_title, employees.full_name, employees.department_id, departments.name as department_name')
+        $query = $this->userModel->select('users.*, roles.name as role_title, employees.full_name, employees.id as emp_id, employees.department_id, departments.name as department_name')
                         ->join('roles', 'roles.id = users.role_id', 'left')
                         ->join('employees', 'employees.user_id = users.id', 'left')
-                        ->join('departments', 'departments.id = employees.department_id', 'left')
-                        ->orderBy($orderField, $direction);
+                        ->join('departments', 'departments.id = employees.department_id', 'left');
+
+        // Áp dụng bộ lọc tìm kiếm nếu có
+        if (!empty($search)) {
+            $query->groupStart()
+                  ->like('users.email', $search)
+                  ->orLike('employees.full_name', $search)
+                  ->groupEnd();
+        }
+
+        $query->orderBy($orderField, $direction);
 
         if ($roleName == \Config\AppConstants::ROLE_ADMIN || $roleName == \Config\AppConstants::ROLE_MOD) {
             // Cấp cao nhất: Xem được tất cả. Sử dụng paginate để hỗ trợ phân trang.
-            return $this->userModel->paginate($perPage);
+            return $query->paginate($perPage);
         } elseif ($roleName == \Config\AppConstants::ROLE_TRUONG_PHONG) {
             // Cấp Trưởng phòng: Chỉ được xem tài khoản của nhân viên cùng bộ phận
             if ($departmentId) {
-                return $this->userModel->where('employees.department_id', $departmentId)->paginate($perPage);
+                $query->where('employees.department_id', $departmentId);
+                return $query->paginate($perPage);
             }
             return [];
         }
@@ -273,8 +283,27 @@ class UserService extends BaseService
         if ($this->userModel->delete($id)) {
             // Ghi log
             $this->logService->log('DELETE', 'Users', $id, ['deleted_record' => $oldData]);
-            return $this->success(null, 'Đã gỡ vĩnh viễn tài khoản ra khỏi hệ thống.');
+            return $this->success(null, 'Đã gỡ vĩnh vễn tài khoản ra khỏi hệ thống.');
         }
         return $this->fail('Lỗi hệ thống: Không thể xóa tài khoản hiện tại.');
+    }
+
+    /**
+     * Lấy số liệu thống kê tổng quan cho module User
+     */
+    public function getStats()
+    {
+        // Lấy danh sách số lượng người dùng theo từng vai trò
+        $roleBreakdown = $this->userModel->select('roles.name as role_name, COUNT(users.id) as count')
+                                         ->join('roles', 'roles.id = users.role_id', 'left')
+                                         ->groupBy('users.role_id')
+                                         ->findAll();
+
+        return [
+            'total'          => $this->userModel->countAllResults(),
+            'active'         => $this->userModel->where('active_status', 1)->countAllResults(),
+            'inactive'       => $this->userModel->where('active_status', 0)->countAllResults(),
+            'role_breakdown' => $roleBreakdown
+        ];
     }
 }

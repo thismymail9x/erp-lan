@@ -33,15 +33,26 @@ class EmployeeController extends BaseController
             return redirect()->to('/dashboard')->with('error', 'Bạn không có quyền truy cập danh sách nhân sự.');
         }
 
-        $sort  = $this->request->getGet('sort') ?? 'id';
-        $order = $this->request->getGet('order') ?? 'desc';
+        $sort   = $this->request->getGet('sort') ?? 'id';
+        $order  = $this->request->getGet('order') ?? 'desc';
+        $search = $this->request->getGet('search') ?? '';
+        $perPage = 10;
+
+        $employees = $this->employeeService->getAllEmployees($sort, $order, $perPage, $search);
 
         $data = [
-            'title' => 'Quản lý nhân viên | L.A.N ERP',
-            'employees' => $this->employeeService->getAllEmployees($sort, $order),
-            'currentSort' => $sort,
-            'currentOrder' => $order
+            'title'        => 'Quản lý nhân viên | L.A.N ERP',
+            'employees'    => $employees,
+            'pager'        => $this->employeeService->getPager(),
+            'currentSort'  => $sort,
+            'currentOrder' => $order,
+            'search'       => $search
         ];
+
+        if ($this->request->isAJAX()) {
+            return view('dashboard/employees/index_table', $data);
+        }
+
         return view('dashboard/employees/index', $data);
     }
 

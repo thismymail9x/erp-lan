@@ -82,7 +82,7 @@ class CreateCustomerAndCaseTables extends Migration
                 'type'       => 'VARCHAR',
                 'constraint' => '255',
             ],
-            'internal_code' => [
+            'code' => [
                 'type'       => 'VARCHAR',
                 'constraint' => '50',
                 'unique'     => true,

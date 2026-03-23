@@ -12,7 +12,7 @@
             <form action="<?= base_url('attendance/list') ?>" method="get" class="filter-form">
                 <div class="form-group-apple">
                     <label>Chế độ</label>
-                    <select name="view" class="form-control" onchange="this.form.submit()">
+                    <select name="view" class="form-control-premium" onchange="this.form.submit()" title="Chuyển đổi giữa xem chi tiết theo ngày hoặc tổng hợp theo tháng">
                         <option value="daily" <?= ($viewType ?? '') == 'daily' ? 'selected' : '' ?>>Theo ngày</option>
                         <option value="monthly" <?= ($viewType ?? '') == 'monthly' ? 'selected' : '' ?>>Theo tháng</option>
                     </select>
@@ -21,19 +21,19 @@
                 <?php if (($viewType ?? 'daily') == 'daily') { ?>
                 <div class="form-group-apple">
                     <label>Ngày</label>
-                    <input type="date" name="date" value="<?= $currentDate ?>" class="form-control" onchange="this.form.submit()">
+                    <input type="date" name="date" value="<?= $currentDate ?>" class="form-control-premium" onchange="this.form.submit()" title="Chọn ngày cụ thể để xem danh sách điểm danh">
                 </div>
                 <?php } else { ?>
                 <div class="form-group-apple">
                     <label>Tháng</label>
-                    <input type="month" name="month" value="<?= $currentMonth ?>" class="form-control" onchange="this.form.submit()">
+                    <input type="month" name="month" value="<?= $currentMonth ?>" class="form-control-premium" onchange="this.form.submit()" title="Chọn tháng cần xem bảng công tổng hợp">
                 </div>
                 <?php } ?>
                 
                 <div class="form-group-apple">
                     <label>Phòng ban</label>
-                    <select name="department_id" class="form-control" onchange="this.form.submit()">
-                        <option value="">Tất cả</option>
+                    <select name="department_id" class="form-control-premium" onchange="this.form.submit()" title="Lọc nhân viên theo phòng ban chuyên môn">
+                        <option value="">Tất cả phòng ban</option>
                         <?php foreach($departments as $d) { ?>
                             <option value="<?= $d['id'] ?>" <?= $currentDept == $d['id'] ? 'selected' : '' ?>><?= esc($d['name']) ?></option>
                         <?php } ?>
@@ -42,11 +42,11 @@
             </form>
             
             <div class="actions-group">
-                <a href="<?= base_url('attendance') ?>" class="btn-premium-sm hide-mobile">
+                <a href="<?= base_url('attendance') ?>" class="btn-premium-sm hide-mobile" title="Chuyển sang giao diện chấm công cá nhân">
                     <i class="fas fa-camera"></i> Chấm công tôi
                 </a>
-                <a href="<?= base_url('attendance/export') ?>?month=<?= date('Y-m', strtotime($currentDate)) ?>" class="btn-secondary-sm">
-                    <i class="fas fa-download"></i> Xuất
+                <a href="<?= base_url('attendance/export') ?>?month=<?= date('Y-m', strtotime($currentDate)) ?>" class="btn-secondary-sm" title="Xuất dữ liệu bảng công ra file Excel/CSV">
+                    <i class="fas fa-download"></i> Xuất Excel
                 </a>
             </div>
         </div>
@@ -140,8 +140,8 @@ $currentOrder = $currentOrder ?? 'desc';
                                     </td>
                                 <?php } ?>
                                 <td style="padding: 15px 20px;">
-                                    <div style="font-weight: 600; color: #1d1d1f; font-size: 14px;"><?= esc($row['full_name']) ?></div>
-                                    <div class="hide-mobile" style="font-size: 11px; color: var(--apple-text-muted);"><?= esc($row['dept_name'] ?: '---') ?></div>
+                                    <div style="font-weight: 600; color: #1d1d1f; font-size: 14px;" title="Tên nhân viên"><?= esc($row['full_name']) ?></div>
+                                    <div class="hide-mobile" style="font-size: 11px; color: var(--apple-text-muted);" title="Phòng ban làm việc"><?= esc($row['dept_name'] ?: '---') ?></div>
                                 </td>
                                 <td class="hide-mobile" style="padding: 15px 20px; color: var(--apple-text-muted); font-size: 13px;">
                                     <?= esc($row['dept_name'] ?: '---') ?>
@@ -162,12 +162,12 @@ $currentOrder = $currentOrder ?? 'desc';
                                         </div>
                                     </div>
                                 </td>
-                                <td class="hide-mobile" style="padding: 15px 20px; text-align: center; font-weight: 700; color: #1d1d1f;">
+                                <td class="hide-mobile" style="padding: 15px 20px; text-align: center; font-weight: 700; color: #1d1d1f;" title="Tổng số giờ đã làm việc được tính toán tự động">
                                     <?= $row['worked_hours'] ? $row['worked_hours'] . "h" : '---' ?>
                                 </td>
                                 <td class="hide-mobile" style="padding: 15px 20px; text-align: center;">
                                     <?php if($row['check_in_time']) { ?>
-                                        <i class="fas <?= $row['is_valid_location'] ? 'fa-check-circle' : 'fa-times-circle' ?>" style="color: <?= $row['is_valid_location'] ? '#34c759' : '#ff3b30' ?>; font-size: 16px;"></i>
+                                        <i class="fas <?= $row['is_valid_location'] ? 'fa-check-circle' : 'fa-times-circle' ?>" style="color: <?= $row['is_valid_location'] ? '#34c759' : '#ff3b30' ?>; font-size: 16px;" title="<?= $row['is_valid_location'] ? 'Vị trí hợp lệ' : 'Sai vị trí quy định' ?>"></i>
                                     <?php } else { ?>
                                         ---
                                     <?php } ?>
@@ -208,13 +208,15 @@ $currentOrder = $currentOrder ?? 'desc';
 <div class="bulk-actions-bar" id="bulk-bar">
     <span id="selected-count" style="font-weight: 600; font-size: 14px;">0 mục đã chọn</span>
     <div style="display: flex; gap: 12px; align-items: center;">
-        <select id="bulk-status" class="form-control" style="border-radius: 12px; height: 40px; min-width: 160px; background-color: #333; color: white; border: none; font-size: 13px;">
+        <select id="bulk-status" class="form-control-premium" style="height: 40px; min-width: 180px; background-color: #333; color: white; border: none; font-size: 13px;" title="Chọn trạng thái mới cho các mục đã đánh dấu">
             <option value="">Thay đổi trạng thái...</option>
-            <option value="REGULAR">Xác nhận đúng giờ</option>
-            <option value="LATE">Đánh dấu trễ</option>
-            <option value="LEAVE">Nghỉ có phép</option>
+            <option value="REGULAR">Xác nhận ĐÚNG GIỜ</option>
+            <option value="LATE">Đánh dấu TRỄ GIỜ</option>
+            <option value="EARLY_LEAVE">Đánh dấu VỀ SỚM</option>
+            <option value="LEAVE">Nghỉ CÓ PHÉP</option>
+            <option value="INVALID_LOCATION">Sai VỊ TRÍ</option>
         </select>
-        <button onclick="applyBulkUpdate()" class="btn-premium-sm" style="padding: 0 20px; height: 40px;">Xác nhận</button>
+        <button onclick="applyBulkUpdate()" class="btn-premium-sm" style="padding: 0 20px; height: 40px;" title="Áp dụng thay đổi hàng loạt">Xác nhận</button>
     </div>
 </div>
 

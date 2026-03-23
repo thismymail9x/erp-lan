@@ -31,14 +31,15 @@ class EmployeeService extends BaseService
     /**
      * Lấy danh sách nhân viên có lọc theo quyền và bộ phận.
      */
-    public function getAllEmployees(string $sort = 'id', string $order = 'desc')
+    public function getAllEmployees(string $sort = 'id', string $order = 'desc', int $perPage = 10, string $search = '')
     {
         $roleName = session()->get('role_name');
-        $departmentName = session()->get('department_name'); // Cần đảm bảo session có lưu department_name
+        $departmentName = session()->get('department_name');
 
         $sortMap = [
             'name' => 'employees.full_name',
             'position' => 'employees.position',
+            'dept' => 'departments.name',
             'join_date' => 'employees.join_date',
             'salary' => 'employees.salary_base',
             'id' => 'employees.id'
@@ -47,18 +48,36 @@ class EmployeeService extends BaseService
         $orderField = $sortMap[$sort] ?? 'employees.id';
         $direction  = (strtolower($order) === 'asc') ? 'asc' : 'desc';
 
-        $this->employeeModel->select('employees.*, departments.name as department_name')
-                            ->join('departments', 'departments.id = employees.department_id', 'left')
-                            ->orderBy($orderField, $direction);
+        $query = $this->employeeModel->select('employees.*, departments.name as department_name')
+                            ->join('departments', 'departments.id = employees.department_id', 'left');
+
+        // Áp dụng bộ lọc tìm kiếm
+        if (!empty($search)) {
+            $query->groupStart()
+                  ->like('employees.full_name', $search)
+                  ->orLike('employees.position', $search)
+                  ->orLike('departments.name', $search)
+                  ->groupEnd();
+        }
+
+        $query->orderBy($orderField, $direction);
 
         // Admin, Mod và người thuộc phòng Hành chính được xem tất cả
         if ($roleName === \Config\AppConstants::ROLE_ADMIN || 
             $roleName === \Config\AppConstants::ROLE_MOD || 
             $departmentName === \Config\AppConstants::DEPT_NAME_HANH_CHINH) {
-            return $this->employeeModel->findAll();
+            return $query->paginate($perPage);
         }
 
         return [];
+    }
+
+    /**
+     * Trả về object pager của EmployeeModel
+     */
+    public function getPager()
+    {
+        return $this->employeeModel->pager;
     }
 
     /**

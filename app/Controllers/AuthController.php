@@ -155,4 +155,32 @@ class AuthController extends BaseController
 
         return redirect()->back()->with('error', $result['message']);
     }
+
+    /**
+     * Đăng nhập vào tài khoản người dùng khác dưới quyền Admin
+     */
+    public function impersonate($userId)
+    {
+        $result = $this->authService->impersonate((int)$userId);
+
+        if ($result['status'] === 'success') {
+            return redirect()->to('/dashboard')->with('success', $result['message']);
+        }
+
+        return redirect()->back()->with('error', $result['message']);
+    }
+
+    /**
+     * Dừng phiên đăng nhập hộ và quay lại Admin
+     */
+    public function stopImpersonating()
+    {
+        $result = $this->authService->stopImpersonating();
+
+        if ($result['status'] === 'success') {
+            return redirect()->to('/users')->with('success', $result['message']);
+        }
+
+        return redirect()->to('/login')->with('error', $result['message']);
+    }
 }

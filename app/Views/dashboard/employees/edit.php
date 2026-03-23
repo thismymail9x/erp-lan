@@ -14,12 +14,12 @@
         </div>
     </div>
 
-    <div class="premium-card" style="max-width: 800px; margin: 0 auto;">
+    <div class="premium-card premium-card-centered-800">
         <form action="<?= base_url('employees/update/' . $employee['id']) ?>" method="POST" class="premium-form">
             <?= csrf_field() ?>
             
             <div class="form-grid">
-                <div class="form-group" style="grid-column: span 2;">
+                <div class="form-group form-group-full">
                     <label for="full_name">Họ và tên</label>
                     <input type="text" name="full_name" id="full_name" required value="<?= esc($employee['full_name']) ?>" placeholder="Nhập họ và tên...">
                 </div>
@@ -64,7 +64,7 @@
                     <input type="text" name="bank_account" id="bank_account" value="<?= esc($employee['bank_account'] ?? '') ?>" placeholder="Nhập số tài khoản...">
                 </div>
 
-                <div class="form-group" style="grid-column: span 2;">
+                <div class="form-group form-group-full">
                     <label for="user_id">Liên kết tài khoản hệ thống</label>
                     <select name="user_id" id="user_id">
                         <option value="">-- Không liên kết --</option>
@@ -72,18 +72,18 @@
                             <option value="<?= $u['id'] ?>" <?= ($employee['user_id'] == $u['id']) ? 'selected' : '' ?>><?= esc($u['email']) ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <p class="form-help-text">Liên kết này giúp nhân viên khi đăng nhập có thể thấy đúng hồ sơ của mình.</p>
+                    <p class="form-helper-text">Liên kết này giúp nhân viên khi đăng nhập có thể thấy đúng hồ sơ của mình.</p>
                 </div>
 
-                <div class="form-group" style="grid-column: span 2;">
+                <div class="form-group form-group-full">
                     <label for="address">Địa chỉ thường trú</label>
                     <input type="text" name="address" id="address" value="<?= esc($employee['address']) ?>" placeholder="Địa chỉ liên lạc đầy đủ...">
                 </div>
             </div>
 
-            <div class="form-actions" style="margin-top: 32px; display: flex; justify-content: flex-end;">
-                <button type="submit" class="btn-premium" style="min-width: 160px;">
-                    <i class="fas fa-check" style="margin-right: 8px;"></i> Cập nhật hồ sơ
+            <div class="form-actions-row">
+                <button type="submit" class="btn-premium">
+                    <i class="fas fa-check"></i>&nbsp; Cập nhật hồ sơ
                 </button>
             </div>
         </form>

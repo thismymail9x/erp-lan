@@ -115,7 +115,7 @@ class AttendanceService extends BaseService
 
             if ($this->attendanceModel->insert($insertData)) {
                 try {
-                    $this->logService->log('CHECK_IN', 'Attendance', $this->attendanceModel->getInsertID(), ['status' => $status]);
+                    $this->logService->log('CHECK_IN', 'Attendance', (int)$this->attendanceModel->getInsertID(), ['status' => $status]);
                 } catch (\Exception $e) {
                     // Log fail should not break the response
                     $this->logError('Log CHECK_IN fail: ' . $e->getMessage());
@@ -151,7 +151,7 @@ class AttendanceService extends BaseService
 
             if ($this->attendanceModel->update($record['id'], $updateData)) {
                 try {
-                    $this->logService->log('CHECK_OUT', 'Attendance', $record['id'], ['worked_hours' => $workedHours]);
+                    $this->logService->log('CHECK_OUT', 'Attendance', (int)$record['id'], ['worked_hours' => $workedHours]);
                 } catch (\Exception $e) {
                     // Log fail should not break the response
                     $this->logError('Log CHECK_OUT fail: ' . $e->getMessage());

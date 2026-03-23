@@ -57,7 +57,9 @@ DROP TABLE IF EXISTS `roles_permissions`;
 CREATE TABLE `roles_permissions` (
   `role_id` int(11) unsigned NOT NULL COMMENT 'ID vai trò',
   `permission_id` int(11) unsigned NOT NULL COMMENT 'ID quyền',
-  PRIMARY KEY (`role_id`,`permission_id`)
+  PRIMARY KEY (`role_id`,`permission_id`),
+  CONSTRAINT `roles_permissions_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `roles_permissions_perm` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Bảng trung gian nối vai trò và quyền hạn';
 
 -- ----------------------------
@@ -131,7 +133,7 @@ CREATE TABLE `cases` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT COMMENT 'ID khóa chính',
   `customer_id` int(11) unsigned NOT NULL COMMENT 'ID khách hàng liên quan',
   `title` varchar(255) NOT NULL COMMENT 'Tên vụ việc',
-  `internal_code` varchar(50) NOT NULL COMMENT 'Mã hồ sơ nội bộ',
+  `code` varchar(50) NOT NULL COMMENT 'Mã hồ sơ nội bộ',
   `description` text DEFAULT NULL COMMENT 'Mô tả chi tiết vụ việc',
   `status` enum('open','in_progress', 'pending', 'closed', 'cancelled') DEFAULT 'open' COMMENT 'Trạng thái (Mới, Đang xử lý, Tạm dừng, Đóng, Hủy)',
   `priority` enum('low','medium', 'high', 'critical') DEFAULT 'medium' COMMENT 'Mức độ ưu tiên',
@@ -142,7 +144,7 @@ CREATE TABLE `cases` (
   `updated_at` datetime DEFAULT NULL COMMENT 'Ngày cập nhật',
   `deleted_at` datetime DEFAULT NULL COMMENT 'Ngày xóa mềm',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `internal_code` (`internal_code`),
+  UNIQUE KEY `code` (`code`),
   KEY `customer_id` (`customer_id`),
   KEY `assigned_lawyer_id` (`assigned_lawyer_id`),
   CONSTRAINT `cases_ibfk_1` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -415,3 +417,149 @@ CREATE TABLE `system_logs` (
   KEY `user_id` (`user_id`),
   CONSTRAINT `system_logs_user_id_foreign_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ----------------------------
+-- Table structure for notifications (Hệ thống thông báo nội bộ)
+-- ----------------------------
+DROP TABLE IF EXISTS `notifications`;
+CREATE TABLE `notifications` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT COMMENT 'ID khóa chính',
+  `user_id` int(11) unsigned NOT NULL COMMENT 'ID người nhận thông báo',
+  `sender_id` int(11) unsigned DEFAULT NULL COMMENT 'ID người gửi (nếu có)',
+  `type` varchar(50) DEFAULT 'system' COMMENT 'Loại thông báo',
+  `title` varchar(255) NOT NULL COMMENT 'Tiêu đề thông báo',
+  `message` text NOT NULL COMMENT 'Nội dung chi tiết',
+  `link` varchar(255) DEFAULT NULL COMMENT 'Đường dẫn liên kết',
+  `is_read` tinyint(1) DEFAULT 0 COMMENT 'Tình trạng đã đọc (1: Có, 0: Không)',
+  `created_at` datetime DEFAULT NULL,
+  `updated_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`),
+  CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Bảng lưu trữ thông báo hệ thống và xét duyệt';
+
+-- ----------------------------
+-- Bổ sung cột step_id cho bảng documents
+-- ----------------------------
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                      WHERE TABLE_NAME = 'documents' AND COLUMN_NAME = 'step_id' AND TABLE_SCHEMA = DATABASE());
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE `documents` ADD COLUMN `step_id` INT(11) UNSIGNED NULL COMMENT ''Tham chiếu bước thực hiện (nếu có)'' AFTER `case_id`', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- ----------------------------
+-- Bảng Phân công nhiều nhân sự cho 1 Vụ việc (case_members)
+-- ----------------------------
+DROP TABLE IF EXISTS `case_members`;
+CREATE TABLE `case_members` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `case_id` int(11) unsigned NOT NULL COMMENT 'ID vụ việc',
+  `employee_id` int(11) unsigned NOT NULL COMMENT 'ID nhân sự phụ trách',
+  `role_in_case` enum('approver', 'assignee', 'supporter') NOT NULL DEFAULT 'supporter' COMMENT 'Quyền hạn: Phê duyệt, Chuyên môn, Hỗ trợ',
+  `created_at` datetime DEFAULT NULL,
+  `updated_at` datetime DEFAULT NULL,
+  `deleted_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `case_id` (`case_id`),
+  KEY `employee_id` (`employee_id`),
+  UNIQUE KEY `unique_member` (`case_id`, `employee_id`, `role_in_case`),
+  CONSTRAINT `fk_case_members_case` FOREIGN KEY (`case_id`) REFERENCES `cases` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_case_members_emp` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Lưu danh sách những người liên quan đến xử lý 1 vụ việc';
+
+-- ----------------------------
+-- Seeding Data cho Hệ thống Phân Quyền Mới
+-- ----------------------------
+INSERT IGNORE INTO `permissions` (`id`, `name`, `description`) VALUES 
+(1, 'case.view', 'Xem danh sách hồ sơ cơ bản'),
+(2, 'case.manage', 'Sửa đổi, phân công, xoá hồ sơ'),
+(3, 'case.approve', 'Phê duyệt, duyệt chuyển bước công việc'),
+(4, 'user.view', 'Xem danh sách tài khoản, nhân sự'),
+(5, 'user.manage', 'Tạo, khóa, phân quyền chi tiết cho tài khoản'),
+(6, 'contract.view', 'Xem danh sách hợp đồng đã ký'),
+(7, 'contract.manage', 'Soạn thảo, sửa đổi, hủy hợp đồng'),
+(8, 'finance.manage', 'Xem báo cáo tài chính, lương, thu chi'),
+(9, 'sys.admin', 'Toàn quyền Admin tối cao');
+
+-- Gán quyền cho Admin (role_id = 1) (Mọi quyền)
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`) SELECT 1, id FROM permissions;
+
+-- Gán quyền cho Trưởng phòng (role_id = 3)
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`) 
+SELECT 3, id FROM permissions WHERE name IN ('case.view', 'case.manage', 'case.approve', 'user.view', 'contract.view', 'contract.manage', 'finance.manage');
+
+-- Gán quyền cho Luật sư (role_id = 4)
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`) 
+SELECT 4, id FROM permissions WHERE name IN ('case.view', 'case.approve', 'contract.view', 'contract.manage');
+
+-- Gán quyền cho Nhân viên (role_id = 5)
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`) 
+SELECT 5, id FROM permissions WHERE name IN ('case.view', 'contract.view');
+
+-- ----------------------------
+-- Nâng cấp hệ thống phân quyền mới (Thêm vào phần cuối để dễ dàng chạy đè)
+-- ----------------------------
+
+-- Thêm cột module_group vào permissions nếu chưa có
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                      WHERE TABLE_NAME = 'permissions' AND COLUMN_NAME = 'module_group' AND TABLE_SCHEMA = DATABASE());
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE `permissions` ADD COLUMN `module_group` VARCHAR(100) NULL DEFAULT ''Hệ thống'' COMMENT ''Nhóm module chức năng để phân loại UI'' AFTER `name`', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Cập nhật module_group cho các quyền đã chèn
+UPDATE `permissions` SET `module_group` = 'Vụ việc pháp lý' WHERE `name` IN ('case.view', 'case.manage', 'case.approve');
+UPDATE `permissions` SET `module_group` = 'Nhân sự & Tài khoản' WHERE `name` IN ('user.view', 'user.manage', 'manage_employees');
+UPDATE `permissions` SET `module_group` = 'Hợp đồng' WHERE `name` IN ('contract.view', 'contract.manage', 'manage_contracts');
+UPDATE `permissions` SET `module_group` = 'Kế toán' WHERE `name` IN ('finance.manage', 'view_accounting');
+UPDATE `permissions` SET `module_group` = 'Hệ thống' WHERE `name` = 'sys.admin';
+
+-- Tạo bảng user_permissions để ghi đè quyền cá nhân
+CREATE TABLE IF NOT EXISTS `user_permissions` (
+  `user_id` int(11) unsigned NOT NULL COMMENT 'ID người dùng',
+  `permission_id` int(11) unsigned NOT NULL COMMENT 'ID quyền',
+  `is_granted` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1 = Ép cấp quyền, 0 = Ép tước quyền (mặc cho Role có hay ko)',
+  PRIMARY KEY (`user_id`,`permission_id`),
+  CONSTRAINT `user_permissions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `user_permissions_perm` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Bảng ghi đè ngoại lệ phân quyền cấp trực tiếp cho User';
+
+-- ----------------------------
+-- Cập nhật quyền thực tế (Chỉ giữ lại các Module đang có)
+-- Chạy script này để dọn dẹp các quyền không hợp lệ và cập nhật lại mảng dữ liệu.
+-- ----------------------------
+
+-- 1. Xóa các quyền không tồn tại trên thực tế hoặc data cũ
+DELETE FROM `permissions` WHERE `name` IN ('contract.view', 'contract.manage', 'finance.manage', 'manage_employees', 'manage_cases', 'view_accounting', 'manage_contracts');
+
+-- 2. Thêm các quyền mới thực tế
+INSERT IGNORE INTO `permissions` (`name`, `description`, `module_group`) VALUES
+('customer.view', 'Xem danh sách khách hàng', 'Khách hàng'),
+('customer.manage', 'Tạo, sửa, xoá thông tin khách hàng', 'Khách hàng'),
+('attendance.view', 'Xem lịch sử chấm công', 'Chấm công'),
+('workflow.manage', 'Cấu hình quy trình vụ việc', 'Hệ thống');
+
+-- 3. Cập nhật quyền cho Trưởng phòng (role_id = 3)
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`) 
+SELECT 3, id FROM `permissions` WHERE `name` IN ('case.view', 'case.manage', 'case.approve', 'user.view', 'customer.view', 'customer.manage', 'attendance.view');
+
+-- 4. Cập nhật quyền cho Luật sư (role_id = 4)
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`) 
+SELECT 4, id FROM `permissions` WHERE `name` IN ('case.view', 'case.approve', 'customer.view', 'attendance.view');
+
+-- 5. Cập nhật quyền cho Nhân viên (role_id = 5)
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`) 
+SELECT 5, id FROM `permissions` WHERE `name` IN ('case.view', 'customer.view', 'attendance.view');
+
+-- ----------------------------
+-- Bổ sung updated_at và deleted_at cho bảng mới case_members để chuẩn hoá thao tác Soft Delete
+-- ----------------------------
+SET @col_upd = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'case_members' AND COLUMN_NAME = 'updated_at' AND TABLE_SCHEMA = DATABASE());
+SET @sql_upd = IF(@col_upd = 0, 'ALTER TABLE `case_members` ADD COLUMN `updated_at` DATETIME NULL AFTER `created_at`', 'SELECT 1');
+PREPARE stmt_upd FROM @sql_upd; EXECUTE stmt_upd; DEALLOCATE PREPARE stmt_upd;
+
+SET @col_del = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'case_members' AND COLUMN_NAME = 'deleted_at' AND TABLE_SCHEMA = DATABASE());
+SET @sql_del = IF(@col_del = 0, 'ALTER TABLE `case_members` ADD COLUMN `deleted_at` DATETIME NULL AFTER `updated_at`', 'SELECT 1');
+PREPARE stmt_del FROM @sql_del; EXECUTE stmt_del; DEALLOCATE PREPARE stmt_del;

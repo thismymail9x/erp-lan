@@ -13,3 +13,30 @@
  *
  * @see: https://codeigniter.com/user_guide/extending/common.html
  */
+
+if (!function_exists('has_permission')) {
+    /**
+     * Kiểm tra nhanh xem người dùng hiện tại có quyền thực thi hành động hay không.
+     * Cờ 'sys.admin' luôn trả về true cho mọi quyền.
+     *
+     * @param string $actionKey Mã quyền (VD: 'case.manage', 'user.view')
+     * @return bool
+     */
+    function has_permission(string $actionKey): bool
+    {
+        $session = \Config\Services::session();
+        $userPerms = $session->get('permissions');
+
+        if (!is_array($userPerms)) {
+            return false;
+        }
+
+        $cleanKey = trim($actionKey);
+
+        if (in_array('sys.admin', $userPerms)) {
+            return true;
+        }
+
+        return in_array($cleanKey, $userPerms);
+    }
+}

@@ -36,6 +36,20 @@ class AppConstants
     public const CASE_STATUS_CLOSED     = 'closed';
     public const CASE_STATUS_CANCELLED  = 'cancelled';
 
+    public const CASE_STATUS_LABELS = [
+        'moi_tiep_nhan'   => 'Mới tiếp nhận',
+        'dang_xu_ly'      => 'Đang xử lý',
+        'cho_tham_tam'    => 'Chờ thẩm định',
+        'da_giai_quyet'   => 'Đã giải quyết',
+        'dong_ho_so'      => 'Đã đóng hồ sơ',
+        'huy'             => 'Đã hủy',
+        'open'            => 'Đang mở',
+        'in_progress'     => 'Đang tiến hành',
+        'pending'         => 'Đang chờ',
+        'closed'          => 'Đã đóng',
+        'cancelled'       => 'Đã hủy'
+    ];
+
     /**
      * Danh sách các vai trò có quyền xem toàn bộ dữ liệu (Privileged Roles)
      */
@@ -60,5 +74,5 @@ class AppConstants
     public const ATT_STATUS_LEAVE         = 'LEAVE'; // Nghỉ phép
     
     // IP mạng LAN nội bộ được phép điểm danh không cần camera
-    public const ATT_LAN_IPS = ['118.71.210.184', '::1', '192.168.', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.2', '172.3'];
+    public const ATT_LAN_IPS = ['1.55.89.247', '::1', ' 255.255.255.0', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.2', '172.3'];
 }

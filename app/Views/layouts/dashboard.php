@@ -16,7 +16,7 @@
 </head>
 <body>
     <div class="app-wrapper">
-        <div class="mobile-toggle-btn" id="mobile-toggle">
+        <div class="mobile-toggle-btn" id="mobile-toggle" title="Mở/Đóng menu điều hướng">
             <i class="fas fa-bars"></i>
         </div>
         <!-- Sidebar -->
@@ -26,10 +26,10 @@
                     <h2>L.A.N <span class="text-blue">ERP</span></h2>
                 </div>
                 <div class="user-mini-profile">
-                    <div class="user-avatar" title="<?= esc(session()->get('full_name')) ?>">
+                    <div class="user-avatar" title="<?= esc(session()->get('full_name')) ?> (<?= esc(session()->get('role_name')) ?>)">
                         <?= strtoupper(substr(session()->get('full_name') ?? 'U', 0, 1)) ?>
                     </div>
-                    <a href="<?= base_url('logout') ?>" class="logout-mini" title="Đăng xuất">
+                    <a href="<?= base_url('logout') ?>" class="logout-mini" title="Kết thúc phiên làm việc và đăng xuất">
                         <i class="fas fa-power-off"></i>
                     </a>
                 </div>
@@ -43,7 +43,7 @@
                     $isActive = (current_url() == base_url($item['url'])) ? 'active' : '';
                 ?>
                 <li class="nav-item">
-                    <a href="<?= base_url($item['url']) ?>" class="nav-link <?= $isActive ?>">
+                    <a href="<?= base_url($item['url']) ?>" class="nav-link <?= $isActive ?>" title="Truy cập <?= $item['title'] ?>">
                         <i class="<?= $item['icon'] ?>"></i> <?= $item['title'] ?>
                     </a>
                 </li>
@@ -56,6 +56,38 @@
 
         <!-- Main Content -->
         <main class="main-content">
+            <!-- Top Navbar for Notifications -->
+            <header class="top-navbar">
+                <div class="notification-dropdown">
+                    <a href="#" id="notifDropdownToggle" class="notif-dropdown-toggle">
+                        <i class="fas fa-bell"></i>
+                        <span id="notifBadge" class="notif-badge">0</span>
+                    </a>
+                    <div id="notifDropdownMenu" class="notif-dropdown-menu">
+                        <div class="notif-menu-header">
+                            <strong>Thông báo mới</strong>
+                            <a href="#" id="markAllRead" class="notif-mark-all">Đánh dấu đã đọc</a>
+                        </div>
+                        <div id="notifList">
+                            <div style="padding: 15px; text-align: center; color: var(--muted-dark); font-size: 0.85rem;">Đang tải...</div>
+                        </div>
+                        <a href="<?= base_url('notifications') ?>" class="notif-footer-link">Xem tất cả</a>
+                    </div>
+                </div>
+            </header>
+
+            <?php if(session()->get('is_impersonating')): ?>
+                <div class="impersonation-banner">
+                    <div>
+                        <i class="fas fa-user-secret"></i> 
+                        Bạn đang đăng nhập dưới quyền: <strong><?= esc(session()->get('full_name')) ?></strong> (<?= esc(session()->get('email')) ?>)
+                    </div>
+                    <a href="<?= base_url('stop-impersonating') ?>" class="btn-stop-impersonate" title="Thoát chế độ đăng nhập hộ để quay về tài khoản Admin">
+                        Quay lại Admin <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            <?php endif; ?>
+            
             <section class="content-body">
                 <?= $this->renderSection('content') ?>
             </section>
@@ -80,6 +112,82 @@
     function closeImgModal() {
         document.getElementById('imgModal').style.display = "none";
     }
+
+    // Notifications Script
+    $(document).ready(function() {
+        function fetchUnreadCount() {
+            $.get('<?= base_url("notifications/unread-count") ?>', function(resp) {
+                if(resp.status === 'success') {
+                    if(resp.count > 0) {
+                        $('#notifBadge').text(resp.count).show();
+                    } else {
+                        $('#notifBadge').hide();
+                    }
+                }
+            });
+        }
+        
+        function fetchNotifications() {
+            $.get('<?= base_url("notifications/unread") ?>', function(resp) {
+                if(resp.status === 'success') {
+                    let html = '';
+                    if(resp.data.length === 0) {
+                        html = '<div style="padding: 15px; text-align: center; color: #888; font-size: 0.85rem;">Không có thông báo mới.</div>';
+                    } else {
+                        resp.data.forEach(n => {
+                            let icon = n.type === 'approval' ? 'fa-check-circle' : 'fa-info-circle';
+                            let color = n.type === 'approval' ? '#34C759' : '#007AFF';
+                            html += `
+                                <div class="notif-item" data-id="${n.id}" data-link="${n.link}" style="padding: 10px 15px; border-bottom: 1px solid #eee; display: flex; gap: 10px; cursor: pointer;">
+                                    <div style="color: ${color}; font-size: 1.2rem; flex-shrink: 0;"><i class="fas ${icon}"></i></div>
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 0.85rem; color: #333; margin-bottom: 3px;">${n.title}</div>
+                                        <div style="font-size: 0.8rem; color: #666; line-height: 1.3;">${n.message}</div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    }
+                    $('#notifList').html(html);
+                }
+            });
+        }
+
+        $('#notifDropdownToggle').click(function(e) {
+            e.preventDefault();
+            $('#notifDropdownMenu').toggle();
+            if($('#notifDropdownMenu').is(':visible')) {
+                fetchNotifications();
+            }
+        });
+
+        // Đóng dropdown khi click ra ngoài
+        $(document).click(function(e) {
+            if(!$(e.target).closest('.notification-dropdown').length) {
+                $('#notifDropdownMenu').hide();
+            }
+        });
+
+        $('#notifList').on('click', '.notif-item', function() {
+            let id = $(this).data('id');
+            let link = $(this).data('link');
+            $.post('<?= base_url("notifications/read/") ?>' + id, function() {
+                if(link) window.location.href = link;
+                else location.reload();
+            });
+        });
+
+        $('#markAllRead').click(function(e) {
+            e.preventDefault();
+            $.post('<?= base_url("notifications/read-all") ?>', function() {
+                fetchUnreadCount();
+                $('#notifDropdownMenu').hide();
+            });
+        });
+
+        fetchUnreadCount();
+        setInterval(fetchUnreadCount, 30000); // refresh every 30s
+    });
     </script>
     <!-- Page specific scripts -->
     <?= $this->renderSection('scripts') ?>
