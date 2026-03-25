@@ -6,12 +6,21 @@ use App\Models\SystemSettingModel;
 use CodeIgniter\I18n\Time;
 
 /**
- * Service xử lý các tiện ích hệ thống (vd: Quotes)
- * @package App\Services
+ * UtilityService
+ * 
+ * Cung cấp các tiện ích hệ thống không thuộc về nghiệp vụ chính.
+ * Hiện tại hỗ trợ:
+ * 1. Động lực làm việc (Daily Quotes): Hiển thị các câu châm ngôn xoay vòng.
+ * 2. Thuật toán xoay vòng ngẫu nhiên (Shuffle rotation) để tránh nhàm chán cho nhân viên.
  */
 class UtilityService extends BaseService
 {
     private $model;
+    
+    /**
+     * Danh sách các câu châm ngôn, lời khuyên và câu đùa công sở.
+     * Được biên tập để giảm căng thẳng và tăng cảm hứng làm việc.
+     */
     private $quotes = [
         "Công việc không thể chỉ là nhiệm vụ, nó phải là sự đam mê.",
         "Làm việc chăm chỉ là chìa khóa để mở cánh cửa thành công.",
@@ -26,7 +35,7 @@ class UtilityService extends BaseService
         "Sự nỗ lực không bao giờ bị lãng phí, ngay cả khi kết quả không như mong đợi.",
         "Thành công không đến từ những gì bạn làm một lần, mà từ những gì bạn làm liên tục.",
         "Khi bạn đặt ra mục tiêu, bạn đã tạo ra con đường để đạt được chúng.",
-        "Chỉ có những người dám mơ ước mới có thể biến ước mơ thành hiện thực.",
+        "Chỉ có những người dám mơ ước mới có thể biến ước mơ thành thực.",
         "Khó khăn là cơ hội để bạn chứng minh khả năng và sức mạnh của chính mình.",
         "Trong mọi khó khăn, luôn có một bài học quý giá để học hỏi và trưởng thành.",
         "Sự bền bỉ trong những lúc khó khăn chính là chìa khóa mở cửa thành công.",
@@ -59,30 +68,35 @@ class UtilityService extends BaseService
 
     public function __construct()
     {
+        parent::__construct();
+        // Sử dụng SystemSettingModel để lưu trữ trạng thái quote (tránh việc mỗi lần F5 lại đổi quote)
         $this->model = new SystemSettingModel();
     }
 
     /**
-     * Lấy câu nói hay hiện tại (xoay vòng mỗi 3 ngày)
+     * Lấy câu châm ngôn của ngày hôm nay.
+     * Cơ chế: Một câu quote sẽ được giữ nguyên trong vòng 3 ngày để người dùng "ấm lòng".
      */
     public function getTodayQuote()
     {
+        // 1. Phân tích trạng thái quote hiện tại từ DB (JSON format)
         $stateRow = $this->model->find('quote_state');
         $state = json_decode($stateRow['value'], true);
 
         $now = Time::now();
         $lastUpdated = Time::parse($state['last_updated_at'] ?? '2000-01-01');
 
-        // Kiểm tra xem đã đến lúc đổi quote chưa (3 ngày)
+        // 2. Kiểm tra chu kỳ đổi mới (3 ngày)
         $diff = $now->getTimestamp() - $lastUpdated->getTimestamp();
         $threeDays = 3 * 24 * 60 * 60;
 
         if ($diff >= $threeDays || empty($state['shuffled_indices'])) {
-            // Cập nhật quote mới
+            // Thực hiện xoay vòng sang quote tiếp theo trong hàng đợi shuffled
             $state = $this->rotateQuote($state);
             $this->model->update('quote_state', ['value' => json_encode($state)]);
         }
 
+        // 3. Truy xuất nội dung quote dựa trên chỉ số (Index) đã được xáo trộn
         $currentIndexInShuffled = $state['current_index'];
         $quoteIndex = $state['shuffled_indices'][$currentIndexInShuffled];
 
@@ -90,22 +104,25 @@ class UtilityService extends BaseService
     }
 
     /**
-     * Xoay vòng quote
+     * Thuật toán Xoay vòng & Xáo trộn (Shuffle Rotation).
+     * Đảm bảo mọi câu quote đều được xuất hiện ít nhất một lần trước khi lặp lại.
      */
     private function rotateQuote($state)
     {
         $count = count($this->quotes);
         
-        // Nếu danh sách shuffled trống hoặc đã chạy hết vòng, tạo vòng mới
+        // Nếu đã đi hết một lượt (Shuffled list) hoặc danh sách trống -> Xáo trộn lại từ đầu
         if (empty($state['shuffled_indices']) || $state['current_index'] >= $count - 1) {
             $indices = range(0, $count - 1);
-            shuffle($indices);
+            shuffle($indices); // Thuật toán xáo trộn ngẫu nhiên của PHP
             $state['shuffled_indices'] = $indices;
             $state['current_index'] = 0;
         } else {
+            // Chuyển sang câu tiếp theo trong danh sách đã xáo
             $state['current_index']++;
         }
 
+        // Đánh dấu thời điểm thay đổi để tính chu kỳ 3 ngày tiếp theo
         $state['last_updated_at'] = Time::now()->toDateTimeString();
 
         return $state;

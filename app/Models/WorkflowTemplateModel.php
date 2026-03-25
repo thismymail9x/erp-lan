@@ -9,7 +9,7 @@ class WorkflowTemplateModel extends BaseModel
     protected $useAutoIncrement = true;
     protected $returnType       = 'array';
     protected $useSoftDeletes   = true;
-    protected $allowedFields    = ['code', 'name', 'case_type', 'version', 'is_active', 'total_estimated_days', 'created_by'];
+    protected $allowedFields    = ['code', 'name', 'case_type', 'is_active', 'total_estimated_days', 'created_by'];
 
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';

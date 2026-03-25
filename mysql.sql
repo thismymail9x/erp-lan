@@ -725,3 +725,20 @@ SELECT 5, id FROM `permissions` WHERE `name` = 'case.view';
 INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`)
 SELECT 4, id FROM `permissions` WHERE `name` = 'case.view';
 
+-- [ADD-ON] Cập nhật thông tin bổ sung cho nhân viên (Hồ sơ & Ngân hàng)
+ALTER TABLE `employees` ADD COLUMN `bank_name` varchar(255) DEFAULT NULL COMMENT 'Tên ngân hàng';
+ALTER TABLE `employees` ADD COLUMN `bank_account` varchar(50) DEFAULT NULL COMMENT 'Số tài khoản ngân hàng';
+ALTER TABLE `employees` ADD COLUMN `bank_owner` varchar(255) DEFAULT NULL COMMENT 'Tên chủ tài khoản (nếu khác họ tên)';
+ALTER TABLE `employees` ADD COLUMN `personal_email` varchar(255) DEFAULT NULL COMMENT 'Email cá nhân';
+ALTER TABLE `employees` ADD COLUMN `phone_number` varchar(20) DEFAULT NULL COMMENT 'Số điện thoại liên lạc';
+
+
+-- --------------------------------------------------------
+-- REMOVE VERSION COLUMN FROM WORKFLOW TEMPLATES
+-- --------------------------------------------------------
+ALTER TABLE workflow_templates DROP COLUMN version;
+
+-- --------------------------------------------------------
+-- ATTENDANCE OFFICE TOKEN CONFIGURATION
+-- --------------------------------------------------------
+INSERT IGNORE INTO system_settings (\key\, \alue\) VALUES ('office_security_token', 'OFFICE_AUTO_GEN');

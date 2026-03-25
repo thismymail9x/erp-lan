@@ -8,7 +8,7 @@
             <p class="content-subtitle hide-mobile">Danh sách truy cập hệ thống.</p>
         </div>
         <div class="header-controls">
-            <?php if(has_permission('user.manage')){ ?>
+            <?php if(has_permission('user.manage')) { ?>
             <a href="<?= base_url('users/create') ?>" class="btn-premium" title="Tạo tài khoản người dùng mới truy cập hệ thống">
                 <i class="fas fa-plus"></i> <span class="hide-mobile">Tạo tài khoản</span><span class="show-mobile-only">Tạo</span>
             </a>

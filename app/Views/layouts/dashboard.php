@@ -26,9 +26,9 @@
                     <h2>L.A.N <span class="text-blue">ERP</span></h2>
                 </div>
                 <div class="user-mini-profile">
-                    <div class="user-avatar" title="<?= esc(session()->get('full_name')) ?> (<?= esc(session()->get('role_name')) ?>)">
+                    <a href="<?= base_url('employees/edit/' . session()->get('employee_id')) ?>" class="user-avatar" title="Xem hồ sơ cá nhân: <?= esc(session()->get('full_name')) ?> (<?= esc(session()->get('role_name')) ?>)" style="text-decoration: none;">
                         <?= strtoupper(substr(session()->get('full_name') ?? 'U', 0, 1)) ?>
-                    </div>
+                    </a>
                     <a href="<?= base_url('logout') ?>" class="logout-mini" title="Kết thúc phiên làm việc và đăng xuất">
                         <i class="fas fa-power-off"></i>
                     </a>
@@ -39,7 +39,7 @@
                 $accessControl = new \App\Services\AccessControlService();
                 $menu = $accessControl->getSidebarMenu(session()->get('department_id'), session()->get('role_name'));
                 
-                foreach ($menu as $item): 
+                foreach ($menu as $item) { 
                     $isActive = (current_url() == base_url($item['url'])) ? 'active' : '';
                 ?>
                 <li class="nav-item">
@@ -47,7 +47,7 @@
                         <i class="<?= $item['icon'] ?>"></i> <?= $item['title'] ?>
                     </a>
                 </li>
-                <?php endforeach; ?>
+                <?php } ?>
             </nav>
             <div class="sidebar-footer">
                 &copy; 2026 L.A.N
@@ -76,7 +76,7 @@
                 </div>
             </header>
 
-            <?php if(session()->get('is_impersonating')): ?>
+            <?php if (session()->get('is_impersonating')) { ?>
                 <div class="impersonation-banner">
                     <div>
                         <i class="fas fa-user-secret"></i> 
@@ -86,7 +86,7 @@
                         Quay lại Admin <i class="fas fa-arrow-right"></i>
                     </a>
                 </div>
-            <?php endif; ?>
+            <?php } ?>
             
             <section class="content-body">
                 <?= $this->renderSection('content') ?>

@@ -43,16 +43,11 @@ class CaseModel extends BaseModel
         'customer_id'   => 'required|is_not_unique[customers.id]',
         'title'         => 'required|min_length[3]',
         'code'          => 'required|is_unique[cases.code,id,{id}]',
-        'type'          => 'required',
         'status'        => 'required',
     ];
 
     /**
-     * Tự động tính toán Deadline tổng của Hồ sơ dựa trên loại vụ việc
-     * 
-     * @param string $type Loại vụ việc (to_tung_dan_su, tu_van, ly_hon...)
-     * @param string|null $createdAt Ngày bắt đầu (mặc định là hiện tại)
-     * @return string|null Ngày hết hạn định dạng Y-m-d H:i:s
+     * Tự động tính toán Deadline tổng của Hồ sơ dựa trên loại vụ việc (Nay dùng số ngày từ Template)
      */
     public function calculateDeadline(string $type, string $createdAt = null): ?string
     {
@@ -60,25 +55,15 @@ class CaseModel extends BaseModel
         
         switch ($type) {
             case 'to_tung_dan_su':
-                // Tố tụng dân sự: Mặc định cho 15 ngày chuẩn bị đầu tiên
                 return date('Y-m-d H:i:s', strtotime('+15 days', $start));
-                
             case 'tu_van':
-                // Tư vấn: Phản hồi nhanh trong vòng 24 giờ
                 return date('Y-m-d H:i:s', strtotime('+24 hours', $start));
-                
             case 'ly_hon_thuan_tinh':
-                // Ly hôn thuận tình: Dự kiến hoàn tất bước đầu trong 30 ngày
                 return date('Y-m-d H:i:s', strtotime('+30 days', $start));
-                
             case 'xoa_an_tich':
-                // Xóa án tích: Quy trình kéo dài khoảng 60 ngày
                 return date('Y-m-d H:i:s', strtotime('+60 days', $start));
-                
             default:
-                // Các loại khác có thể mở rộng logic tại đây
                 return null;
         }
     }
 }
-

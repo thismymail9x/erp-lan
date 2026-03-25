@@ -11,7 +11,11 @@ use App\Services\SystemLogService;
  * UserService
  * 
  * Lớp Dịch vụ xử lý tất cả các nghiệp vụ lõi (business logic) liên quan đến quản lý Tài khoản người dùng.
- * Bao gồm: Lọc danh sách theo phân quyền, Thêm, Sửa (vai trò/mật khẩu), và Xóa tài khoản.
+ * Đảm nhận các nhiệm vụ:
+ * 1. Lọc và phân trang danh sách Users dựa theo cấp bậc người đang xem (Data Isolation).
+ * 2. Khởi tạo tài khoản đi kèm với hồ sơ nhân viên (Synchronized Creation).
+ * 3. Chỉnh sửa vai trò, mật khẩu và trạng thái (RBAC Update Logic).
+ * 4. Kiểm soát quyền xóa và ghi nhật ký thay đổi (Auditing).
  */
 class UserService extends BaseService
 {
@@ -23,6 +27,7 @@ class UserService extends BaseService
     public function __construct()
     {
         parent::__construct();
+        // Khởi tạo các Model nòng cốt
         $this->userModel = new UserModel();
         $this->employeeModel = new EmployeeModel();
         $this->roleModel = new RoleModel();
@@ -30,20 +35,21 @@ class UserService extends BaseService
     }
 
     /**
-     * Lấy danh sách tài khoản hợp lệ dựa trên hạng mức phân quyền, kèm sorting và phân trang.
+     * Truy xuất danh sách tài khoản theo cấp độ phân quyền (Context-Aware Listing).
      * 
-     * @param string $sort Trường cần sắp xếp
-     * @param string $order Hướng sắp xếp (asc/desc)
-     * @param int $perPage Số bản ghi mỗi trang
-     * @return array Danh sách tài khoản đã phân trang.
+     * @param string $sort Tiêu chí sắp xếp.
+     * @param string $order Hướng sắp xếp (asc/desc).
+     * @param int $perPage Số lượng bản ghi trên một trang.
+     * @param string $search Từ khóa tìm kiếm (Email hặc Tên).
+     * @return array Danh sách kết quả đã được lọc và phân trang.
      */
     public function getUsers(string $sort = 'id', string $order = 'desc', int $perPage = 10, string $search = '')
     {
-        // Lấy thông tin quyền và bộ phận của người dùng hiện tại từ Session
+        // 1. Xác định danh tính và bộ phận của người đang thao tác
         $roleName = session()->get('role_name');
         $departmentId = session()->get('department_id');
 
-        // Mapping các trường sort thân thiện sang trường trong DB thực tế
+        // 2. Bản đồ ánh xạ các trường sắp xếp từ giao diện sang tên cột thực tế trong Database
         $sortMap = [
             'role'   => 'roles.name',
             'status' => 'users.active_status',
@@ -54,27 +60,34 @@ class UserService extends BaseService
         $orderField = $sortMap[$sort] ?? 'users.id';
         $direction  = (strtolower($order) === 'asc') ? 'asc' : 'desc';
 
-        // Khởi tạo câu truy vấn kết nối (JOIN)
+        // 3. Xây dựng câu lệnh Query: Kết nối 4 bảng để lấy thông tin đầy đủ nhất
         $query = $this->userModel->select('users.*, roles.name as role_title, employees.full_name, employees.id as emp_id, employees.department_id, departments.name as department_name')
                         ->join('roles', 'roles.id = users.role_id', 'left')
                         ->join('employees', 'employees.user_id = users.id', 'left')
                         ->join('departments', 'departments.id = employees.department_id', 'left');
 
-        // Áp dụng bộ lọc tìm kiếm nếu có
+        // 4. Áp dụng bộ lọc tìm kiếm (Like Query trên nhiều cột)
         if (!empty($search)) {
             $query->groupStart()
+                   // Tìm theo Email tài khoản
                   ->like('users.email', $search)
+                   // Hoặc tìm theo họ tên nhân sự
                   ->orLike('employees.full_name', $search)
                   ->groupEnd();
         }
 
+        // 5. Áp dụng sắp xếp
         $query->orderBy($orderField, $direction);
 
+        // 6. LOGIC PHÂN TÁCH DỮ LIỆU (DATA ISOLATION):
         if ($roleName == \Config\AppConstants::ROLE_ADMIN || $roleName == \Config\AppConstants::ROLE_MOD) {
-            // Cấp cao nhất: Xem được tất cả. Sử dụng paginate để hỗ trợ phân trang.
+            // Cấp lãnh đạo/Quản trị: Xem được mọi tài khoản trong hệ thống
             return $query->paginate($perPage);
         } elseif ($roleName == \Config\AppConstants::ROLE_TRUONG_PHONG) {
-            // Cấp Trưởng phòng: Chỉ được xem tài khoản của nhân viên cùng bộ phận
+            /**
+             * Cấp Trưởng phòng: 
+             * Chỉ được phép xem và quản trị các tài khoản của nhân viên thuộc đúng phòng ban của mình.
+             */
             if ($departmentId) {
                 $query->where('employees.department_id', $departmentId);
                 return $query->paginate($perPage);
@@ -82,11 +95,13 @@ class UserService extends BaseService
             return [];
         }
 
+        // Các vai trò khác không có quyền xem danh sách tài khoản
         return [];
     }
 
     /**
-     * Trả về object pager của UserModel để render links ở View
+     * Trả về công cụ hỗ trợ phân trang (Pager) của Model.
+     * Sử dụng để tạo thanh điều hướng (1, 2, 3...) ở View.
      */
     public function getPager()
     {
@@ -94,59 +109,61 @@ class UserService extends BaseService
     }
 
     /**
-     * Lấy thôngত্তি chi tiết một tài khoản cụ thể (có kiểm tra quyền).
+     * Lấy thông tin chi tiết một tài khoản kèm kiểm tra an ninh (Security Check).
      * 
-     * @param int $id ID của tài khoản cần lấy thông tin
-     * @return array Trạng thái success/fail kèm data
+     * @param int $id ID User cần lấy
+     * @return array Trạng thái và dữ liệu
      */
     public function getUserById(int $id)
     {
-        // Tìm thông tin gốc kèm với phòng ban của họ
-        $user = $this->userModel->select('users.*, employees.full_name, employees.department_id')
+        // Truy vấn thông tin người dùng kèm theo bộ phận làm việc
+        $user = $this->userModel->select('users.*, roles.name as role_title, employees.full_name, employees.department_id')
+                                ->join('roles', 'roles.id = users.role_id', 'left')
                                 ->join('employees', 'employees.user_id = users.id', 'left')
                                 ->where('users.id', $id)
                                 ->first();
+                                
         if (!$user) {
-            return $this->fail('Không tìm thấy tài khoản trong hệ thống.');
+            return $this->fail('Hồ sơ tài khoản không tồn tại trên hệ thống.');
         }
 
-        // Tương tự, dựa vào session người thao tác để quyết định xem có được xem chi tiết không
+        // KIỂM TRA QUYỀN TRUY CẬP:
         $roleName = session()->get('role_name');
         $departmentId = session()->get('department_id');
 
         if ($roleName == \Config\AppConstants::ROLE_TRUONG_PHONG) {
-            // Trưởng phòng chỉ được xem chi tiết nếu người đó chung phòng ban
+            // Trưởng phòng chỉ được xem nếu User đó chung bộ phận
             if ($user['department_id'] != $departmentId) {
-                return $this->fail('Bạn không có quyền xem thông tin tài khoản của bộ phận khác.');
+                return $this->fail('Bạn không thể truy cập hồ sơ của nhân sự ngoài bộ phận.');
             }
         } elseif ($roleName != \Config\AppConstants::ROLE_ADMIN && $roleName != \Config\AppConstants::ROLE_MOD) {
-             // Các cấp thấp hơn (nhân viên, TTS) bị chặn
-             return $this->fail('Bạn không có thẩm quyền để soi thông tin tài khoản này.');
+             // Các cấp dưới bị từ chối truy cập API này hoàn toàn
+             return $this->fail('Quyền truy cập bị giới hạn.');
         }
 
         return $this->success($user);
     }
 
     /**
-     * Khởi tạo và Lưu trữ một Tài khoản mới vào CSDL.
+     * Quy trình khởi tạo Tài khoản và Hồ sơ nhân viên đồng thời.
      * 
-     * @param array $data Dữ liệu Mật khẩu, Email, Vai trò...
-     * @return array Trạng thái
+     * @param array $data Dữ liệu tổng hợp (User Data + Employee Data)
+     * @return array
      */
     public function createUser(array $data)
     {
         $roleName = session()->get('role_name');
-        // Chỉ đích danh Admin mới được tạo mới tài khoản
+        // Chỉ Admin mới có quyền gieo (seed) tài khoản mới vào hệ thống
         if ($roleName != \Config\AppConstants::ROLE_ADMIN) {
-            return $this->fail('Truy cập bị từ chối: Chỉ Admin mới có đặc quyền khởi tạo tài khoản hệ thống.');
+            return $this->fail('Thao tác trái thẩm quyền: Chỉ Quản trị viên mới được phép tạo tài khoản.');
         }
 
-        // Mã hóa mật khẩu chuẩn BCRYPT an toàn trước khi đẩy vào Database
+        // BẢO MẬT: Mã hóa mật khẩu ngay khi nhận được dữ liệu
         $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
-        // Luôn đặt trạng thái rảnh rỗi = 1 (Đang kích hoạt) mặc định
+        // Tài khoản được tạo bởi Admin sẽ được kích hoạt (Active) ngay lập tức
         $data['active_status'] = 1;
 
-        // Tách dữ liệu nhân viên (nếu có)
+        // Bóc tách dữ liệu của bảng Employees ra khỏi mảng dữ liệu User chung
         $employeeData = [];
         if (isset($data['department_id'])) {
             $employeeData['department_id'] = $data['department_id'];
@@ -157,71 +174,71 @@ class UserService extends BaseService
             unset($data['full_name']);
         }
 
+        // Thực hiện ghi vào CSDL
         if ($this->userModel->insert($data)) {
             $userId = $this->userModel->getInsertID();
 
-            // Khởi tạo hồ sơ nhân viên cơ bản nếu có thông tin
+            // Tự động tạo bản ghi hồ sơ nhân viên để đồng bộ dữ liệu (tránh mồ côi)
             if (!empty($employeeData)) {
                 $employeeData['user_id'] = $userId;
                 $employeeData['position'] = $employeeData['position'] ?? 'Chưa xác định';
                 $this->employeeModel->insert($employeeData);
             }
 
-            // Ghi log
+            // Ghi nhận hành động vào nhật ký hệ thống
             $this->logService->log('CREATE', 'Users', $userId, ['email' => $data['email']]);
 
-            return $this->success(['id' => $userId], 'Đã khởi tạo tài khoản bảo mật thành công.');
+            return $this->success(['id' => $userId], 'Đã khởi tạo tài khoản và hồ sơ nhân viên thành công.');
         }
 
-        return $this->fail('Lỗi hệ thống: Tham số không hợp lệ hoặc Email có thể đã tồn tại.');
+        return $this->fail('Lỗi đăng ký: Thông tin không hợp lệ hoặc Email đã được sử dụng.');
     }
 
     /**
-     * Chỉnh sửa cấu hình tài khoản (Role/Quyền, Trạng thái Khóa, Reset Mật khẩu).
+     * Cập nhật thông số tài khoản và vai trò (RBAC Update Logic).
      * 
-     * @param int $id ID User bị sửa
-     * @param array $data Dữ liệu truyền lên từ View
-     * @return array
+     * @param int $id ID tài khoản
+     * @param array $data Dữ liệu chỉnh sửa
      */
     public function updateUser(int $id, array $data)
     {
         $roleName = session()->get('role_name');
-        $departmentId = session()->get('department_id');
         
-        // Gọi lại hàm kiểm tra quyền xem gốc để biết mình có quyền touch vào user này không
+        // 1. Phải có quyền xem thông tin User thì mới được quyền Sửa
         $targetUser = $this->getUserById($id);
         if (!$targetUser['status']) {
             return $targetUser;
         }
 
-        // Dựa vào phân quyền để kiểm soát mức độ Chỉnh sửa 
+        // 2. LOGIC PHÂN QUYỀN SỬA ĐỔI:
         if ($roleName == \Config\AppConstants::ROLE_ADMIN) {
-            // Admin có quyền chóp bu: Cho phép sửa Role, Đổi MK qua mặt xác thực, Mở/Khóa account
+            // ADMIN: Được phép sửa mọi thứ, bao gồm cả đổi Mật khẩu trực tiếp
             if (!empty($data['password'])) {
-                // Nếu form gửi MK, tiến hành hash
                 $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
             } else {
-                // Nếu trống thì bỏ qua (Không đổi MK)
-                unset($data['password']);
+                unset($data['password']); // Không chỉnh sửa nếu để trống
             }
         } elseif ($roleName == \Config\AppConstants::ROLE_MOD || $roleName == \Config\AppConstants::ROLE_TRUONG_PHONG) {
-            // Mod (Giám đốc) và Trưởng phòng chỉ được cấp phép THAY ĐỔI VAI TRÒ
+            /**
+             * CẤP QUẢN LÝ:
+             * Chỉ được phép THAY ĐỔI VAI TRÒ (Role) của nhân viên cho phù hợp công việc.
+             * Không được phép can thiệp vào Mật khẩu hoặc Trạng thái khóa (Bảo vệ tính riêng tư).
+             */
             $allowedData = [];
             if (isset($data['role_id'])) {
                 $allowedData['role_id'] = $data['role_id'];
             }
-            $data = $allowedData; // Gạt bỏ tất cả các parameter độc hại khác bị bypass chèn vào
+            $data = $allowedData; // Lọc sạch các trường khác gửi kèm lên
             
-            // Một nguyên tắc cơ bản (Priority Rule): Không ai được phép hạ bệ Admin ngoại trừ chính Admin
+            // BẢO VỆ ADMIN: Các cấp quản lý chung ko thể sửa đổi vai trò của Admin cấp cao.
             if ($targetUser['data']['role_title'] == \Config\AppConstants::ROLE_ADMIN) {
-                return $this->fail('Giới hạn mức quyền: Không thể thay thế hay sửa đổi Vai trò của quản trị viên cấp cao.');
+                return $this->fail('Vi phạm quyền hạn: Bạn không thể sửa đổi thông số của Quản trị viên.');
             }
         } else {
-            // Trường hợp bypass phòng thủ trái phép
-            return $this->fail('Vượt rào hệ thống: Không có thẩm quyền thao tác sửa đổi.');
+            return $this->fail('Thao tác bị từ chối.');
         }
 
-        // Tách dữ liệu nhân viên
+        // 3. Tách dữ liệu hồ sơ nhân sự
         $employeeData = [];
         if (isset($data['department_id'])) {
             $employeeData['department_id'] = $data['department_id'];
@@ -232,64 +249,66 @@ class UserService extends BaseService
             unset($data['full_name']);
         }
 
-        // Lấy dữ liệu cũ để đối soát
+        // Lưu bản ghi gốc để so sánh và ghi log (Audit Trail)
         $oldData = $this->userModel->find($id);
 
-        // Bắt đầu cập nhật thông tin User
+        // 4. Thực thi cập nhật
         if ($this->userModel->update($id, $data)) {
             $newData = $this->userModel->find($id);
             
-            // Ghi log chi tiết thay đổi
+            // Tính toán sự khác biệt giữa cũ và mới để ghi log chi tiết
             $changes = [
                 'before' => array_diff_assoc($oldData, $newData),
                 'after'  => array_diff_assoc($newData, $oldData)
             ];
 
-            // Cập nhật thông tin phòng ban/tên ở bảng Employees
+            // Đồng bộ lại hồ sơ bảng Employees nếu có thay đổi tên/phòng ban
             if (!empty($employeeData)) {
                 $employee = $this->employeeModel->where('user_id', $id)->first();
                 if ($employee) {
                     $this->employeeModel->update($employee['id'], $employeeData);
                 } else {
+                    // Nếu chưa có hồ sơ nhân viên, tạo mới
                     $employeeData['user_id'] = $id;
                     $employeeData['position'] = 'Chưa xác định';
                     $this->employeeModel->insert($employeeData);
                 }
             }
 
-            // Ghi log
+            // Ghi log bảo mật
             $this->logService->log('UPDATE', 'Users', $id, $changes);
 
-            return $this->success(null, 'Cập nhật phân quyền / thông số thành công.');
+            return $this->success(null, 'Đã cập nhật cấu hình tài khoản cá nhân.');
         }
 
-        return $this->fail('Lỗi cập nhật CSDL.');
+        return $this->fail('Thất bại: Lỗi cơ sở dữ liệu khi cập nhật.');
     }
 
     /**
-     * Vô hiệu hóa và tiêu hủy vĩnh viễn tài khoản trong Database.
+     * Tiêu hủy tài khoản vĩnh viễn (Chỉ Admin).
      */
     public function deleteUser(int $id)
     {
         $roleName = session()->get('role_name');
         
-        // Check rào cản tối đa
+        // Kiểm soát rủi ro mất dữ liệu ngẫu nhiên
         if ($roleName != \Config\AppConstants::ROLE_ADMIN) {
-            return $this->fail('Nghiêm cấm: Thao tác xóa dữ liệu mật thiết chỉ dành riêng cho Admin.');
+            return $this->fail('Nghiêm cấm: Thao tác tiêu hủy dữ loại chỉ dành riêng cho Admin tối cao.');
         }
 
+        // Bản ghi cũ để lưu vết lịch sử
         $oldData = $this->userModel->find($id);
 
         if ($this->userModel->delete($id)) {
-            // Ghi log
-            $this->logService->log('DELETE', 'Users', $id, ['deleted_record' => $oldData]);
-            return $this->success(null, 'Đã gỡ vĩnh vễn tài khoản ra khỏi hệ thống.');
+            // Nhật ký tiêu hủy
+            $this->logService->log('DELETE', 'Users', $id, ['deleted_account' => $oldData['email']]);
+            return $this->success(null, 'Đã gỡ bỏ tài khoản hoàn toàn khỏi hệ thống.');
         }
-        return $this->fail('Lỗi hệ thống: Không thể xóa tài khoản hiện tại.');
+        return $this->fail('Lỗi: Không thể thực hiện lệnh xóa lúc này.');
     }
 
     /**
-     * Lấy số liệu thống kê tổng quan cho module User
+     * Tổng hợp số liệu thống kê hiện trạng người dùng cho Dashboard.
      */
     public function getStats()
     {

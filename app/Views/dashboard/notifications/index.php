@@ -12,14 +12,14 @@
     </div>
 
     <div class="premium-card p-0">
-        <?php if (empty($notifications)): ?>
+        <?php if (empty($notifications)) { ?>
             <div class="empty-state-container p-40 text-center text-muted-dark">
                 <i class="fas fa-bell-slash notif-empty-icon"></i>
                 <p>Bạn không có thông báo nào.</p>
             </div>
-        <?php else: ?>
+        <?php } else { ?>
             <div class="notification-list">
-                <?php foreach ($notifications as $n): ?>
+                <?php foreach ($notifications as $n) { ?>
                     <?php 
                         $iconClass = $n['type'] === 'approval' ? 'fa-check-circle' : 'fa-info-circle';
                         $typeClass = $n['type'] === 'approval' ? 'approval' : 'info';
@@ -41,21 +41,21 @@
                             </div>
                         </div>
                         <div class="notif-actions">
-                            <?php if ($n['link']): ?>
+                            <?php if ($n['link']) { ?>
                                 <a href="<?= esc($n['link']) ?>" class="btn-secondary-sm text-xs">Xem chi tiết</a>
-                            <?php endif; ?>
-                            <?php if (!$n['is_read']): ?>
+                            <?php } ?>
+                            <?php if (!$n['is_read']) { ?>
                                 <button class="btn-mark-read text-xs" data-id="<?= $n['id'] ?>">Đánh dấu đã đọc</button>
-                            <?php endif; ?>
+                            <?php } ?>
                         </div>
                     </div>
-                <?php endforeach; ?>
+                <?php } ?>
             </div>
             
             <div class="pagination-wrapper notif-pagination">
                 <?= $pager->links() ?>
             </div>
-        <?php endif; ?>
+        <?php } ?>
     </div>
 </div>
 <?= $this->endSection() ?>

@@ -16,9 +16,9 @@
             <div class="filter-divider"></div>
             <select name="user_id" class="filter-select-plain">
                 <option value="">Tất cả User</option>
-                <?php foreach($users as $u): ?>
+                <?php foreach($users as $u) { ?>
                     <option value="<?= $u['id'] ?>" <?= ($filters['user_id'] ?? '') == $u['id'] ? 'selected' : '' ?>><?= esc($u['email']) ?></option>
-                <?php endforeach; ?>
+                <?php } ?>
             </select>
             <div class="filter-divider"></div>
             <select name="action" class="filter-select-plain">
@@ -31,11 +31,11 @@
             <button type="submit" class="filter-submit-btn">
                 <i class="fas fa-filter"></i> Lọc
             </button>
-            <?php if(!empty($filters['date']) || !empty($filters['action'])): ?>
+            <?php if(!empty($filters['date']) || !empty($filters['action'])) { ?>
                 <a href="<?= base_url('system-logs') ?>" class="filter-clear-link" title="Xóa lọc">
                     <i class="fas fa-times-circle"></i>
                 </a>
-            <?php endif; ?>
+            <?php } ?>
         </form>
     </div>
 </div>
@@ -45,7 +45,7 @@
         <table class="premium-table">
             <thead>
                 <tr>
-                    <th class="table-cell-center" style="width: 180px;">Thời gian</th>
+                    <th class="table-cell-center logs-col-time">Thời gian</th>
                     <th>Người thực hiện</th>
                     <th>Thao tác</th>
                     <th>Module</th>
@@ -54,15 +54,15 @@
                 </tr>
             </thead>
             <tbody>
-                <?php if (empty($logs)): ?>
+                <?php if (empty($logs)) { ?>
                     <tr>
                         <td colspan="6" class="empty-state-container">
-                            <i class="fas fa-history" style="font-size: 2.5rem; display: block; margin-bottom: 15px; opacity: 0.2;"></i>
+                            <i class="fas fa-history logs-empty-icon" ></i>
                             Không có dữ liệu nhật ký nào được tìm thấy.
                         </td>
                     </tr>
-                <?php else: ?>
-                    <?php foreach ($logs as $log): ?>
+                <?php } else { ?>
+                    <?php foreach ($logs as $log) { ?>
                     <tr>
                         <td class="table-cell-center">
                             <div class="log-time-main"><?= date('H:i:s', strtotime($log['created_at'])) ?></div>
@@ -97,23 +97,23 @@
                             <div class="log-details-box">
                                 <?php 
                                     $details = json_decode($log['details'], true);
-                                    if (is_array($details)):
-                                        if (isset($details['before']) || isset($details['after'])):
+                                    if (is_array($details)) {
+                                        if (isset($details['before']) || isset($details['after'])) {
                                             $allKeys = array_unique(array_merge(array_keys($details['before'] ?? []), array_keys($details['after'] ?? [])));
-                                            foreach ($allKeys as $key):
+                                            foreach ($allKeys as $key) {
                                                 if (in_array($key, ['password'])) continue;
                                                 $oldVal = $details['before'][$key] ?? '<span class="text-blue">Mới</span>';
                                                 $newVal = $details['after'][$key] ?? '<span class="text-red">Xóa</span>';
                                                 echo "<div class='log-change-item'><strong>" . esc($key) . "</strong>: " . $oldVal . " <i class='fas fa-arrow-right'></i> " . $newVal . "</div>";
-                                            endforeach;
-                                        elseif (isset($details['deleted_record'])):
+                                            }
+                                        } elseif (isset($details['deleted_record'])) {
                                             echo "<div class='text-red'><strong>Hồ sơ bị xóa</strong>: " . esc($details['deleted_record']['full_name'] ?? $details['deleted_record']['email'] ?? '...') . "</div>";
-                                        else:
+                                        } else {
                                             echo esc($log['details']);
-                                        endif;
-                                    else:
+                                        }
+                                    } else {
                                         echo esc($log['details'] ?: '---');
-                                    endif;
+                                    }
                                 ?>
                             </div>
                         </td>
@@ -124,17 +124,17 @@
                             </div>
                         </td>
                     </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                    <?php } ?>
+                <?php } ?>
             </tbody>
         </table>
     </div>
 
-    <?php if ($pager): ?>
+    <?php if ($pager) { ?>
     <div class="pagination-wrapper">
         <?= $pager->links() ?>
     </div>
-    <?php endif; ?>
+    <?php } ?>
 </div>
 
 <?= $this->endSection() ?>

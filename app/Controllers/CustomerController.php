@@ -12,8 +12,12 @@ use App\Services\CustomerService;
 /**
  * CustomerController
  * 
- * Điều hướng và xử lý logic cho Module Khách hàng (CRM).
- * Quản lý vòng đời khách hàng từ khi tiếp nhận, phân loại đến theo dõi tương tác.
+ * Bộ điều khiển trung tâm quản lý Quan hệ khách hàng (CRM).
+ * Chịu trách nhiệm:
+ * 1. Quản lý vòng đời khách hàng (Từ tiềm năng đến đối tác chiến lược).
+ * 2. Lưu trữ hồ sơ 360 độ (Thông tin cá nhân, vụ việc, tài chính, tài liệu).
+ * 3. Bảo mật dữ liệu nhạy cảm theo tiêu chuẩn PDPL.
+ * 4. Phân tích sự tương tác và chăm sóc khách hàng (Stale Customer Tracking).
  */
 class CustomerController extends BaseController
 {
@@ -22,24 +26,25 @@ class CustomerController extends BaseController
 
     public function __construct()
     {
-        // Khởi tạo model và service phục vụ cho controller
+        // Khởi tạo model và service phục vụ cho controller CRM
         $this->customerModel = new CustomerModel();
         $this->customerService = new CustomerService();
     }
 
     /**
-     * Dashboard CRM & Danh sách khách hàng
-     * Hiển thị bảng điều khiển tổng quát và danh sách khách hàng kèm bộ lọc.
+     * Giao diện CRM Dashboard & Danh sách khách hàng.
+     * Tích hợp bộ lọc tìm kiếm và các chỉ số thống kê quan trọng.
      */
     public function index()
     {
-        // 1. Lấy tham số tìm kiếm và lọc từ URL
-        $search = $this->request->getGet('q');
-        $type = $this->request->getGet('type');
+        // 1. Phân tích các tham số lọc từ GET Request
+        $search = $this->request->getGet('q');         // Từ khóa tìm kiếm
+        $type = $this->request->getGet('type');       // Phân loại: Cá nhân / Doanh nghiệp
         
         $query = $this->customerModel;
 
-        // 2. Xử lý logic tìm kiếm đa trường (Tên, SĐT, CCCD, Mã KH)
+        // 2. LOGIC TÌM KIẾM ĐA LUỒNG (Multi-field Search):
+        // Cho phép tìm kiếm bằng Tên, Số điện thoại, Số CCCD/Hộ chiếu hoặc Mã khách hàng nội bộ.
         if ($search) {
             $query->groupStart()
                   ->like('name', $search)
@@ -49,37 +54,39 @@ class CustomerController extends BaseController
                   ->groupEnd();
         }
 
-        // 3. Lọc theo loại khách hàng (Cá nhân/Doanh nghiệp)
+        // 3. Phân loại đối tượng khách hàng
         if ($type) {
             $query->where('type', $type);
         }
 
-        // 4. Tổng hợp dữ liệu trả về view
+        // 4. Tổng hợp dữ liệu hiển thị
         $data = [
-            'customers' => $query->orderBy('created_at', 'DESC')->findAll(),
-            'stats'     => $this->customerService->getDashboardStats(), // Lấy thông số thống kê CRM
-            'title'     => 'Quản lý khách hàng (CRM)'
+            'customers' => $query->orderBy('created_at', 'DESC')->findAll(), // Sắp xếp khách hàng mới nhất lên đầu
+            'stats'     => $this->customerService->getDashboardStats(),     // Lấy các chỉ số KPI doanh thu/số lượng từ Service
+            'title'     => 'Quản lý khách hàng (CRM) | L.A.N ERP'
         ];
 
         return view('dashboard/customers/index', $data);
     }
 
     /**
-     * Giao diện thêm khách hàng mới (Wizard)
-     * Trả về view chứa form Wizard 3 bước để tiếp nhận hồ sơ khách hàng.
+     * Giao diện tiếp nhận khách hàng mới (Wizard Form).
+     * Hỗ trợ quy trình nhập liệu đa bước để đảm bảo tính đầy đủ của hồ sơ pháp lý.
      */
     public function create()
     {
         $data = [
-            'title' => 'Thêm khách hàng mới'
+            'title' => 'Tiếp nhận khách hàng mới | L.A.N ERP'
         ];
 
         return view('dashboard/customers/create', $data);
     }
 
     /**
-     * Kiểm tra trùng lặp khách hàng (API cho Wizard tạo mới)
-     * Trả về JSON cho frontend để cảnh báo nếu SĐT hoặc CCCD đã tồn tại.
+     * API: Kiểm tra trùng lặp hồ sơ khách hàng.
+     * Sử dụng trong quy trình Wizard để ngăn chặn việc tạo trùng SĐT hoặc CCCD đã tồn tại.
+     * 
+     * @return \CodeIgniter\HTTP\Response
      */
     public function checkDuplicate()
     {
@@ -89,7 +96,7 @@ class CustomerController extends BaseController
         if (!empty($duplicates)) {
             return $this->response->setJSON([
                 'exists' => true,
-                'duplicates' => $duplicates
+                'duplicates' => $duplicates // Trả về thông tin hồ sơ trùng để nhân viên đối soát
             ]);
         }
 
@@ -97,140 +104,149 @@ class CustomerController extends BaseController
     }
 
     /**
-     * Chi tiết hồ sơ khách hàng (360-degree view)
-     * Hiển thị toàn bộ thông tin, vụ việc, tương tác và tài chính của khách hàng.
+     * Hiển thị Hồ sơ khách hàng toàn diện (360-degree Profile View).
+     * Tập hợp dữ liệu từ nhiều Module: Vụ việc, Tương tác, Tài chính và Tài liệu số hóa.
+     * 
+     * @param int|string $id ID của khách hàng.
      */
     public function show($id)
     {
-        // 1. Kiểm tra sự tồn tại của khách hàng
+        // 1. Xác thực sự tồn tại của khách hàng trong hệ thống
         $customer = $this->customerModel->find($id);
         if (!$customer) {
-            return redirect()->to(base_url('customers'))->with('error', 'Không tìm thấy khách hàng.');
+            return redirect()->to(base_url('customers'))->with('error', 'Hồ sơ khách hàng không tồn tại hoặc đã được gỡ bỏ.');
         }
 
-        // 2. Tuân thủ PDPL: Ghi log lịch sử truy cập dữ liệu nhạy cảm
-        // Đảm bảo mọi hoạt động xem thông tin cá nhân đều được lưu vết audit.
+        // 2. BẢO MẬT & TRUY VẾT (Compliance Logging):
+        // Nhật ký hệ thống sẽ ghi nhận ai đã xem hồ sơ nhạy cảm này để phục vụ Audit sau này.
         $logService = new \App\Services\SystemLogService();
         $logService->log('DATA_ACCESS', 'Customers', $id, [
-            'type' => 'PROFILE_VIEW',
+            'action' => 'VIEW_FULL_PROFILE',
             'sensitive_fields' => ['identity_number', 'phone', 'address']
         ]);
 
-        // 3. Khởi tạo các model liên quan để lấy dữ liệu đa tầng
-        $caseModel = new CaseModel();
-        $interactionModel = new CustomerInteractionModel();
-        $paymentModel = new CustomerPaymentModel();
-        $documentModel = new CustomerDocumentModel();
+        // 3. Kết nối dữ liệu đa tầng từ các Model liên quan
+        $caseModel = new CaseModel();                       // Quản lý vụ việc/hồ sơ pháp lý
+        $interactionModel = new CustomerInteractionModel(); // Quản lý nhật ký liên lạc
+        $paymentModel = new CustomerPaymentModel();         // Quản lý dòng tiền/thanh toán
+        $documentModel = new CustomerDocumentModel();       // Quản lý kho tài liệu số
 
-        // 4. Chuẩn bị dữ liệu cho giao diện tabbed
+        // 4. Chuẩn bị dữ liệu hiển thị theo cấu trúc Tabbed UI
         $data = [
             'customer'     => $customer,
-            'cases'        => $caseModel->where('customer_id', $id)->findAll(), // Danh sách vụ việc
-            'interactions' => $interactionModel->getByCustomer($id), // Lịch sử tương tác
-            'payments'     => $paymentModel->where('customer_id', $id)->findAll(), // Dòng tiền/thanh toán
-            'documents'    => $documentModel->where('customer_id', $id)->findAll(), // Kho tài liệu số hóa
-            'title'        => 'Hồ sơ khách hàng: ' . $customer['name']
+            'cases'        => $caseModel->where('customer_id', $id)->findAll(),
+            'interactions' => $interactionModel->getByCustomer($id),
+            'payments'     => $paymentModel->where('customer_id', $id)->findAll(),
+            'documents'    => $documentModel->where('customer_id', $id)->findAll(),
+            'title'        => 'Hồ sơ khách hàng: ' . $customer['name'] . ' | L.A.N ERP'
         ];
 
         return view('dashboard/customers/show', $data);
     }
 
     /**
-     * Tìm kiếm khách hàng "bỏ ngỏ" (Stale Customers)
-     * Lọc danh sách khách hàng không có tương tác trong hơn 30 ngày.
+     * Danh sách khách hàng "Tiềm năng bỏ ngỏ" (Stale Customers Tracking).
+     * Phân tích các khách hàng quá 30 ngày không phát sinh tương tác để đưa vào phễu chăm sóc lại.
      */
     public function stale()
     {
+        // Gọi Service lấy danh sách dựa trên thuật toán thời gian tương tác cuối (engagement score)
         $staleCustomers = $this->customerService->getStaleCustomers(30);
         
         $data = [
             'customers' => $staleCustomers,
-            'title'     => 'Khách hàng lâu chưa tương tác'
+            'title'     => 'Khách hàng cần chăm sóc lại | L.A.N ERP'
         ];
 
         return view('dashboard/customers/stale', $data);
     }
 
     /**
-     * Tải lên tài liệu khách hàng (Identity Vault)
-     * Xử lý file upload và lưu đường dẫn vào database.
+     * Xử lý tải lên và số hóa tài liệu khách hàng (Digital Asset Management).
+     * 
+     * @param int|string $id ID khách hàng sở hữu tài liệu.
      */
     public function uploadDocument($id)
     {
         $file = $this->request->getFile('document');
         
-        // Kiểm tra tính hợp lệ của file
+        // 1. Kiểm tra tính toàn vẹn và hợp lệ của tệp tin
         if ($file->isValid() && !$file->hasMoved()) {
-            // 1. Tạo tên file ngẫu nhiên và di chuyển vào thư mục lưu trữ an toàn
+            // 2. Chế độ lưu trữ an toàn (Safe Storage):
+            // Tạo tên tệp ngẫu nhiên để tránh xung đột và tấn công Local File Inclusion.
             $newName = $file->getRandomName();
             $file->move(WRITEPATH . 'uploads/customer_docs', $newName);
 
-            // 2. Lưu metadata vào bảng customer_documents
+            // 3. Lưu trữ siêu dữ liệu (Metadata) để quản lý kho tệp
             $documentModel = new CustomerDocumentModel();
             $documentModel->save([
                 'customer_id'   => $id,
-                'document_type' => $this->request->getPost('document_type'),
-                'file_name'     => $file->getClientName(),
-                'file_path'     => 'uploads/customer_docs/' . $newName,
-                'uploaded_by'   => session()->get('user_id')
+                'document_type' => $this->request->getPost('document_type'), // CCCD, Hợp đồng, Giấy tờ sở hữu,...
+                'file_name'     => $file->getClientName(),                   // Lưu tên gốc để User dễ nhận diện
+                'file_path'     => 'uploads/customer_docs/' . $newName,      // Đường dẫn truy cập trong hệ thống
+                'uploaded_by'   => session()->get('user_id')                 // Truy vết người tải lên
             ]);
 
-            return redirect()->back()->with('success', 'Đã tải lên tài liệu thành công.');
+            return redirect()->back()->with('success', 'Tài liệu đã được tải lên và lưu trữ an toàn.');
         }
 
-        return redirect()->back()->with('error', 'Lỗi khi tải lên tài liệu.');
+        return redirect()->back()->with('error', 'Định dạng tệp không hợp lệ hoặc vượt quá dung lượng cho phép.');
     }
 
     /**
-     * Lưu thông tin khách hàng mới
-     * Xử lý dữ liệu từ Wizard và tự động tạo mã khách hàng.
+     * Lưu trữ thông tin khách hàng mới vào hệ thống.
+     * Tự động hóa quy trình cấp mã khách hàng và chuẩn hóa dữ liệu đầu vào.
      */
     public function store()
     {
         $data = $this->request->getPost();
         
-        // 1. Tự động sinh mã khách hàng (KH-YYYY-XXX) nếu chưa có
+        // 1. QUY TẮC ĐỊNH DANH (Standard ID Coding):
+        // Nếu không nhập mã thủ công, hệ thống tự động sinh theo mẫu: KH-YYYY-STT (VD: KH-2024-001)
         if (empty($data['code'])) {
             $count = $this->customerModel->countAllResults() + 1;
             $data['code'] = 'KH-' . date('Y') . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
         }
 
-        // 2. Thực hiện lưu vào database (Validation đã được cấu hình trong Model)
+        // 2. Lưu dữ liệu (Hệ thống Validation trong Model sẽ tự động kiểm tra định dạng Email/SĐT)
         if ($this->customerModel->save($data)) {
-            return redirect()->to(base_url('customers'))->with('success', 'Đã thêm khách hàng mới thành công.');
+            return redirect()->to(base_url('customers'))->with('success', 'Hồ sơ khách hàng mới đã được thiết lập thành công.');
         }
 
-        // 3. Trả về thông báo lỗi nếu validation thất bại
+        // 3. Trả về thông báo lỗi chi tiết nếu vi phạm các ràng buộc dữ liệu
         return redirect()->back()->withInput()->with('errors', $this->customerModel->errors());
     }
 
     /**
-     * Ghi nhận một tương tác mới
-     * Cập nhật nhật ký liên lạc và làm mới ngày tương tác cuối cùng (Engagement).
+     * Ghi nhận Nhật ký tương tác khách hàng (Log Interaction).
+     * Cập nhật chỉ số Engagement (Ngày liên lạc gần nhất) để phục vụ báo cáo CRM.
+     * 
+     * @param int|string $customerId ID khách hàng.
      */
     public function addInteraction($customerId)
     {
         $interactionModel = new CustomerInteractionModel();
         
-        // 1. Chuẩn bị dữ liệu tương tác
+        // 1. Thu thập thông tin tương tác (Call, Email, Meeting, Zalo,...)
         $data = $this->request->getPost();
         $data['customer_id'] = $customerId;
-        $data['user_id'] = session()->get('user_id');
+        $data['user_id'] = session()->get('user_id'); // Định danh nhân viên thực hiện tương tác
         $data['interaction_date'] = date('Y-m-d H:i:s');
 
-        // 2. Lưu vào database
+        // 2. Ghi nhận vào cơ sở dữ liệu
         if ($interactionModel->save($data)) {
-            // 3. Cập nhật ngày tương tác gần nhất vào bảng Customers để theo dõi engagement
+            // 3. ĐỒNG BỘ CHỈ SỐ (Heuristic Update):
+            // Cập nhật 'last_contact_date' để hệ thống biết khách hàng này vẫn đang được chăm sóc tích cực.
             $this->customerModel->update($customerId, [
                 'last_contact_date' => $data['interaction_date']
             ]);
             
-            // 4. Đồng bộ lại các chỉ số thống kê (Revenue/Case count)
+            // 4. Tính toán lại các chỉ số tài chính/vụ việc liên quan thông qua Service
             $this->customerService->syncCustomerStats($customerId);
 
-            return redirect()->back()->with('success', 'Đã lưu lịch sử tương tác.');
+            return redirect()->back()->with('success', 'Đã ghi nhận nhật ký tương tác.');
         }
 
-        return redirect()->back()->with('error', 'Lỗi khi lưu tương tác.');
+        return redirect()->back()->with('error', 'Không thể lưu nhật ký. Vui lòng kiểm tra lại nội dung nhập.');
     }
 }

@@ -29,30 +29,6 @@
                     <input type="text" name="code" class="form-control-premium text-monospace" value="<?= esc($template['code']) ?>" required>
                 </div>
                 <div class="form-group-premium flex-1 m-l-12">
-                    <label class="form-label-premium">Loại vụ việc áp dụng</label>
-                    <select name="case_type" class="form-control-premium select2" required>
-                        <?php 
-                            $case_types = [
-                                'to_tung_dan_su' => 'Tố tụng Dân sự',
-                                'thu_tuc_hanh_chinh' => 'Thủ tục Hành chính',
-                                'xoa_an_tich' => 'Xóa án tích',
-                                'ly_hon_thuan_tinh' => 'Ly hôn thuận tình',
-                                'tu_van' => 'Tư vấn pháp lý'
-                            ];
-                        ?>
-                        <?php foreach($case_types as $val => $label): ?>
-                            <option value="<?= $val ?>" <?= $template['case_type'] == $val ? 'selected' : '' ?>><?= $label ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-            </div>
-
-            <div class="form-row m-b-24">
-                <div class="form-group-premium flex-1 m-r-12">
-                    <label class="form-label-premium">Phiên bản (Version)</label>
-                    <input type="number" name="version" class="form-control-premium" value="<?= $template['version'] ?>" min="1" required>
-                </div>
-                <div class="form-group-premium flex-1 m-l-12">
                     <label class="form-label-premium">Trạng thái</label>
                     <div class="flex-row align-center p-t-10">
                         <label class="switch-minimal">

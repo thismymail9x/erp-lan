@@ -5,7 +5,7 @@
     <div class="dashboard-header-wrapper m-b-24">
         <div class="header-title-container">
             <h2 class="content-title">Quản lý Quy trình mẫu</h2>
-            <p class="content-subtitle">Thiết lập các giai đoạn chuẩn cho từng loại vụ việc pháp lý.</p>
+            <p class="content-subtitle">Thiết lập các giai đoạn chuẩn cho từng quy trình nghiệp vụ.</p>
         </div>
         <div class="header-controls">
             <a href="<?= base_url('workflows/create') ?>" class="btn-premium">
@@ -15,7 +15,7 @@
     </div>
 
     <div class="workflow-grid">
-        <?php if(empty($templates)): ?>
+        <?php if (empty($templates)) { ?>
             <div class="premium-card p-40 text-center">
                 <div class="empty-state-icon m-b-20">
                     <i class="fas fa-project-diagram fa-3x text-muted-light"></i>
@@ -24,15 +24,15 @@
                 <p class="text-muted-dark">Hãy tạo quy trình đầu tiên để chuẩn hóa cách làm việc của văn phòng.</p>
                 <a href="<?= base_url('workflows/create') ?>" class="btn-secondary-sm m-t-15">Bắt đầu ngay</a>
             </div>
-        <?php else: ?>
+        <?php } else { ?>
             <div class="grid-layout-premium">
-                <?php foreach($templates as $t): ?>
+                <?php foreach ($templates as $t) { ?>
                     <div class="workflow-card premium-card">
                         <div class="card-header-flex">
-                            <span class="badge-secondary-minimal text-xs uppercase m-b-10">
-                                <?= $t['case_type'] ?>
-                            </span>
-                            <div class="status-dot <?= $t['is_active'] ? 'bg-apple-green' : 'bg-apple-gray' ?>" title="<?= $t['is_active'] ? 'Đang hoạt động' : 'Tạm ngưng' ?>"></div>
+                            <div class="status-dot-container align-center flex-row">
+                                <div class="status-dot <?= $t['is_active'] ? 'bg-apple-green' : 'bg-apple-gray' ?>" title="<?= $t['is_active'] ? 'Đang hoạt động' : 'Tạm ngưng' ?>"></div>
+                                <span class="m-l-8 text-xs text-muted-dark"><?= $t['is_active'] ? 'Hoạt động' : 'Tạm ngưng' ?></span>
+                            </div>
                         </div>
                         <h3 class="workflow-title"><?= esc($t['name']) ?></h3>
                         <div class="workflow-meta">
@@ -42,7 +42,7 @@
                             </div>
                             <div class="meta-item">
                                 <i class="fas fa-code-branch"></i>
-                                <span>Phiên bản v<?= $t['version'] ?></span>
+                                <span>Mã: <?= esc($t['code']) ?></span>
                             </div>
                         </div>
                         <div class="card-actions-premium m-t-20">
@@ -57,9 +57,9 @@
                             </a>
                         </div>
                     </div>
-                <?php endforeach; ?>
+                <?php } ?>
             </div>
-        <?php endif; ?>
+        <?php } ?>
     </div>
 </div>
 
@@ -126,5 +126,8 @@
 .btn-icon-only-minimal:hover {
     background: rgba(0,0,0,0.08);
 }
+.flex-row { display: flex; }
+.align-center { align-items: center; }
+.m-l-8 { margin-left: 8px; }
 </style>
 <?= $this->endSection() ?>

@@ -75,4 +75,14 @@ class AppConstants
     
     // IP mạng LAN nội bộ được phép điểm danh không cần camera
     public const ATT_LAN_IPS = ['1.55.89.247', '::1', ' 255.255.255.0', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.2', '172.3'];
+
+    // === PHÂN LOẠI VỤ VIỆC (CASE TYPES CATEGORIES) ===
+    public const CASE_TYPES = [
+        'to_tung_dan_su'    => 'Tố tụng Dân sự',
+        'thu_tuc_hanh_chinh' => 'Thủ tục Hành chính',
+        'xoa_an_tich'       => 'Xóa án tích',
+        'ly_hon_thuan_tinh'  => 'Ly hôn thuận tình',
+        'tu_van'            => 'Tư vấn pháp lý',
+        'khac'              => 'Khác'
+    ];
 }

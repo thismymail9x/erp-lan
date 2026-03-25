@@ -21,28 +21,13 @@
             <div class="form-group-premium m-b-24">
                 <label class="form-label-premium">Tên quy trình</label>
                 <input type="text" name="name" class="form-control-premium" placeholder="Ví dụ: Quy trình Xóa án tích 2026" required>
-                <small class="text-muted-dark">Tên gọi giúp bạn phân biệt với các phiên bản khác.</small>
+                <small class="text-muted-dark">Tên gọi giúp bạn phân biệt với các quy trình khác.</small>
             </div>
 
             <div class="form-row m-b-24">
                 <div class="form-group-premium flex-1 m-r-12">
                     <label class="form-label-premium">Mã định danh (Code)</label>
                     <input type="text" name="code" class="form-control-premium text-monospace" placeholder="XOA_AN_TICH_V1" required>
-                </div>
-                <div class="form-group-premium flex-1 m-l-12">
-                    <label class="form-label-premium">Loại vụ việc áp dụng</label>
-                    <select name="case_type" class="form-control-premium select2" required>
-                        <?php foreach($case_types as $val => $label): ?>
-                            <option value="<?= $val ?>"><?= $label ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-            </div>
-
-            <div class="form-row m-b-24">
-                <div class="form-group-premium flex-1 m-r-12">
-                    <label class="form-label-premium">Phiên bản (Version)</label>
-                    <input type="number" name="version" class="form-control-premium" value="1" min="1" required>
                 </div>
                 <div class="form-group-premium flex-1 m-l-12">
                     <label class="form-label-premium">Trạng thái</label>

@@ -4,18 +4,27 @@
 <div class="attendance-history-wrapper">
     <div class="dashboard-header-wrapper">
         <div class="header-title-container">
-            <h2 class="content-title">Lịch sử</h2>
-            <p class="content-subtitle hide-mobile">Bảng chấm công chi tiết.</p>
+            <h2 class="content-title"><?php echo (isset($isViewingOthers) && $isViewingOthers) ? $title : 'Lịch sử chấm công cá nhân'; ?></h2>
+            <p class="content-subtitle hide-mobile">Bảng chấm công chi tiết tháng <?= date('m/Y', strtotime($currentMonth . '-01')) ?>.</p>
         </div>
         
         <div class="header-controls">
             <form action="<?= base_url('attendance/list') ?>" method="get" class="filter-form" title="Chọn tháng để xem bảng công">
                 <input type="hidden" name="view" value="monthly">
+                <?php if (isset($targetEmployeeId)) { ?>
+                    <input type="hidden" name="employee_id" value="<?= $targetEmployeeId ?>">
+                <?php } ?>
                 <input type="month" name="month" value="<?= $currentMonth ?>" class="form-control-premium" onchange="this.form.submit()">
             </form>
-            <a href="<?= base_url('attendance') ?>" class="btn-premium-sm" title="Quay lại trang chấm công bằng Camera">
-                <i class="fas fa-camera"></i> Chấm công ngay
-            </a>
+            <?php if (isset($isViewingOthers) && $isViewingOthers) { ?>
+                <a href="<?= base_url('attendance/list') ?>" class="btn-secondary-sm" title="Quay lại danh sách tổng quát">
+                    <i class="fas fa-chevron-left"></i> Quay lại
+                </a>
+            <?php } else { ?>
+                <a href="<?= base_url('attendance') ?>" class="btn-premium-sm" title="Quay lại trang chấm công bằng Camera">
+                    <i class="fas fa-camera"></i> Chấm công ngay
+                </a>
+            <?php } ?>
         </div>
     </div>
 
@@ -42,51 +51,51 @@
                     <?php } else { ?>
                         <?php foreach($history as $item) { ?>
                             <tr>
-                                <td>
+                                <td class="att-table-td">
                                     <div class="at-date-cell" title="Xem công ngày <?= date('d/m/Y', strtotime($item['attendance_date'])) ?>">
-                                        <div class="at-date-main"><?= date('d/m', strtotime($item['attendance_date'])) ?></div>
+                                        <div class="att-date-main"><?= date('d/m', strtotime($item['attendance_date'])) ?></div>
                                         <div class="at-date-sub"><?= date('D', strtotime($item['attendance_date'])) ?></div>
                                     </div>
                                 </td>
-                                <td class="table-cell-center">
+                                <td class="att-table-td-center">
                                     <div class="attendance-time-display">
                                         <div class="at-time-stack">
-                                            <div class="at-time-in"><?= $item['check_in_time'] ? date('H:i', strtotime($item['check_in_time'])) : '--:--' ?></div>
-                                            <div class="at-time-out"><?= $item['check_out_time'] ? date('H:i', strtotime($item['check_out_time'])) : '--:--' ?></div>
+                                            <div class="att-time-main"><?= $item['check_in_time'] ? date('H:i', strtotime($item['check_in_time'])) : '--:--' ?></div>
+                                            <div class="at-time-sub"><?= $item['check_out_time'] ? date('H:i', strtotime($item['check_out_time'])) : '--:--' ?></div>
                                         </div>
                                         <div class="at-thumb-container">
                                             <?php if($item['check_in_photo']) { ?>
-                                                <img src="<?= base_url($item['check_in_photo']) ?>" class="at-thumb" onclick="previewImage(this.src)" title="Ảnh chụp lúc vào">
+                                                <img src="<?= base_url($item['check_in_photo']) ?>" class="att-thumb" onclick="previewImage(this.src)" title="Ảnh chụp lúc vào">
                                             <?php } ?>
                                             <?php if($item['check_out_photo']) { ?>
-                                                <img src="<?= base_url($item['check_out_photo']) ?>" class="at-thumb" onclick="previewImage(this.src)" title="Ảnh chụp lúc ra">
+                                                <img src="<?= base_url($item['check_out_photo']) ?>" class="att-thumb" onclick="previewImage(this.src)" title="Ảnh chụp lúc ra">
                                             <?php } ?>
                                         </div>
                                     </div>
                                 </td>
-                                <td class="hide-mobile table-cell-center">
-                                    <span style="font-weight: 700; color: var(--apple-blue);"><?= $item['worked_hours'] ?: '0.00' ?>h</span>
+                                <td class="hide-mobile att-table-td-center">
+                                    <span class="att-hours-val" style="color: var(--apple-blue);"><?= $item['worked_hours'] ?: '0.00' ?>h</span>
                                 </td>
-                                <td class="hide-mobile">
+                                <td class="hide-mobile att-table-td">
                                     <div class="at-note-text" title="<?= esc($item['check_in_note'] ?: $item['check_out_note']) ?>">
                                         <?= esc($item['check_in_note'] ?: $item['check_out_note'] ?: '---') ?>
                                     </div>
                                 </td>
-                                <td class="table-cell-center">
+                                <td class="att-table-td-center">
                                     <?php 
                                         switch($item['status']) {
                                             case 'REGULAR':
-                                                echo "<span class='at-badge at-badge-regular'>Đúng giờ</span>";
+                                                echo "<span class='att-badge-base att-badge-regular'>Đúng giờ</span>";
                                                 break;
                                             case 'LATE':
                                             case 'EARLY_LEAVE':
-                                                echo "<span class='at-badge at-badge-late'>Trễ/Sớm</span>";
+                                                echo "<span class='att-badge-base att-badge-late'>Trễ/Sớm</span>";
                                                 break;
                                             case 'INVALID_LOCATION':
-                                                echo "<span class='at-badge at-badge-invalid'>Sai vị trí</span>";
+                                                echo "<span class='att-badge-base att-badge-invalid'>Sai vị trí</span>";
                                                 break;
                                             default:
-                                                echo "<span class='at-badge at-badge-neutral'>{$item['status']}</span>";
+                                                echo "<span class='att-badge-base att-badge-neutral'>{$item['status']}</span>";
                                         }
                                     ?>
                                 </td>

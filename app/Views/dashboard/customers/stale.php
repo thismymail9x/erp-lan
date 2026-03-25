@@ -27,25 +27,25 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (empty($customers)): ?>
+                    <?php if (empty($customers)) { ?>
                         <tr>
                             <td colspan="5" class="empty-state-container">
-                                <i class="fas fa-check-circle" style="font-size: 3rem; display: block; margin-bottom: 15px; color: #34c759; opacity: 0.5;"></i>
+                                <i class="fas fa-check-circle stale-empty-icon"></i>
                                 Tuyệt vời! Tất cả khách hàng đều được chăm sóc tốt.
                             </td>
                         </tr>
-                    <?php else: ?>
-                        <?php foreach ($customers as $customer): 
+                    <?php } else { ?>
+                        <?php foreach ($customers as $customer) { 
                             $lastDate = $customer['last_contact_date'] ?: $customer['created_at'];
                             $daysDiff = floor((time() - strtotime($lastDate)) / (60 * 60 * 24));
                         ?>
                         <tr>
                             <td>
-                                <div style="font-weight: 600; color: #1d1d1f;"><?= esc($customer['name']) ?></div>
-                                <div style="font-size: 11px; opacity: 0.6;"><?= esc($customer['code']) ?></div>
+                                <div class="cust-name-main"><?= esc($customer['name']) ?></div>
+                                <div class="cust-code-sub"><?= esc($customer['code']) ?></div>
                             </td>
                             <td>
-                                <div style="font-size: 13px; font-weight: 500;"><?= esc($customer['phone']) ?></div>
+                                <div class="cust-phone-val"><?= esc($customer['phone']) ?></div>
                             </td>
                             <td class="table-cell-center">
                                 <span class="badge-log badge-secondary-minimal">
@@ -53,7 +53,7 @@
                                 </span>
                             </td>
                             <td class="table-cell-center">
-                                <span style="font-weight: 700; color: <?= ($daysDiff > 60) ? 'var(--apple-red)' : '#f57e25' ?>;">
+                                <span class="<?= ($daysDiff > 60) ? 'stale-days-critical' : 'stale-days-warning' ?>">
                                     <?= $daysDiff ?> ngày
                                 </span>
                             </td>
@@ -63,8 +63,8 @@
                                 </a>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                        <?php } ?>
+                    <?php } ?>
                 </tbody>
             </table>
         </div>

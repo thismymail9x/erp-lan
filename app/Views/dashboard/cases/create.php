@@ -22,9 +22,9 @@
                 <label for="customer_id">Khách hàng yêu cầu</label>
                 <select name="customer_id" id="customer_id" required class="form-control-premium select2-enable" title="Chọn khách hàng chủ quản của vụ việc">
                     <option value="" disabled selected>-- Chọn khách hàng --</option>
-                    <?php foreach ($customers as $c): ?>
+                    <?php foreach ($customers as $c) { ?>
                         <option value="<?= $c['id'] ?>"><?= esc($c['name']) ?> (<?= $c['phone'] ?: 'N/A' ?>)</option>
-                    <?php endforeach; ?>
+                    <?php } ?>
                 </select>
                 <p class="form-helper-text">Chọn khách hàng đã tồn tại trong hệ thống.</p>
             </div>
@@ -39,16 +39,15 @@
                 <input type="text" name="code" id="code" required class="form-control-premium" placeholder="TTDS-2024-001" value="<?= 'CASE-'.date('Y').'-'.rand(100,999) ?>" title="Mã định danh duy nhất của hồ sơ">
             </div>
 
-            <div class="form-group-premium">
-                <label for="type">Loại hình vụ việc</label>
-                <select name="type" id="type" required class="form-control-premium" title="Phân loại tính chất pháp lý">
-                    <option value="to_tung_dan_su">Tố tụng dân sự</option>
-                    <option value="thu_tuc_hanh_chinh">Thủ tục hành chính</option>
-                    <option value="xoa_an_tich">Xóa án tích</option>
-                    <option value="ly_hon_thuan_tinh">Ly hôn thuận tình</option>
-                    <option value="tu_van">Tư vấn pháp lý 24h</option>
-                    <option value="khac" selected>Các loại khác</option>
+            <div class="form-group-premium" style="grid-column: span 2;">
+                <label for="workflow_template_id">Quy trình xử lý (Template)</label>
+                <select name="workflow_template_id" id="workflow_template_id" required class="form-control-premium select2-enable" title="Chọn quy trình nghiệp vụ áp dụng cho vụ việc này">
+                    <option value="" disabled selected>-- Chọn quy trình mẫu --</option>
+                    <?php foreach ($templates as $t) { ?>
+                        <option value="<?= $t['id'] ?>"><?= esc($t['name']) ?> (Dự kiến <?= $t['total_estimated_days'] ?> ngày)</option>
+                    <?php } ?>
                 </select>
+                <p class="form-helper-text">Quy trình này sẽ tự động xác định loại hình vụ việc, các bước thực hiện và thời hạn hoàn thành.</p>
             </div>
 
             <div class="form-group-premium">
@@ -64,27 +63,27 @@
             <div class="form-group-premium">
                 <label for="approvers">Người phê duyệt (Cấp Quản lý)</label>
                 <select name="approvers[]" id="approvers" class="form-control-premium select2-multi" multiple="multiple" style="width: 100%;" title="Cấp trên phê duyệt các bước quan trọng">
-                    <?php foreach ($staffs as $s): ?>
+                    <?php foreach ($staffs as $s) { ?>
                         <option value="<?= $s['id'] ?>"><?= esc($s['full_name']) ?> (<?= esc($s['position']) ?>)</option>
-                    <?php endforeach; ?>
+                    <?php } ?>
                 </select>
             </div>
 
             <div class="form-group-premium">
                 <label for="assignees">Phụ trách chính (Chuyên môn)</label>
                 <select name="assignees[]" id="assignees" class="form-control-premium select2-multi" multiple="multiple" style="width: 100%;" title="Luật sư hoặc chuyên viên xử lý hồ sơ">
-                    <?php foreach ($staffs as $s): ?>
+                    <?php foreach ($staffs as $s) { ?>
                         <option value="<?= $s['id'] ?>"><?= esc($s['full_name']) ?> (<?= esc($s['position']) ?>)</option>
-                    <?php endforeach; ?>
+                    <?php } ?>
                 </select>
             </div>
 
             <div class="form-group-premium" style="grid-column: span 2;">
                 <label for="supporters">Nhân sự hỗ trợ</label>
                 <select name="supporters[]" id="supporters" class="form-control-premium select2-multi" multiple="multiple" style="width: 100%;" title="Các cá nhân hỗ trợ thu thập hồ sơ, giấy tờ">
-                    <?php foreach ($staffs as $s): ?>
+                    <?php foreach ($staffs as $s) { ?>
                         <option value="<?= $s['id'] ?>"><?= esc($s['full_name']) ?> (<?= esc($s['position']) ?>)</option>
-                    <?php endforeach; ?>
+                    <?php } ?>
                 </select>
             </div>
 
@@ -107,6 +106,10 @@
         if (typeof jQuery !== 'undefined' && jQuery.fn.select2) {
             $('.select2-multi').select2({
                 placeholder: "Chọn nhân sự...",
+                allowClear: true
+            });
+            $('.select2-enable').select2({
+                placeholder: "Chọn mục...",
                 allowClear: true
             });
         }

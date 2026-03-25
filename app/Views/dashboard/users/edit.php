@@ -30,13 +30,13 @@
             <div class="form-group form-group-full">
                 <label for="department_id">Phòng ban công tác</label>
                 <select name="department_id" id="department_id" required>
-                    <?php foreach ($departments as $d): ?>
+                    <?php foreach ($departments as $d) { ?>
                         <option value="<?= $d['id'] ?>" <?= $user['department_id'] == $d['id'] ? 'selected' : '' ?>><?= esc($d['name']) ?></option>
-                    <?php endforeach; ?>
+                    <?php } ?>
                 </select>
             </div>
 
-            <?php if(isset($currentRoleName) && $currentRoleName == \Config\AppConstants::ROLE_ADMIN): ?>
+            <?php if(isset($currentRoleName) && $currentRoleName == \Config\AppConstants::ROLE_ADMIN) { ?>
             <div class="form-group form-group-full">
                 <label for="password">Mật khẩu mới</label>
                 <input type="password" name="password" id="password" placeholder="Chỉ nhập nếu muốn thay đổi mật khẩu">
@@ -49,14 +49,14 @@
                     <option value="0" <?= $user['active_status'] == 0 ? 'selected' : '' ?>>Khóa truy cập</option>
                 </select>
             </div>
-            <?php endif; ?>
+            <?php } ?>
 
             <div class="form-group form-group-full">
                 <label for="role_id">Vai trò & Quyền hạn</label>
                 <select name="role_id" id="role_id" required>
-                    <?php foreach ($roles as $r): ?>
+                    <?php foreach ($roles as $r) { ?>
                         <option value="<?= $r['id'] ?>" <?= $user['role_id'] == $r['id'] ? 'selected' : '' ?>><?= $r['name'] ?></option>
-                    <?php endforeach; ?>
+                    <?php } ?>
                 </select>
             </div>
         </div>

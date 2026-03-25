@@ -133,5 +133,4 @@
         }
     }
 </script>
-</div>
 <?= $this->endSection() ?>

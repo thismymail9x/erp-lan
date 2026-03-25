@@ -32,6 +32,7 @@ $routes->group('employees', function($routes) {
     $routes->get('edit/(:num)', 'EmployeeController::edit/$1');
     $routes->post('update/(:num)', 'EmployeeController::update/$1');
     $routes->get('delete/(:num)', 'EmployeeController::delete/$1');
+    $routes->post('change-password', 'EmployeeController::changePassword');
 });
 
 // User Management Routes
@@ -60,6 +61,7 @@ $routes->group('attendance', function($routes) {
     $routes->post('submit', 'AttendanceController::submit');
     $routes->get('export', 'AttendanceController::export');
     $routes->post('bulk-update', 'AttendanceController::bulkUpdate');
+    $routes->get('get-office-token', 'AttendanceController::getOfficeToken');
 });
 
 // Case Management Routes

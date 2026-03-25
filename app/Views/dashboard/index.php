@@ -1,7 +1,7 @@
 <?= $this->extend('layouts/dashboard') ?>
 
 <?= $this->section('content') ?>
-<?php if ($attendanceStatus && $attendanceStatus['status'] === 'CHECKED_OUT'): ?>
+<?php if ($attendanceStatus && $attendanceStatus['status'] === 'CHECKED_OUT') { ?>
     <div class="attendance-hero hero-success">
         <div class="hero-content">
             <h2>Tuyệt vời! Bạn đã hoàn thành công việc</h2>
@@ -9,7 +9,7 @@
         </div>
         <div class="hero-badge">HOÀN TẤT</div>
     </div>
-<?php elseif ($attendanceStatus && $attendanceStatus['status'] === 'CHECKED_IN'): ?>
+<?php } elseif ($attendanceStatus && $attendanceStatus['status'] === 'CHECKED_IN') { ?>
     <div class="attendance-hero hero-warning">
         <div class="hero-content">
             <h2>Bạn đang trong giờ làm việc (Check-in: <?= $attendanceStatus['check_in_time'] ?>)</h2>
@@ -19,7 +19,7 @@
             <i class="fas fa-sign-out-alt"></i> Kết thúc ngày làm việc
         </a>
     </div>
-<?php else: ?>
+<?php } else { ?>
     <div class="attendance-hero hero-primary">
         <div class="hero-content">
             <h2>Sẵn sàng bắt đầu ngày làm việc?</h2>
@@ -29,7 +29,7 @@
             <i class="fas fa-camera"></i> Chấm công ngay
         </a>
     </div>
-<?php endif; ?>
+<?php } ?>
 
 <div class="stats-grid">
     <div class="stat-card">
@@ -55,7 +55,7 @@
 </div>
 
 <div class="premium-card">
-    <h3 style="margin-top:0">Hoạt động gần đây</h3>
+    <h3 class="m-t-0">Hoạt động gần đây</h3>
     <p class="text-muted">Hệ thống đang hoạt động ổn định. Chào mừng bạn đến với hệ thống quản trị L.A.N ERP.</p>
 </div>
 <?= $this->endSection() ?>

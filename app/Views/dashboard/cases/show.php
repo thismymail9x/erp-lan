@@ -38,7 +38,7 @@
 
             <!-- Overview & Timeline Section -->
             <div id="tab-overview" class="tab-content active">
-                <?php if(!empty($steps)): ?>
+                <?php if (!empty($steps)) { ?>
                     <!-- Case Progress & Horizontal Stepper -->
                     <div class="case-progress-wrapper m-b-24">
                         <?php
@@ -50,9 +50,9 @@
                         <div class="progress-header">
                             <div class="flex-column">
                                 <h4 class="m-0 font-weight-700">Tiến độ quy trình</h4>
-                                <?php if($case['template_name']): ?>
+                                <?php if ($case['template_name']) { ?>
                                     <span class="text-xs text-muted-dark">Mẫu: <span class="text-apple-main"><?= esc($case['template_name']) ?></span></span>
-                                <?php endif; ?>
+                                <?php } ?>
                             </div>
                             <span class="badge-secondary-minimal text-apple-main font-weight-700"><?= $progressPercent ?>%</span>
                         </div>
@@ -61,7 +61,7 @@
                         </div>
 
                         <div class="horizontal-stepper">
-                            <?php foreach($steps as $index => $s): ?>
+                            <?php foreach ($steps as $index => $s) { ?>
                                 <?php 
                                     $isCompleted = ($s['status'] === 'completed');
                                     $isActive = ($s['status'] === 'active');
@@ -76,12 +76,12 @@
                                     <div class="h-step-dot"><?= ($isCompleted ? '<i class="fas fa-check"></i>' : $index + 1) ?></div>
                                     <div class="h-step-label"><?= esc($s['step_name']) ?></div>
                                 </div>
-                            <?php endforeach; ?>
+                            <?php } ?>
                         </div>
                     </div>
 
                     <!-- Active Step Details & Checklist -->
-                    <?php if(!empty($active_step)): ?>
+                    <?php if (!empty($active_step)) { ?>
                     <div class="premium-card p-20 m-b-24">
                         <div class="flex-row justify-between align-center m-b-15">
                             <h3 class="section-header-title m-0">
@@ -90,12 +90,17 @@
                             <div class="text-right" style="display:flex; gap: 10px; justify-content: flex-end;">
                                 <?php 
                                     $role = session()->get('role_name');
+                                    // isEmployee: Phải gửi duyệt (mặc định cho Nhân viên / TTS)
                                     $isEmployee = (strpos(strtolower($role), 'nhân viên') !== false || $role == 'Nhân viên chính thức');
+                                    // isManager: Quyền quản trị hệ thống
                                     $isManager = in_array(strtolower($role), ['admin', 'trưởng phòng', 'truong_phong']);
+                                    
+                                    // Ưu tiên: Nếu User hiện tại là Người duyệt (Approver) của vụ việc này -> Cho phép Duyệt thẳng và Không bước qua khâu gửi duyệt
+                                    $canApproveDirectly = ($isManager || $isApprover);
                                 ?>
                                 
-                                <?php if ($active_step['status'] === 'pending_approval'): ?>
-                                    <?php if ($isManager): ?>
+                                <?php if ($active_step['status'] === 'pending_approval') { ?>
+                                    <?php if ($canApproveDirectly) { ?>
                                         <form action="<?= base_url('cases/approve-step/' . $active_step['id']) ?>" method="POST" onsubmit="return confirm('Xác nhận phê duyệt bước này?')">
                                             <?= csrf_field() ?>
                                             <button type="submit" class="btn-premium btn-sm" style="background: var(--apple-main); border-color: var(--apple-main);">
@@ -108,29 +113,29 @@
                                                 <i class="fas fa-times"></i> Từ chối
                                             </button>
                                         </form>
-                                    <?php else: ?>
-                                        <?php if (!empty($is_approval_read)): ?>
+                                    <?php } else { ?>
+                                        <?php if (!empty($is_approval_read)) { ?>
                                             <form action="<?= base_url('cases/complete-step/' . $active_step['id']) ?>" method="POST" onsubmit="return confirm('Quản lý đã xem yêu cầu trước đó. Bạn có muốn gửi yêu cầu xét duyệt lại không?')">
                                                 <?= csrf_field() ?>
                                                 <button type="submit" class="btn-premium btn-sm">
                                                     <i class="fas fa-paper-plane"></i> Gửi lại yêu cầu
                                                 </button>
                                             </form>
-                                        <?php else: ?>
+                                        <?php } else { ?>
                                             <span class="badge-secondary-minimal text-apple-orange" style="padding: 8px 15px; border-color: var(--apple-orange);">
                                                 <i class="fas fa-hourglass-half"></i> Chờ kiểm duyệt
                                             </span>
-                                        <?php endif; ?>
-                                    <?php endif; ?>
-                                <?php else: ?>
-                                    <form action="<?= base_url('cases/complete-step/' . $active_step['id']) ?>" method="POST" onsubmit="return confirm('<?= $isEmployee ? 'Bạn đã tải đủ tài liệu yêu cầu chưa? Xác nhận gửi yêu cầu duyệt?' : 'Xác nhận hoàn thành bước này?' ?>')">
+                                        <?php } ?>
+                                    <?php } ?>
+                                <?php } else { ?>
+                                    <form action="<?= base_url('cases/complete-step/' . $active_step['id']) ?>" method="POST" onsubmit="return confirm('<?= !$canApproveDirectly ? 'Bạn đã tải đủ tài liệu yêu cầu chưa? Xác nhận gửi yêu cầu duyệt?' : 'Xác nhận hoàn thành bước này?' ?>')">
                                         <?= csrf_field() ?>
                                         <button type="submit" class="btn-premium btn-sm">
-                                            <i class="fas <?= $isEmployee ? 'fa-paper-plane' : 'fa-check-double' ?>"></i> 
-                                            <?= $isEmployee ? 'Gửi yêu cầu duyệt' : 'Hoàn thành bước' ?>
+                                            <i class="fas <?= !$canApproveDirectly ? 'fa-paper-plane' : 'fa-check-double' ?>"></i> 
+                                            <?= !$canApproveDirectly ? 'Gửi yêu cầu duyệt' : 'Hoàn thành bước' ?>
                                         </button>
                                     </form>
-                                <?php endif; ?>
+                                <?php } ?>
                             </div>
                         </div>
 
@@ -143,12 +148,12 @@
                                 <label class="text-muted-dark text-xs uppercase">Hạn chót</label>
                                 <div class="font-weight-600 text-apple-red"><?= date('d/m/Y', strtotime($active_step['deadline'])) ?></div>
                             </div>
-                            <?php if(!empty($active_step['responsible_display'])): ?>
-                            <div class="info-item flex-2">
-                                <label class="text-muted-dark text-xs uppercase">Người chịu trách nhiệm / Thông báo</label>
-                                <div class="m-t-5"><?= $active_step['responsible_display'] ?></div>
-                            </div>
-                            <?php endif; ?>
+                            <?php if (!empty($active_step['responsible_display'])) { ?>
+                                <div class="info-item flex-2">
+                                    <label class="text-muted-dark text-xs uppercase">Người chịu trách nhiệm / Thông báo</label>
+                                    <div class="m-t-5"><?= $active_step['responsible_display'] ?></div>
+                                </div>
+                            <?php } ?>
                         </div>
 
                         <div class="step-checklist-card">
@@ -162,7 +167,7 @@
                                     return $d['step_id'] == $active_step['id'];
                                 });
                             ?>
-                            <?php foreach($reqDocs as $rd): ?>
+                            <?php foreach ($reqDocs as $rd) { ?>
                                 <?php 
                                     $isUploaded = false;
                                     foreach($stepDocs as $sd) {
@@ -176,17 +181,17 @@
                                         <i class="fas <?= $isUploaded ? 'fa-check-circle' : 'fa-circle' ?>"></i>
                                     </div>
                                     <div class="checklist-label"><?= esc($rd) ?></div>
-                                    <?php if(!$isUploaded): ?>
+                                    <?php if (!$isUploaded) { ?>
                                         <button class="btn-upload-checklist" onclick="openUploadStep(<?= $active_step['id'] ?>, '<?= esc($rd) ?>')">
                                             <i class="fas fa-upload"></i> Tải lên
                                         </button>
-                                    <?php endif; ?>
+                                    <?php } ?>
                                 </div>
-                            <?php endforeach; ?>
+                            <?php } ?>
                         </div>
                     </div>
-                    <?php endif; ?>
-                <?php endif; ?>
+                    <?php } ?>
+                <?php } ?>
 
                 <div class="premium-card p-20 m-b-24">
                     <div class="card-section">
@@ -208,39 +213,39 @@
                             <div class="info-item" style="grid-column: span 2;">
                                 <label class="text-muted-dark text-xs font-weight-600 uppercase" style="display:flex; justify-content:space-between; align-items:center;">
                                     <span>Đội ngũ phụ trách</span>
-                                    <?php if (in_array(session()->get('role_name'), ['Admin', 'Trưởng phòng'])): ?>
+                                    <?php if (in_array(session()->get('role_name'), ['Admin', 'Trưởng phòng'])) { ?>
                                         <a href="javascript:void(0)" onclick="document.getElementById('assignMembersModal').style.display='flex'; $('.select2-multi').select2({dropdownParent: $('#assignMembersModal')});" class="text-apple-blue font-weight-500" style="text-decoration:none; text-transform:none;"><i class="fas fa-user-plus m-r-4"></i> Phân công</a>
-                                    <?php endif; ?>
+                                    <?php } ?>
                                 </label>
                                 <div class="font-weight-600 m-t-10 flex-column gap-10">
-                                    <?php if(empty($members)): ?>
+                                    <?php if (empty($members)) { ?>
                                         <div class="text-muted-dark font-weight-400"><i class="fas fa-info-circle m-r-5"></i> Chưa có nhân sự nào được gán.</div>
-                                    <?php else: ?>
-                                        <?php if(!empty($memberGroups['approver'])): ?>
+                                    <?php } else { ?>
+                                        <?php if (!empty($memberGroups['approver'])) { ?>
                                             <div style="display: flex; gap: 8px; align-items: flex-start;">
                                                 <span class="badge-secondary-minimal text-xs" style="min-width: 85px; text-align: center; background: rgba(0,0,0,0.05);">Người duyệt</span> 
                                                 <div style="flex:1; line-height:1.5;">
                                                     <?= implode(', ', array_map(function($m) { return esc($m['full_name']); }, $memberGroups['approver'])) ?>
                                                 </div>
                                             </div>
-                                        <?php endif; ?>
-                                        <?php if(!empty($memberGroups['assignee'])): ?>
+                                        <?php } ?>
+                                        <?php if (!empty($memberGroups['assignee'])) { ?>
                                             <div style="display: flex; gap: 8px; align-items: flex-start;">
                                                 <span class="badge-info-minimal text-xs" style="min-width: 85px; text-align: center;">Chuyên môn</span> 
                                                 <div style="flex:1; line-height:1.5;">
                                                     <?= implode(', ', array_map(function($m) { return esc($m['full_name']); }, $memberGroups['assignee'])) ?>
                                                 </div>
                                             </div>
-                                        <?php endif; ?>
-                                        <?php if(!empty($memberGroups['supporter'])): ?>
+                                        <?php } ?>
+                                        <?php if (!empty($memberGroups['supporter'])) { ?>
                                             <div style="display: flex; gap: 8px; align-items: flex-start;">
                                                 <span class="text-muted-dark text-xs" style="min-width: 85px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px;">Hỗ trợ</span> 
                                                 <div style="flex:1; line-height:1.5; font-weight:500;">
                                                     <?= implode(', ', array_map(function($m) { return esc($m['full_name']); }, $memberGroups['supporter'])) ?>
                                                 </div>
                                             </div>
-                                        <?php endif; ?>
-                                    <?php endif; ?>
+                                        <?php } ?>
+                                    <?php } ?>
                                 </div>
                             </div>
                         </div>
@@ -254,10 +259,10 @@
                     <h3 class="section-header-title">Trao đổi nội bộ (Chỉ nhân viên)</h3>
                     
                     <div class="comment-feed m-b-20" style="max-height: 400px; overflow-y: auto; padding-right: 10px;">
-                        <?php if(empty($comments)): ?>
+                        <?php if (empty($comments)) { ?>
                             <div class="empty-state-container p-20 text-center text-muted-dark">Chưa có trao đổi nào về hồ sơ này.</div>
-                        <?php else: ?>
-                            <?php foreach($comments as $c): ?>
+                        <?php } else { ?>
+                            <?php foreach ($comments as $c) { ?>
                                 <div class="timeline-item-premium" title="Phản hồi từ <?= esc($c['user_name']) ?>">
                                     <div class="timeline-dot"></div>
                                     <div class="flex-column gap-5 m-b-10">
@@ -270,8 +275,8 @@
                                         <?= nl2br(esc($c['content'])) ?>
                                     </div>
                                 </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+                            <?php } ?>
+                        <?php } ?>
                     </div>
 
                     <form action="<?= base_url('cases/add-comment/' . $case['id']) ?>" method="POST" class="premium-form">
@@ -293,10 +298,10 @@
             <div id="tab-history" class="tab-content" style="display: none;">
                 <div class="premium-card p-20 m-b-24">
                     <div class="log-entry-list">
-                        <?php if (empty($history)): ?>
+                        <?php if (empty($history)) { ?>
                             <div class="empty-state-container text-center text-muted-dark italic">Chưa có ghi nhận thay đổi nào.</div>
-                        <?php else: ?>
-                            <?php foreach ($history as $h): ?>
+                        <?php } else { ?>
+                            <?php foreach ($history as $h) { ?>
                             <div class="log-entry-item p-15" style="border-bottom: 1px solid var(--border-color);">
                                 <div class="log-header" style="display: flex; justify-content: space-between; align-items: start;">
                                     <div class="log-title">
@@ -315,14 +320,14 @@
                                     </div>
                                     <div class="text-xs text-muted-dark"><?= date('H:i d/m/Y', strtotime($h['created_at'])) ?></div>
                                 </div>
-                                <?php if($h['note']): ?>
+                                <?php if ($h['note']) { ?>
                                     <div class="log-details m-t-10 text-sm text-muted-dark">
                                         <?= esc($h['note']) ?>
                                     </div>
-                                <?php endif; ?>
+                                <?php } ?>
                             </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+                            <?php } ?>
+                        <?php } ?>
                     </div>
                 </div>
             </div>
@@ -348,10 +353,10 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if (empty($documents)): ?>
+                                <?php if (empty($documents)) { ?>
                                     <tr><td colspan="4" class="empty-state-container text-center text-muted-dark">Chưa có tài liệu đính kèm.</td></tr>
-                                <?php else: ?>
-                                    <?php foreach ($documents as $doc): ?>
+                                <?php } else { ?>
+                                    <?php foreach ($documents as $doc) { ?>
                                     <tr>
                                         <td>
                                             <div class="font-weight-500 text-apple-main"><?= esc($doc['file_name']) ?></div>
@@ -364,8 +369,8 @@
                                             </a>
                                         </td>
                                     </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
+                                    <?php } ?>
+                                <?php } ?>
                             </tbody>
                         </table>
                     </div>
@@ -397,25 +402,25 @@
                     <div class="text-xl font-weight-700 <?= (strtotime($case['deadline']) < time()) ? 'text-apple-red' : 'text-apple-main' ?>" title="Ngày hết hạn hoàn thành toàn bộ vụ việc">
                         <?= $case['deadline'] ? date('d/m/Y', strtotime($case['deadline'])) : 'Chưa thiết lập' ?>
                     </div>
-                    <?php if($case['deadline']): ?>
+                    <?php if ($case['deadline']) { ?>
                         <div class="text-xs text-muted-dark">
                             <?php 
                                 $days = ceil((strtotime($case['deadline']) - time()) / 86400);
                                 echo $days > 0 ? "Còn $days ngày" : "Quá hạn " . abs($days) . " ngày";
                             ?>
                         </div>
-                    <?php endif; ?>
+                    <?php } ?>
                 </div>
             </div>
 
             <div class="premium-card p-20">
                 <h3 class="sidebar-section-title">Hành động nhanh</h3>
                 <div class="quick-actions-list flex-column gap-10">
-                    <?php if (has_permission('case.manage')): ?>
+                    <?php if (has_permission('case.manage')) { ?>
                         <button class="btn-secondary-sm w-100" style="justify-content: flex-start;" onclick="document.getElementById('statusModal').style.display='flex'" title="Cập nhật trạng thái tổng thể hồ sơ">
                             <i class="fas fa-sync-alt m-r-8"></i> Cập nhật trạng thái
                         </button>
-                    <?php endif; ?>
+                    <?php } ?>
                     
                     <button class="btn-secondary-sm w-100" style="justify-content: flex-start;" onclick="switchTab('comments')" title="Viết trao đổi hoặc chỉ đạo nghiệp vụ">
                         <i class="fas fa-comment-dots m-r-8"></i> Thêm ghi chú nội bộ
@@ -443,9 +448,9 @@
             <div class="form-group-premium m-b-15">
                 <label class="info-list-label m-b-10" style="display:block;">Trạng thái tiếp theo</label>
                 <select name="status" class="form-control-premium" required title="Chọn trạng thái mới cho hồ sơ">
-                    <?php foreach($statusLabels as $val => $lbl): ?>
+                    <?php foreach ($statusLabels as $val => $lbl) { ?>
                         <option value="<?= $val ?>" <?= $case['status'] == $val ? 'selected' : '' ?>><?= $lbl ?></option>
-                    <?php endforeach; ?>
+                    <?php } ?>
                 </select>
             </div>
 
@@ -471,25 +476,25 @@
             <div class="form-group-premium m-b-15">
                 <label class="info-list-label m-b-5" style="display:block;">1. Người phê duyệt (Cấp Quản lý)</label>
                 <select name="approvers[]" class="form-control-premium select2-multi" multiple="multiple" style="width: 100%;">
-                    <?php foreach($staffs as $s): ?>
+                    <?php foreach ($staffs as $s) { ?>
                         <option value="<?= $s['id'] ?>" <?= in_array($s['id'], array_column($memberGroups['approver'], 'employee_id')) ? 'selected' : '' ?>><?= esc($s['full_name']) ?> (<?= esc($s['position']) ?>)</option>
-                    <?php endforeach; ?>
+                    <?php } ?>
                 </select>
             </div>
             <div class="form-group-premium m-b-15">
                 <label class="info-list-label m-b-5" style="display:block;">2. Phụ trách chính</label>
                 <select name="assignees[]" class="form-control-premium select2-multi" multiple="multiple" style="width: 100%;">
-                    <?php foreach($staffs as $s): ?>
+                    <?php foreach ($staffs as $s) { ?>
                         <option value="<?= $s['id'] ?>" <?= in_array($s['id'], array_column($memberGroups['assignee'], 'employee_id')) ? 'selected' : '' ?>><?= esc($s['full_name']) ?> (<?= esc($s['position']) ?>)</option>
-                    <?php endforeach; ?>
+                    <?php } ?>
                 </select>
             </div>
             <div class="form-group-premium m-b-15">
                 <label class="info-list-label m-b-5" style="display:block;">3. Nhân sự hỗ trợ</label>
                 <select name="supporters[]" class="form-control-premium select2-multi" multiple="multiple" style="width: 100%;">
-                    <?php foreach($staffs as $s): ?>
+                    <?php foreach ($staffs as $s) { ?>
                         <option value="<?= $s['id'] ?>" <?= in_array($s['id'], array_column($memberGroups['supporter'], 'employee_id')) ? 'selected' : '' ?>><?= esc($s['full_name']) ?> (<?= esc($s['position']) ?>)</option>
-                    <?php endforeach; ?>
+                    <?php } ?>
                 </select>
             </div>
             <div class="form-actions-row m-t-20">

@@ -71,7 +71,7 @@
                     <!-- Tìm kiếm đa năng theo Tên, SĐT, CCCD hoặc Mã khách hàng -->
                     <input type="text" name="q" class="form-control-premium flex-1" placeholder="Tìm tên, SĐT, CCCD, MST..." value="<?= service('request')->getGet('q') ?>" title="Tìm kiếm theo Tên, Số điện thoại, CCCD, Mã số thuế hoặc Mã khách hàng">
                     <!-- Lọc nhanh theo Loại hình sở hữu -->
-                    <select name="type" class="form-control-premium" style="width: 200px;" title="Lọc theo loại khách hàng Cá nhân hoặc Doanh nghiệp">
+                    <select name="type" class="form-control-premium w-200" title="Lọc theo loại khách hàng Cá nhân hoặc Doanh nghiệp">
                         <option value="">Tất cả loại khách</option>
                         <option value="ca_nhan" <?= service('request')->getGet('type') == 'ca_nhan' ? 'selected' : '' ?>>Cá nhân</option>
                         <option value="doanh_nghiep" <?= service('request')->getGet('type') == 'doanh_nghiep' ? 'selected' : '' ?>>Doanh nghiệp</option>
@@ -98,7 +98,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (empty($customers)): ?>
+                    <?php if (empty($customers)) { ?>
                         <!-- Giao diện khi không có kết quả tìm kiếm -->
                         <tr>
                             <td colspan="7" class="empty-state-container">
@@ -106,8 +106,8 @@
                                 Không tìm thấy khách hàng nào phù hợp với bộ lọc.
                             </td>
                         </tr>
-                    <?php else: ?>
-                        <?php foreach ($customers as $customer): ?>
+                    <?php } else { ?>
+                        <?php foreach ($customers as $customer) { ?>
                         <tr>
                             <!-- Mã KH tự động (KH-YYYY-XXX) -->
                             <td data-label="Mã KH">
@@ -118,9 +118,9 @@
                                 <div class="font-weight-600 text-apple-main"><?= esc($customer['name']) ?></div>
                                 <div class="text-xs text-muted-dark" title="Loại khách hàng">
                                     <?= ($customer['type'] == 'ca_nhan') ? 'Cá nhân' : 'Doanh nghiệp' ?>
-                                    <?php if($customer['is_blacklist']): ?>
+                                    <?php if ($customer['is_blacklist']) { ?>
                                         <span class="text-apple-red m-l-5" title="Khách hàng này nằm trong danh sách hạn chế"><i class="fas fa-user-slash"></i> Blacklist</span>
-                                    <?php endif; ?>
+                                    <?php } ?>
                                 </div>
                             </td>
                             <!-- Thông tin liên lạc cơ bản -->
@@ -156,8 +156,8 @@
                                 </div>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                        <?php } ?>
+                    <?php } ?>
                 </tbody>
             </table>
         </div>

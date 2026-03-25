@@ -52,7 +52,7 @@
         </div>
     </div>
 
-    <div class="premium-card" style="padding: 0; overflow: hidden; border-radius: 18px;">
+    <div class="premium-card att-card-table">
         <div class="table-responsive">
             <table class="premium-table">
                 <thead>
@@ -65,12 +65,12 @@ if ($currentDept) $baseQuery .= "&department_id={$currentDept}";
 $currentSort = $currentSort ?? 'date';
 $currentOrder = $currentOrder ?? 'desc';
 ?>
-                    <tr style="background: #fbfbfd; border-bottom: 1px solid #eee;">
-                        <th style="padding: 18px 20px; text-align: center; width: 40px;">
+                    <tr class="att-table-header-row">
+                        <th class="att-table-th-center" style="width: 40px;">
                             <input type="checkbox" id="check-all" style="width: 18px; height: 18px; cursor: pointer;">
                         </th>
                         <?php if (($viewType ?? 'daily') == 'monthly') { ?>
-                            <th style="padding: 18px 20px; text-align: left; width: 100px;">
+                            <th class="att-table-th" style="width: 100px;">
                                 <a href="<?= base_url('attendance/list') ?><?= $baseQuery ?>&sort=date&order=<?= ($currentSort == 'date' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
                                     Ngày
                                     <?php if($currentSort == 'date') { ?>
@@ -81,7 +81,7 @@ $currentOrder = $currentOrder ?? 'desc';
                                 </a>
                             </th>
                         <?php } ?>
-                        <th style="padding: 18px 20px; text-align: left;">
+                        <th class="att-table-th">
                             <a href="<?= base_url('attendance/list') ?><?= $baseQuery ?>&sort=name&order=<?= ($currentSort == 'name' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
                                 Nhân viên
                                 <?php if($currentSort == 'name') { ?>
@@ -91,7 +91,7 @@ $currentOrder = $currentOrder ?? 'desc';
                                 <?php } ?>
                             </a>
                         </th>
-                        <th class="hide-mobile" style="padding: 18px 20px; text-align: left;">
+                        <th class="hide-mobile att-table-th">
                             <a href="<?= base_url('attendance/list') ?><?= $baseQuery ?>&sort=dept&order=<?= ($currentSort == 'dept' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
                                 Bộ phận
                                 <?php if($currentSort == 'dept') { ?>
@@ -101,8 +101,8 @@ $currentOrder = $currentOrder ?? 'desc';
                                 <?php } ?>
                             </a>
                         </th>
-                        <th style="padding: 18px 20px; text-align: center;">Thời gian</th>
-                        <th class="hide-mobile" style="padding: 18px 20px; text-align: center;">
+                        <th class="att-table-th-center">Thời gian</th>
+                        <th class="hide-mobile att-table-th-center">
                             <a href="<?= base_url('attendance/list') ?><?= $baseQuery ?>&sort=hours&order=<?= ($currentSort == 'hours' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" style="color: inherit; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 4px;">
                                 Tổng giờ
                                 <?php if($currentSort == 'hours') { ?>
@@ -112,8 +112,8 @@ $currentOrder = $currentOrder ?? 'desc';
                                 <?php } ?>
                             </a>
                         </th>
-                        <th class="hide-mobile" style="padding: 18px 20px; text-align: center;">Vị trí</th>
-                        <th style="padding: 18px 20px; text-align: center;">
+                        <th class="hide-mobile att-table-th-center">Vị trí</th>
+                        <th class="att-table-th-center">
                             <a href="<?= base_url('attendance/list') ?><?= $baseQuery ?>&sort=status&order=<?= ($currentSort == 'status' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" style="color: inherit; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 4px;">
                                 Trạng thái
                                 <?php if($currentSort == 'status') { ?>
@@ -131,26 +131,28 @@ $currentOrder = $currentOrder ?? 'desc';
                     <?php } else { ?>
                         <?php foreach($records as $row) { ?>
                             <tr style="border-bottom: 1px solid #f8f8f8;">
-                                <td style="padding: 15px 20px; text-align: center;">
+                                <td class="att-table-td-center">
                                     <input type="checkbox" class="record-check" value="<?= $row['id'] ?>" style="width: 18px; height: 18px; cursor: pointer;">
                                 </td>
                                 <?php if (($viewType ?? 'daily') == 'monthly') { ?>
-                                    <td style="padding: 15px 20px; font-weight: 600; font-size: 13px;">
+                                    <td class="att-table-td att-date-main">
                                         <?= date('d/m', strtotime($row['attendance_date'])) ?>
                                     </td>
                                 <?php } ?>
-                                <td style="padding: 15px 20px;">
-                                    <div style="font-weight: 600; color: #1d1d1f; font-size: 14px;" title="Tên nhân viên"><?= esc($row['full_name']) ?></div>
-                                    <div class="hide-mobile" style="font-size: 11px; color: var(--apple-text-muted);" title="Phòng ban làm việc"><?= esc($row['dept_name'] ?: '---') ?></div>
+                                <td class="att-table-td">
+                                    <a href="<?= base_url('attendance/list') ?>?view=monthly&month=<?= date('Y-m', strtotime($row['attendance_date'] ?: $currentDate)) ?>&employee_id=<?= $row['emp_id'] ?>" class="att-emp-link" title="Xem lịch sử chấm công tháng của <?= esc($row['full_name']) ?>">
+                                        <?= esc($row['full_name']) ?>
+                                    </a>
+                                    <div class="hide-mobile att-emp-dept" title="Phòng ban làm việc"><?= esc($row['dept_name'] ?: '---') ?></div>
                                 </td>
-                                <td class="hide-mobile" style="padding: 15px 20px; color: var(--apple-text-muted); font-size: 13px;">
+                                <td class="hide-mobile att-table-td att-emp-dept">
                                     <?= esc($row['dept_name'] ?: '---') ?>
                                 </td>
-                                <td style="padding: 15px 20px; text-align: center;">
+                                <td class="att-table-td-center">
                                     <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
                                         <div class="attendance-time-display">
-                                            <div class="check-in"><?= $row['check_in_time'] ? date('H:i', strtotime($row['check_in_time'])) : '--:--' ?></div>
-                                            <div class="check-out"><?= $row['check_out_time'] ? date('H:i', strtotime($row['check_out_time'])) : '--:--' ?></div>
+                                            <div class="att-time-main"><?= $row['check_in_time'] ? date('H:i', strtotime($row['check_in_time'])) : '--:--' ?></div>
+                                            <div class="att-time-sub"><?= $row['check_out_time'] ? date('H:i', strtotime($row['check_out_time'])) : '--:--' ?></div>
                                         </div>
                                         <div style="display: flex; gap: 4px;">
                                             <?php if($row['check_in_photo']) { ?>
@@ -162,35 +164,34 @@ $currentOrder = $currentOrder ?? 'desc';
                                         </div>
                                     </div>
                                 </td>
-                                <td class="hide-mobile" style="padding: 15px 20px; text-align: center; font-weight: 700; color: #1d1d1f;" title="Tổng số giờ đã làm việc được tính toán tự động">
+                                <td class="hide-mobile att-table-td-center att-hours-val" title="Tổng số giờ đã làm việc được tính toán tự động">
                                     <?= $row['worked_hours'] ? $row['worked_hours'] . "h" : '---' ?>
                                 </td>
-                                <td class="hide-mobile" style="padding: 15px 20px; text-align: center;">
+                                <td class="hide-mobile att-table-td-center">
                                     <?php if($row['check_in_time']) { ?>
                                         <i class="fas <?= $row['is_valid_location'] ? 'fa-check-circle' : 'fa-times-circle' ?>" style="color: <?= $row['is_valid_location'] ? '#34c759' : '#ff3b30' ?>; font-size: 16px;" title="<?= $row['is_valid_location'] ? 'Vị trí hợp lệ' : 'Sai vị trí quy định' ?>"></i>
                                     <?php } else { ?>
                                         ---
                                     <?php } ?>
                                 </td>
-                                <td style="padding: 15px 20px; text-align: center;">
+                                <td class="att-table-td-center">
                                     <?php 
-                                        $badgeStyle = "padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; display: inline-block; white-space: nowrap;";
                                         if (!$row['check_in_time']) {
-                                            echo "<span style='{$badgeStyle} background: #f5f5f7; color: #8e8e93;'>VẮNG</span>";
+                                            echo "<span class='att-badge-base att-badge-absent'>VẮNG</span>";
                                         } else {
                                             switch($row['status']) {
                                                 case 'REGULAR':
-                                                    echo "<span style='{$badgeStyle} background: #e3f9e5; color: #1a7f37;'>ĐÚNG GIỜ</span>";
+                                                    echo "<span class='att-badge-base att-badge-regular'>ĐÚNG GIỜ</span>";
                                                     break;
                                                 case 'LATE':
                                                 case 'EARLY_LEAVE':
-                                                    echo "<span style='{$badgeStyle} background: #fff4e6; color: #d97706;'>TRỄ/SỚM</span>";
+                                                    echo "<span class='att-badge-base att-badge-late'>TRỄ/SỚM</span>";
                                                     break;
                                                 case 'INVALID_LOCATION':
-                                                    echo "<span style='{$badgeStyle} background: #ffebeb; color: #cf222e;'>SAI VỊ TRÍ</span>";
+                                                    echo "<span class='att-badge-base att-badge-invalid'>SAI VỊ TRÍ</span>";
                                                     break;
                                                 default:
-                                                    echo "<span style='{$badgeStyle} background: #f1f1f1; color: #666;'>{$row['status']}</span>";
+                                                    echo "<span class='att-badge-base att-badge-neutral'>{$row['status']}</span>";
                                             }
                                         }
                                     ?>

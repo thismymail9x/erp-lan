@@ -20,15 +20,16 @@
     <div class="steps-builder-layout">
         <div class="steps-list-column">
             <div id="steps-container">
-                <?php if(empty($steps)): ?>
+                <?php if (empty($steps)) { ?>
                     <div class="empty-steps-state premium-card p-30 text-center">
                         <p class="text-muted-dark m-b-15">Chưa có bước nào được thiết lập.</p>
                         <button type="button" class="btn-secondary-sm" onclick="addNewStep()">
                             <i class="fas fa-plus"></i> Thêm bước đầu tiên
                         </button>
                     </div>
-                <?php else: ?>
-                    <?php foreach($steps as $index => $step): ?>
+                    </div>
+                <?php } else { ?>
+                    <?php foreach ($steps as $index => $step) { ?>
                         <div class="step-card premium-card m-b-15" data-index="<?= $index ?>">
                             <div class="step-card-header">
                                 <div class="step-number">#<?= ($index + 1) ?></div>
@@ -54,17 +55,17 @@
                                             }
                                         ?>
                                         <select class="select2-multiple" name="steps[<?= $index ?>][responsible_role][]" multiple="multiple" style="width: 100%;">
-                                            <optgroup label="Theo Vai trò">
-                                                <?php foreach($roles as $val => $lbl): ?>
+                                             <optgroup label="Theo Vai trò">
+                                                <?php foreach ($roles as $val => $lbl) { ?>
                                                     <option value="role:<?= $val ?>" <?= in_array("role:$val", $selectedRoles) ? 'selected' : '' ?>><?= $lbl ?></option>
-                                                <?php endforeach; ?>
+                                                <?php } ?>
                                             </optgroup>
                                             <optgroup label="Cá nhân cụ thể">
-                                                <?php foreach($employees as $emp): ?>
+                                                <?php foreach ($employees as $emp) { ?>
                                                     <option value="user:<?= $emp['id'] ?>" <?= in_array("user:{$emp['id']}", $selectedRoles) ? 'selected' : '' ?>>
                                                         <?= esc($emp['full_name']) ?> (<?= esc($emp['position']) ?>)
                                                     </option>
-                                                <?php endforeach; ?>
+                                                <?php } ?>
                                             </optgroup>
                                         </select>
                                     </div>
@@ -80,8 +81,8 @@
                                 </div>
                             </div>
                         </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                    <?php } ?>
+                <?php } ?>
             </div>
 
             <div class="add-step-wrapper m-t-20">
@@ -246,16 +247,16 @@ function addNewStep() {
                         <label>Người nhận thông báo</label>
                         <select class="select2-multiple" name="steps[${index}][responsible_role][]" multiple="multiple" style="width: 100%;">
                             <optgroup label="Theo Vai trò">
-                                <?php foreach($roles as $val => $lbl): ?>
+                                <?php foreach ($roles as $val => $lbl) { ?>
                                     <option value="role:<?= $val ?>"><?= $lbl ?></option>
-                                <?php endforeach; ?>
+                                <?php } ?>
                             </optgroup>
                             <optgroup label="Cá nhân cụ thể">
-                                <?php foreach($employees as $emp): ?>
+                                <?php foreach ($employees as $emp) { ?>
                                     <option value="user:<?= $emp['id'] ?>">
                                         <?= esc($emp['full_name']) ?> (<?= esc($emp['position']) ?>)
                                     </option>
-                                <?php endforeach; ?>
+                                <?php } ?>
                             </optgroup>
                         </select>
                     </div>

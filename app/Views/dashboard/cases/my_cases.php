@@ -23,10 +23,10 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (empty($cases)): ?>
+                    <?php if (empty($cases)) { ?>
                         <tr><td colspan="6" class="empty-state-container">Bạn chưa có vụ việc nào được gán.</td></tr>
-                    <?php else: ?>
-                        <?php foreach ($cases as $case): ?>
+                    <?php } else { ?>
+                        <?php foreach ($cases as $case) { ?>
                          <tr>
                             <td><span class="badge-secondary-minimal" title="Mã hiệu hồ sơ pháp lý"><?= esc($case['code']) ?></span></td>
                             <td>
@@ -40,21 +40,21 @@
                                 </span>
                             </td>
                             <td class="table-cell-center">
-                                <?php if($case['step_deadline']): ?>
+                                <?php if ($case['step_deadline']) { ?>
                                     <div class="font-weight-600" style="<?= (strtotime($case['step_deadline']) < time()) ? 'color: var(--apple-red);' : '' ?>" title="Hạn chót phải hoàn thành bước này">
                                         <?= date('d/m/Y', strtotime($case['step_deadline'])) ?>
                                     </div>
                                     <div class="text-xs opacity-05">
                                         <?= (strtotime($case['step_deadline']) < time()) ? 'Quá hạn' : 'Sắp tới' ?>
                                     </div>
-                                <?php else: ?> -- <?php endif; ?>
+                                <?php } else { ?> -- <?php } ?>
                             </td>
                             <td class="table-cell-right">
                                 <a href="<?= base_url('cases/show/' . $case['id']) ?>" class="btn-premium btn-sm" title="Truy cập chi tiết và xử lý hồ sơ">Xử lý</a>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                        <?php } ?>
+                    <?php } ?>
                 </tbody>
             </table>
         </div>

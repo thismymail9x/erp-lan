@@ -37,9 +37,9 @@
                 <label for="department_id">Phòng ban công tác</label>
                 <select name="department_id" id="department_id" class="form-control-premium" required title="Phòng ban nhân viên trực thuộc">
                     <option value="" disabled selected>-- Chọn phòng ban --</option>
-                    <?php foreach ($departments as $d): ?>
+                    <?php foreach ($departments as $d) { ?>
                         <option value="<?= $d['id'] ?>"><?= esc($d['name']) ?></option>
-                    <?php endforeach; ?>
+                    <?php } ?>
                 </select>
             </div>
 
@@ -67,9 +67,9 @@
                 <label for="user_id">Liên kết tài khoản hệ thống (Nếu có)</label>
                 <select name="user_id" id="user_id" class="form-control-premium" title="Kết nối hồ sơ nhân sự với tài khoản đăng nhập">
                     <option value="">-- Không liên kết / Để sau --</option>
-                    <?php foreach ($unlinkedUsers as $u): ?>
+                    <?php foreach ($unlinkedUsers as $u) { ?>
                         <option value="<?= $u['id'] ?>"><?= esc($u['email']) ?></option>
-                    <?php endforeach; ?>
+                    <?php } ?>
                 </select>
                 <p class="form-helper-text">Chỉ hiển thị các tài khoản chưa được gán cho nhân viên nào.</p>
             </div>

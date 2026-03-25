@@ -3,100 +3,148 @@
 namespace App\Services;
 
 use App\Models\AttendanceModel;
+use App\Models\SystemSettingModel;
 use Config\AppConstants;
 use CodeIgniter\I18n\Time;
 
 /**
  * AttendanceService
  * 
- * Quản lý nghiệp vụ chấm công: Check-in, Check-out, tính toán thời gian và vị trí.
+ * Lớp Dịch vụ nòng cốt quản lý toàn bộ quy trình Chấm công.
+ * Hỗ trợ các công nghệ:
+ * 1. Chế độ mạng LAN (IP-based whitelist).
+ * 2. Chế độ Camera & GPS (Location-based verification).
+ * 3. Chế độ Authorized PC (Token-based verification) cho IP động.
+ * 4. Tự động tính toán công thợ (Worked hours calculations).
  */
 class AttendanceService extends BaseService
 {
     protected $attendanceModel;
+    protected $systemSettingModel;
     protected $logService;
 
     public function __construct()
     {
         parent::__construct();
+        // Khởi tạo các model cần thiết
         $this->attendanceModel = new AttendanceModel();
+        $this->systemSettingModel = new SystemSettingModel();
         $this->logService = new SystemLogService();
     }
 
     /**
-     * Kiểm tra IP đầu vào có thuộc dải mạng LAN văn phòng không
+     * Kiểm tra truy cập có được coi là "Nội bộ văn phòng" hay không.
+     * 
+     * @param string $ip Địa chỉ IP của Client.
+     * @param string|null $token Mã xác thực máy tính văn phòng (nếu có).
+     * @return bool
      */
-    public function isLanIp(string $ip): bool
+    public function isInternalAccess(string $ip, ?string $token = null): bool
     {
+        // CHIẾN LƯỢC 1: Kiểm tra IP (Dùng cho các văn phòng có đường truyền IP tĩnh)
         foreach (AppConstants::ATT_LAN_IPS as $allowedIp) {
             if (strpos($ip, $allowedIp) === 0) {
                 return true;
             }
         }
+
+        // CHIẾN LƯỢC 2: Kiểm tra Security Token (Dành cho PC cố định nhưng IP bị thay đổi liên tục)
+        if (!empty($token)) {
+            $officeToken = $this->systemSettingModel->where('key', 'office_security_token')->first();
+            if ($officeToken && $token === $officeToken['value']) {
+                return true;
+            }
+        }
+
         return false;
     }
 
     /**
-     * Lấy trạng thái chấm công hôm nay của nhân viên
+     * Kiểm tra IP có thuộc dải IP LAN nội bộ hay không.
+     * Alias cho isInternalAccess để tương thích với Controller.
+     */
+    public function isLanIp(string $ip): bool
+    {
+        return $this->isInternalAccess($ip);
+    }
+
+    /**
+     * Lấy trạng thái điểm danh trong ngày của một nhân viên cụ thể.
      */
     public function getTodayStatus(int $employeeId)
     {
+        // Truy vấn bản ghi chấm công của ngày hiện tại
         $record = $this->attendanceModel->getTodayAttendance($employeeId);
         
         if (!$record) {
-            return ['status' => 'NOT_CHECKED_IN'];
+            return ['status' => 'NOT_CHECKED_IN']; // Chưa có dữ liệu gì
         }
 
         if (!$record['check_out_time']) {
             return [
-                'status' => 'CHECKED_IN',
+                'status' => 'CHECKED_IN', // Đã vào nhưng chưa ra
                 'check_in_time' => date('H:i:s', strtotime($record['check_in_time']))
             ];
         }
 
         return [
-            'status' => 'CHECKED_OUT',
+            'status' => 'CHECKED_OUT', // Đã hoàn thành ca làm việc
             'check_in_time' => date('H:i:s', strtotime($record['check_in_time'])),
             'check_out_time' => date('H:i:s', strtotime($record['check_out_time']))
         ];
     }
 
     /**
-     * Thực hiện chấm công (vào/ra)
+     * Logic trung tâm xử lý việc Chấm công (Vào/Ra).
+     * Tự động quyết định xem đây là Check-in hay Check-out dựa trên dữ liệu hiện có.
+     * 
+     * @param int $employeeId
+     * @param array $data Dữ liệu GPS/Token/Notes
+     * @param mixed $photo File ảnh chụp (nếu có)
      */
     public function submit(int $employeeId, array $data, $photo = null)
     {
+        // 1. Khởi tạo mốc thời gian chuẩn (Asia/Ho_Chi_Minh)
         $nowTime = Time::now('Asia/Ho_Chi_Minh');
         $today = $nowTime->format('Y-m-d');
         $now = $nowTime->toDateTimeString();
         
+        $clientIp = $data['clientIp'] ?? '';
+        $clientToken = $data['officeToken'] ?? null;
+        
+        // Kiểm tra xem nhân viên đã có bản ghi nào trong ngày hôm nay chưa
         $record = $this->attendanceModel->getTodayAttendance($employeeId);
         
-        $isLan = $data['isLan'] ?? false;
+        // 2. Xác định độ tin cậy của vị trí (Internal vs External)
+        $isInternal = $this->isInternalAccess($clientIp, $clientToken);
 
-        // Xử lý lưu ảnh nếu không phải LAN
+        // 3. Xử lý lưu trữ ảnh xác thực:
+        // Nếu không thuộc mạng nội bộ -> Bắt buộc phải chụp ảnh khuôn mặt tại hiện trường.
         $photoPath = null;
-        if (!$isLan) {
+        if (!$isInternal) {
             $photoPath = $this->savePhoto($photo, $employeeId);
             if (!$photoPath) {
-                return $this->fail('Không thể xử lý ảnh chụp.');
+                return $this->fail('Hệ thống yêu cầu ảnh chụp thực tế khi điểm danh ngoài văn phòng.');
             }
         }
 
-        // Kiểm tra vị trí
-        $isValidLocation = $isLan ? true : $this->isLocationValid($data['latitude'] ?? null, $data['longitude'] ?? null);
+        // 4. Kiểm tra tọa độ GPS so với tâm văn phòng
+        // Nội bộ văn phòng mặc định là hợp lệ, bên ngoài phải nằm trong bán kính quy định (VD: 200m).
+        $isValidLocation = $isInternal ? true : $this->isLocationValid($data['latitude'] ?? null, $data['longitude'] ?? null);
 
-        // Đảm bảo có giá trị tọa độ (null nếu là LAN)
         $lat = $data['latitude'] ?? null;
         $lng = $data['longitude'] ?? null;
 
+        // --- CHIỀU VÀO (CHECK-IN) ---
         if (!$record) {
-            // Trường hợp Check-in
-            $status = AppConstants::ATT_STATUS_REGULAR;
+            $status = AppConstants::ATT_STATUS_REGULAR; // Mặc định là Đúng giờ
+            
+            // Nếu quá giờ quy định mà không có lý do (note) -> Tính là Đi muộn
             if ($nowTime->format('H:i:s') > AppConstants::ATT_STANDARD_IN && empty($data['note'])) {
                 $status = AppConstants::ATT_STATUS_LATE;
             }
 
+            // Nếu GPS sai lệch quá xa
             if (!$isValidLocation) {
                 $status = AppConstants::ATT_STATUS_INVALID_LOC;
             }
@@ -114,26 +162,24 @@ class AttendanceService extends BaseService
             ];
 
             if ($this->attendanceModel->insert($insertData)) {
-                try {
-                    $this->logService->log('CHECK_IN', 'Attendance', (int)$this->attendanceModel->getInsertID(), ['status' => $status]);
-                } catch (\Exception $e) {
-                    // Log fail should not break the response
-                    $this->logError('Log CHECK_IN fail: ' . $e->getMessage());
-                }
-                return $this->success(null, 'Điểm danh VÀO thành công.');
+                $this->logService->log('CHECK_IN', 'Attendance', (int)$this->attendanceModel->getInsertID(), ['status' => $status, 'is_internal' => $isInternal]);
+                return $this->success(null, 'Ghi nhận giờ VÀO thành công' . ($isInternal ? ' (Xác thực tại VP)' : ''));
             }
-        } else {
-            // Trường hợp Check-out
+        } 
+        // --- CHIỀU RA (CHECK-OUT) ---
+        else {
             if ($record['check_out_time']) {
-                return $this->fail('Bạn đã điểm danh RA hôm nay rồi.');
+                return $this->fail('Bạn đã hoàn tất phiếu điểm danh RA cho ngày hôm nay.');
             }
 
+            // Tính toán tổng thời gian làm việc (Đơn vị: Giờ)
             $checkInTime = strtotime($record['check_in_time']);
             $checkOutTime = strtotime($now);
-            $workedSeconds = $checkOutTime - $checkInTime;
-            $workedHours = round($workedSeconds / 3600, 2);
+            $workedHours = round(($checkOutTime - $checkInTime) / 3600, 2);
 
+            // Giữ nguyên trạng thái từ bản Check-in (nếu muộn thì vẫn là muộn)
             $status = $record['status'];
+            // Nếu về sớm trước giờ quy định mà không có lý bảo lưu
             if ($nowTime->format('H:i:s') < AppConstants::ATT_STANDARD_OUT && empty($data['note'])) {
                 $status = AppConstants::ATT_STATUS_EARLY_LEAVE;
             }
@@ -146,30 +192,27 @@ class AttendanceService extends BaseService
                 'check_out_note'      => $data['note'] ?? null,
                 'worked_hours'        => $workedHours,
                 'status'              => $status,
+                // Hợp nhất kết quả GPS (Chỉ hợp lệ nếu cả In và Out đều đúng vị trí)
                 'is_valid_location'   => ($isValidLocation && $record['is_valid_location']) ? 1 : 0
             ];
 
             if ($this->attendanceModel->update($record['id'], $updateData)) {
-                try {
-                    $this->logService->log('CHECK_OUT', 'Attendance', (int)$record['id'], ['worked_hours' => $workedHours]);
-                } catch (\Exception $e) {
-                    // Log fail should not break the response
-                    $this->logError('Log CHECK_OUT fail: ' . $e->getMessage());
-                }
-                return $this->success(null, 'Điểm danh RA thành công.');
+                $this->logService->log('CHECK_OUT', 'Attendance', (int)$record['id'], ['worked_hours' => $workedHours]);
+                return $this->success(null, 'Ghi nhận giờ RA thành công. Tổng giờ làm: ' . $workedHours . 'h');
             }
         }
 
-        return $this->fail('Lỗi hệ thống khi lưu chấm công.');
+        return $this->fail('Lớp bảo mật phát hiện lỗi khi đồng bộ dữ liệu chấm công. Vui lòng thử lại.');
     }
 
     /**
-     * Lưu và nén ảnh
+     * Xử lý tối ưu hóa và lưu trữ tệp ảnh chấm công.
      */
     private function savePhoto($photo, $employeeId)
     {
         if (!$photo || !$photo->isValid()) return null;
 
+        // Tạo tên tệp ngẫu nhiên và cấu trúc thư mục theo Tháng/Năm để dễ quản lý
         $newName = $photo->getRandomName();
         $folder = 'uploads/attendance/' . date('Y/m');
         $uploadPath = FCPATH . $folder;
@@ -181,9 +224,10 @@ class AttendanceService extends BaseService
         $fullName = $uploadPath . '/' . $newName;
 
         try {
+            // Nén ảnh xuống chất lượng 60% và resize về 600px để tiết kiệm dung lượng ổ cứng
             \Config\Services::image()
                 ->withFile($photo->getTempName())
-                ->resize(600, 600, true, 'auto') // Giảm xuống 600 để tiết kiệm dung lượng
+                ->resize(600, 600, true, 'auto')
                 ->save($fullName, 60);
 
             return $folder . '/' . $newName;
@@ -193,13 +237,13 @@ class AttendanceService extends BaseService
     }
 
     /**
-     * Kiểm tra vị trí theo công thức Haversine
+     * Xác thực vị trí dựa trên công thức Haversine (Tính khoảng cách giữa 2 điểm tọa độ).
      */
     private function isLocationValid($userLat, $userLng)
     {
         if (!$userLat || !$userLng) return false;
 
-        $earthRadius = 6371; // km
+        $earthRadius = 6371; // Bán kính trái đất (km)
         $dLat = deg2rad($userLat - AppConstants::ATT_OFFICE_LAT);
         $dLon = deg2rad($userLng - AppConstants::ATT_OFFICE_LNG);
 
@@ -210,11 +254,12 @@ class AttendanceService extends BaseService
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
         $distance = $earthRadius * $c;
 
+        // Kiểm tra xem khoảng cách có nằm trong vòng tròn cho phép không (Mặc định 0.2km)
         return $distance <= AppConstants::ATT_RADIUS_KM;
     }
 
     /**
-     * Lấy lịch sử chấm công của nhân viên
+     * Lấy danh sách lịch sử chấm công theo tháng của nhân viên.
      */
     public function getHistory(int $employeeId, ?string $month = null)
     {
@@ -225,5 +270,24 @@ class AttendanceService extends BaseService
                                      ->where('attendance_date <=', date('Y-m-t', strtotime($month . '-01')))
                                      ->orderBy('attendance_date', 'DESC')
                                      ->findAll();
+    }
+
+    /**
+     * Quản lý Security Token văn phòng.
+     * Tự động tạo mã mới nếu hệ thống chưa có. Mã này dùng để định danh các máy tính "Tin cậy".
+     */
+    public function getOfficeToken()
+    {
+        $token = $this->systemSettingModel->where('key', 'office_security_token')->first();
+        if (!$token) {
+            // Tạo mã định danh duy nhất (Unique Office ID)
+            $newToken = 'OFFICE_' . bin2hex(random_bytes(10));
+            $this->systemSettingModel->insert([
+                'key' => 'office_security_token',
+                'value' => $newToken
+            ]);
+            return $newToken;
+        }
+        return $token['value'];
     }
 }

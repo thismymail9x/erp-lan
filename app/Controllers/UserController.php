@@ -1,5 +1,8 @@
 <?php
 
+namespace App\Models;
+
+// Lưu ý: Các model được gọi thông qua hàm model() hoặc khởi tạo trực tiếp tùy cấu hình.
 namespace App\Controllers;
 
 use App\Models\DepartmentModel;
@@ -10,9 +13,9 @@ use App\Models\RoleModel;
 /**
  * UserController
  * 
- * Bộ điều khiển (Controller) xử lý tất cả các yêu cầu từ phía giao diện người dùng
- * (View) liên quan đến phần Quản lý tài khoản, và giao tiếp với UserService 
- * nhằm áp dụng các chính sách phân quyền.
+ * Bộ điều khiển (Controller) quản lý toàn bộ vòng đời của Tài khoản người dùng (Users).
+ * Chịu trách nhiệm: Hiển thị danh sách, cấp quyền, tạo mới, chỉnh sửa và xóa tài khoản.
+ * Tương tác chặt chẽ với UserService để thực hiện các quy tắc bảo mật và phân quyền phức tạp.
  */
 class UserController extends BaseController
 {
@@ -31,39 +34,44 @@ class UserController extends BaseController
     }
 
     /**
-     * Hiển thị trang danh sách tài khoản
-     * 
-     * Bước 1: Gọi UserService để lấy danh sách tài khoản hợp lệ.
-     * Bước 2: Kiểm tra lại quyền truy cập tổng quan, từ chối nhân viên/TTS.
+     * Hiển thị trang danh sách tài khoản toàn bộ hệ thống.
+     * Quy trình:
+     * 1. Kiểm tra quyền truy cập (Chỉ dành cho Admin, Mod, Trưởng phòng).
+     * 2. Thu thập các tham số lọc, tìm kiếm, sắp xếp từ URL.
+     * 3. Gọi Service để lấy dữ liệu đã qua xử lý.
+     * 4. Trả về View tương ứng (AJAX hoặc Full Page).
      */
     public function index()
     {
-        // Lấy tham số sắp xếp, phân trang và tìm kiếm từ Request
-        $sort    = $this->request->getGet('sort') ?? 'id';
-        $order   = $this->request->getGet('order') ?? 'desc';
-        $search  = $this->request->getGet('search') ?? '';
-        $perPage = 10; // Cấu hình số lượng bản ghi mỗi trang
+        // Lấy các tham số điều khiển danh sách từ GET Request
+        $sort    = $this->request->getGet('sort') ?? 'id'; // Cột cần sắp xếp
+        $order   = $this->request->getGet('order') ?? 'desc'; // Thứ tự (ASC/DESC)
+        $search  = $this->request->getGet('search') ?? ''; // Từ khóa tìm kiếm (Email, Tên...)
+        $perPage = 10; // Cấu hình số lượng bản ghi hiển thị trên mỗi trang
 
+        // Lấy danh sách User và thống kê trạng thái từ Service
         $users = $this->userService->getUsers($sort, $order, $perPage, $search);
-        $stats = $this->userService->getStats();
+        $stats = $this->userService->getStats(); // Ví dụ: Tổng số user, số user bị khóa...
 
+        // --- KIỂM TRA PHÂN QUYỀN TRUY CẬP TRANG ---
         $roleName = session()->get('role_name');
-        // Chỉ cấp phát quyền truy cập trang danh sách cho Admin, Giám đốc (Mod), Trưởng phòng
+        // Chỉ những vai trò quản lý cao cấp mới được xem danh sách User
         if ($roleName != \Config\AppConstants::ROLE_ADMIN && $roleName != \Config\AppConstants::ROLE_MOD && $roleName != \Config\AppConstants::ROLE_TRUONG_PHONG) {
-            return redirect()->to('/dashboard')->with('error', 'Cảnh báo bảo mật: Bạn không có thẩm quyền truy cập trang này.');
+            return redirect()->to('/dashboard')->with('error', 'Cảnh báo bảo mật: Bạn không có thẩm quyền truy cập trang quản lý nhân sự.');
         }
 
+        // Đóng gói dữ liệu gửi ra View
         $data = [
             'title'        => 'Quản lý tài khoản | L.A.N ERP',
             'users'        => $users,
             'stats'        => $stats,
-            'pager'        => $this->userService->getPager(), // Lấy đối tượng phân trang
+            'pager'        => $this->userService->getPager(), // Cung cấp đối tượng phân trang cho View
             'currentSort'  => $sort,
             'currentOrder' => $order,
             'search'       => $search
         ];
 
-        // Nếu là yêu cầu AJAX cho tìm kiếm real-time, chỉ trả về view phần bảng
+        // Hỗ trợ cập nhật danh sách mượt mà qua AJAX (ví dụ khi gõ ô tìm kiếm)
         if ($this->request->isAJAX()) {
             return view('dashboard/users/index_table', $data);
         }
@@ -72,7 +80,7 @@ class UserController extends BaseController
     }
 
     /**
-     * Hiển thị giao diện Form tạo tài khoản mới
+     * Hiển thị giao diện Form tạo tài khoản (Dành riêng cho Admin).
      */
     public function create()
     {
@@ -84,38 +92,47 @@ class UserController extends BaseController
 
         $data = [
             'title' => 'Thêm tài khoản mới | L.A.N ERP',
-            'roles' => $this->roleModel->findAll(), // Lấy toàn bộ danh sách chức danh để hiển thị ở Dropdown
-            'departments' => $this->departmentModel->findAll() // Lấy toàn danh sách phòng ban
+            // Lấy danh sách vai trò và phòng ban để người dùng chọn trong dropdown
+            'roles' => $this->roleModel->orderBy('role_name', 'ASC')->findAll(),
+            'departments' => $this->departmentModel->orderBy('name', 'ASC')->findAll()
         ];
         return view('dashboard/users/create', $data);
     }
 
     /**
-     * Xử lý dữ liệu Submit từ Form tạo tài khoản (POST)
+     * Xử lý dữ liệu Submit từ Form tạo tài khoản (POST).
      */
     public function store()
     {
-        // Lấy tất cả dữ liệu người dùng nhập từ Form
+        // 1. Thu thập dữ liệu thô từ form (email, password, role_id, v.v.)
         $data = $this->request->getPost();
-        // Nhờ UserService xử lý nghiệp vụ lưu và mã hóa password
+        
+        // 2. Chuyển cho UserService xử lý nghiệp vụ:
+        // - Validate dữ liệu (Email hợp lệ, Pass đủ mạnh...)
+        // - Kiểm tra email trùng lặp.
+        // - Hash mật khẩu bảo mật.
+        // - Tạo bản ghi trong CSDL.
         $result = $this->userService->createUser($data);
 
-        // Kiểm tra kết quả trả về từ Service
+        // 3. Phản hồi kết quả cho người dùng
         if ($result['status'] === 'success') {
             return redirect()->to('/users')->with('success', $result['message']);
         }
 
-        // Lỗi (có thể do email trùng, v.v) thì ném lại trang Form kèm thông báo
+        // Nếu có lỗi (ví dụ: email đã tồn tại) -> Quay lại form, giữ lại input để người dùng ko phải nhập lại
         return redirect()->back()->withInput()->with('error', $result['message']);
     }
 
     /**
-     * Hiển thị giao diện Form cập nhật quyền / thông số cho 1 tài khoản
+     * Hiển thị giao diện Form cập nhật quyền và thông tin tài khoản.
+     * @param int $id ID của người dùng cần chỉnh sửa
      */
     public function edit(int $id)
     {
-        // Yêu cầu Service lôi dữ liệu user này lên, nếu không có thẩm quyền, Service sẽ block
+        // Yêu cầu Service lôi dữ liệu user này lên. 
+        // Service đồng thời kiểm tra xem người đang thực hiện có quyền sửa user này không.
         $result = $this->userService->getUserById($id);
+        
         if (!$result['status']) {
             return redirect()->to('/users')->with('error', $result['message']);
         }
@@ -125,19 +142,25 @@ class UserController extends BaseController
             'user'  => $result['data'],
             'roles' => $this->roleModel->findAll(),
             'departments' => $this->departmentModel->findAll(),
-            'currentRoleName' => session()->get('role_name') // Trích xuất Role Name của người đang xem để View tự động ẩn hiện box Password
+            // Truyền Role hiện tại của người đang thao tác để UI có logic ẩn/hiện phù hợp
+            'currentRoleName' => session()->get('role_name') 
         ];
         return view('dashboard/users/edit', $data);
     }
 
     /**
-     * Xử lý dữ liệu Submit từ Form cập nhật (POST)
+     * Xử lý cập nhật dữ liệu tài khoản (mật khẩu, vai trò, trạng thái khóa).
+     * @param int $id ID người dùng
      */
     public function update(int $id)
     {
-        // Láy dữ liệu được gửi đến (Role, Password, Tình trạng khóa)
+        // Lấy dữ liệu thay đổi từ form
         $data = $this->request->getPost();
-        // Chuyển toàn bộ dữ liệu xuống UserService, để bộ lọc phân quyền trong đó tự quyết định lấy/từ chối các thay đổi
+        
+        // Chuyển toàn bộ dữ liệu xuống UserService.
+        // Bên trong service sẽ có các logic bảo mật:
+        // - Nhân viên thường ko thể tự nâng cấp Role của mình.
+        // - Chỉ Admin mới được khóa tài khoản người khác.
         $result = $this->userService->updateUser($id, $data);
 
         if ($result['status'] === 'success') {
@@ -148,11 +171,17 @@ class UserController extends BaseController
     }
 
     /**
-     * Xóa hoàn toàn tài khoản khỏi CSDL
+     * Xóa một tài khoản khỏi hệ thống.
+     * @param int $id ID người dùng cần xóa
      */
     public function delete(int $id)
     {
-        // Ủy quyền hẳn cho Service thực hiện thao tác xóa
+        // Kiểm tra an toàn: Không cho phép User tự xóa chính mình từ giao diện này
+        if ($id == session()->get('user_id')) {
+            return redirect()->to('/users')->with('error', 'Bạn không thể tự xóa tài khoản của chính mình.');
+        }
+
+        // Ủy quyền hẳn cho Service thực hiện thao tác xóa và kiểm tra ràng buộc (Foreign keys)
         $result = $this->userService->deleteUser($id);
         
         if ($result['status'] === 'success') {
@@ -163,32 +192,42 @@ class UserController extends BaseController
     }
 
     /**
-     * Xóa nhiều tài khoản cùng lúc
+     * Xóa hàng loạt tài khoản (Bulk Action).
+     * Yêu cầu quyền Admin tối cao.
      */
     public function bulkDelete()
     {
         $roleName = session()->get('role_name');
         
+        // Bảo vệ API khỏi các truy cập trái phép
         if ($roleName != \Config\AppConstants::ROLE_ADMIN) {
             return $this->response->setJSON([
                 'code' => 1,
-                'error' => 'Chỉ Admin mới có quyền xóa tài khoản.'
+                'error' => 'Chỉ Quản trị viên hệ thống mới có quyền thực hiện xóa hàng loạt.'
             ]);
         }
 
+        // Lấy danh sách IDs từ yêu cầu AJAX
         $ids = $this->request->getPost('ids');
         
         if (empty($ids) || !is_array($ids)) {
             return $this->response->setJSON([
                 'code' => 1,
-                'error' => 'Không có tài khoản nào được chọn.'
+                'error' => 'Danh sách chọn trống. Vui lòng chọn ít nhất một tài khoản.'
             ]);
         }
 
         $successCount = 0;
         $failCount = 0;
 
+        // Lặp qua từng ID để thực hiện xóa đơn lẻ thông qua Service (để đảm bảo Logic nghiệp vụ đồng nhất)
         foreach ($ids as $id) {
+            // Không được xóa chính mình trong danh sách hàng loạt
+            if ($id == session()->get('user_id')) {
+                $failCount++;
+                continue;
+            }
+
             $result = $this->userService->deleteUser((int)$id);
             if ($result['status'] === 'success') {
                 $successCount++;
@@ -197,16 +236,17 @@ class UserController extends BaseController
             }
         }
 
+        // Trả về kết quả dạng JSON để Front-end hiển thị thông báo popup hoặc toast
         if ($successCount > 0) {
             return $this->response->setJSON([
                 'code' => 0,
-                'message' => "Đã xóa thành công {$successCount} tài khoản." . ($failCount > 0 ? " Lỗi {$failCount} tài khoản." : '')
+                'message' => "Đã dọn dẹp xong {$successCount} tài khoản." . ($failCount > 0 ? " Bỏ qua {$failCount} tài khoản lỗi/không đủ quyền." : '')
             ]);
         }
 
         return $this->response->setJSON([
             'code' => 1,
-            'error' => 'Không thể xóa các tài khoản đã chọn.'
+            'error' => 'Hệ thống từ chối thực hiện xóa các tài khoản đã chọn.'
         ]);
     }
 }

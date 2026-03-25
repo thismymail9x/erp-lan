@@ -17,46 +17,46 @@
         </div>
     </div>
 
-    <div class="profile-grid" style="display: grid; grid-template-columns: 350px 1fr; gap: 25px;">
+    <div class="profile-grid-layout">
         <!-- Sidebar: Quick Info & Stats -->
         <div class="profile-sidebar">
-            <div class="premium-card" style="padding: 20px; margin-bottom: 25px;">
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <div style="width: 80px; height: 80px; border-radius: 50%; background: #f5f5f7; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; font-size: 32px; color: #0071e3;">
+            <div class="premium-card prof-sidebar-info">
+                <div class="prof-avatar-box">
+                    <div class="prof-avatar-circle">
                         <i class="fas fa-user"></i>
                     </div>
-                    <h3 style="margin: 0; font-size: 18px;"><?= esc($customer['name']) ?></h3>
-                    <?php if($customer['is_blacklist']): ?>
-                        <span class="badge-log badge-danger-minimal" style="margin-top: 8px;">BLACKLIST</span>
-                    <?php endif; ?>
+                    <h3 class="prof-name-title"><?= esc($customer['name']) ?></h3>
+                    <?php if ($customer['is_blacklist']) { ?>
+                        <span class="badge-danger-minimal m-l-10"><i class="fas fa-user-slash"></i> Blacklist</span>
+                    <?php } ?>
                 </div>
 
-                <div class="info-list" style="font-size: 13px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f2f2f2;">
-                        <span style="opacity: 0.6;">SĐT:</span>
-                        <span style="font-weight: 600;"><?= esc($customer['phone']) ?></span>
+                <div class="prof-info-list">
+                    <div class="prof-info-row">
+                        <span class="prof-label-dim">SĐT:</span>
+                        <span class="prof-val-bold"><?= esc($customer['phone']) ?></span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f2f2f2;">
-                        <span style="opacity: 0.6;">Email:</span>
-                        <span style="font-weight: 600;"><?= esc($customer['email'] ?: '--') ?></span>
+                    <div class="prof-info-row">
+                        <span class="prof-label-dim">Email:</span>
+                        <span class="prof-val-bold"><?= esc($customer['email'] ?: '--') ?></span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                        <span style="opacity: 0.6;">Địa chỉ:</span>
-                        <span style="font-weight: 500; text-align: right; max-width: 200px;"><?= esc($customer['address'] ?: '--') ?></span>
+                    <div class="prof-info-row-last">
+                        <span class="prof-label-dim">Địa chỉ:</span>
+                        <span class="prof-val-align-right"><?= esc($customer['address'] ?: '--') ?></span>
                     </div>
                 </div>
             </div>
 
-            <div class="premium-card" style="padding: 20px;">
-                <h4 style="margin: 0 0 15px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.6;">Chỉ số sức khỏe</h4>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div style="background: #f5f5f7; padding: 12px; border-radius: 12px; text-align: center;">
-                        <div style="font-size: 20px; font-weight: 700; color: #0071e3;"><?= $customer['total_cases'] ?></div>
-                        <div style="font-size: 10px; opacity: 0.6;">Vụ việc</div>
+            <div class="premium-card prof-health-section">
+                <h4 class="prof-health-title">Chỉ số sức khỏe</h4>
+                <div class="prof-health-grid">
+                    <div class="prof-stat-box">
+                        <div class="prof-stat-val-blue"><?= $customer['total_cases'] ?></div>
+                        <div class="prof-stat-label">Vụ việc</div>
                     </div>
-                    <div style="background: #f5f5f7; padding: 12px; border-radius: 12px; text-align: center;">
-                        <div style="font-size: 16px; font-weight: 700; color: #34c759;"><?= number_format($customer['total_revenue'] / 1000000, 1) ?>M</div>
-                        <div style="font-size: 10px; opacity: 0.6;">Doanh thu</div>
+                    <div class="prof-stat-box">
+                        <div class="prof-stat-val-green"><?= number_format($customer['total_revenue'] / 1000000, 1) ?>M</div>
+                        <div class="prof-stat-label">Doanh thu</div>
                     </div>
                 </div>
             </div>
@@ -65,7 +65,7 @@
         <!-- Main Content: Tabs -->
         <div class="profile-main">
             <div class="premium-card premium-card-full" style="padding: 0;">
-                <div class="tabs-navigation-wrapper" style="padding: 0 20px; border-bottom: 1px solid #d2d2d7;">
+                <div class="prof-tabs-nav">
                     <div class="tabs-container" id="customerModuleTabs">
                         <button class="tab-btn active" data-tab="overview">Tổng quan</button>
                         <button class="tab-btn" data-tab="cases">Vụ việc (<?= count($cases) ?>)</button>
@@ -75,61 +75,65 @@
                     </div>
                 </div>
 
-                <div class="tabs-content-wrapper" style="padding: 25px;">
+                <div class="prof-tabs-content">
                     <!-- Tab: Overview -->
                     <div class="tab-pane active" id="overview">
-                        <div class="overview-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                        <div class="prof-overview-grid">
                             <div>
-                                <h4 style="margin-bottom: 15px; font-size: 15px;"><i class="fas fa-id-card" style="margin-right: 8px;"></i>Thông tin định danh</h4>
-                                <table class="info-table-minimal" style="width: 100%; font-size: 13px; border-collapse: collapse;">
+                                <h4 class="prof-section-h4"><i class="fas fa-id-card prof-section-icon"></i>Thông tin định danh</h4>
+                                <table class="prof-info-table">
                                     <tr>
-                                        <td style="padding: 8px 0; opacity: 0.6; width: 140px;">Loại định danh:</td>
-                                        <td style="padding: 8px 0; font-weight: 600;"><?= strtoupper(esc($customer['identity_type'])) ?></td>
+                                        <td class="prof-table-label-td">Loại định danh:</td>
+                                        <td class="prof-table-val-td"><?= strtoupper(esc($customer['identity_type'])) ?></td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 8px 0; opacity: 0.6;">Số định danh:</td>
-                                        <td style="padding: 8px 0; font-weight: 600;"><?= esc($customer['identity_number'] ?: '--') ?></td>
+                                        <td class="prof-table-label-td">Số định danh:</td>
+                                        <td class="prof-table-val-td"><?= esc($customer['identity_number'] ?: '--') ?></td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 8px 0; opacity: 0.6;">Ngày cấp:</td>
-                                        <td style="padding: 8px 0; font-weight: 500;"><?= $customer['issue_date'] ? date('d/m/Y', strtotime($customer['issue_date'])) : '--' ?></td>
+                                        <td class="prof-table-label-td">Ngày cấp:</td>
+                                        <td class="prof-table-val-td-med"><?= $customer['issue_date'] ? date('d/m/Y', strtotime($customer['issue_date'])) : '--' ?></td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 8px 0; opacity: 0.6;">Nơi cấp:</td>
-                                        <td style="padding: 8px 0; font-weight: 500;"><?= esc($customer['issued_by'] ?: '--') ?></td>
+                                        <td class="prof-table-label-td">Nơi cấp:</td>
+                                        <td class="prof-table-val-td-med"><?= esc($customer['issued_by'] ?: '--') ?></td>
                                     </tr>
                                 </table>
                             </div>
-                            <?php if($customer['type'] == 'doanh_nghiep'): ?>
+                            <?php if ($customer['type'] == 'doanh_nghiep') { ?>
                             <div>
-                                <h4 style="margin-bottom: 15px; font-size: 15px;"><i class="fas fa-building" style="margin-right: 8px;"></i>Thông tin doanh nghiệp</h4>
-                                <table class="info-table-minimal" style="width: 100%; font-size: 13px;">
+                                <h4 class="prof-section-h4"><i class="fas fa-building prof-section-icon"></i>Thông tin doanh nghiệp</h4>
+                                <table class="prof-info-table">
                                     <tr>
-                                        <td style="padding: 8px 0; opacity: 0.6; width: 140px;">Tên công ty:</td>
-                                        <td style="padding: 8px 0; font-weight: 600;"><?= esc($customer['company_name']) ?></td>
+                                        <td class="prof-table-label-td">Tên công ty:</td>
+                                        <td class="prof-table-val-td"><?= esc($customer['company_name']) ?></td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 8px 0; opacity: 0.6;">Mã số thuế:</td>
-                                        <td style="padding: 8px 0; font-weight: 600;"><?= esc($customer['tax_code']) ?></td>
+                                        <td class="prof-table-label-td">Mã số thuế:</td>
+                                        <td class="prof-table-val-td"><?= esc($customer['tax_code']) ?></td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 8px 0; opacity: 0.6;">Đăng ký kinh doanh:</td>
-                                        <td style="padding: 8px 0; font-weight: 500;"><?= esc($customer['biz_registration_number'] ?: '--') ?></td>
+                                        <td class="prof-table-label-td">Đăng ký kinh doanh:</td>
+                                        <td class="prof-table-val-td-med"><?= esc($customer['biz_registration_number'] ?: '--') ?></td>
                                     </tr>
                                 </table>
                             </div>
-                            <?php endif; ?>
+                            <?php } ?>
                         </div>
 
-                        <div style="margin-top: 30px;">
-                            <h4 style="margin-bottom: 15px; font-size: 15px;"><i class="fas fa-tags" style="margin-right: 8px;"></i>Tags & Phân loại</h4>
-                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                <?php 
+                        <div class="prof-tags-box">
+                            <h4 class="prof-section-h4"><i class="fas fa-tags prof-section-icon"></i>Tags & Phân loại</h4>
+                            <div class="prof-tags-flex">
+                                <?php
                                     $tags = explode(',', $customer['tags'] ?: '');
-                                    foreach($tags as $tag): if(trim($tag)):
+                                    foreach ($tags as $tag) {
+                                        if (trim($tag)) {
                                 ?>
                                     <span class="badge-log badge-secondary-minimal"><?= esc(trim($tag)) ?></span>
-                                <?php endif; endforeach; ?>
+                                <?php
+                                        }
+                                    }
+                                ?>
                             </div>
                         </div>
                     </div>
@@ -146,39 +150,39 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach($cases as $case): ?>
+                                <?php foreach ($cases as $case) { ?>
                                 <tr>
                                     <td><span class="badge-secondary-minimal"><?= esc($case['code']) ?></span></td>
-                                    <td style="font-weight: 600;"><?= esc($case['title']) ?></td>
+                                    <td class="prof-val-bold"><?= esc($case['title']) ?></td>
                                     <td><?= esc($case['status']) ?></td>
                                     <td><?= date('d/m/Y', strtotime($case['created_at'])) ?></td>
                                 </tr>
-                                <?php endforeach; ?>
+                                <?php } ?>
                             </tbody>
                         </table>
                     </div>
 
                     <!-- Tab: Interactions -->
                     <div class="tab-pane" id="interactions">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div class="prof-interaction-header">
                             <h4 style="margin: 0;">Lịch sử tương tác</h4>
                             <button class="btn-premium-sm" onclick="document.getElementById('modalInteraction').style.display='flex'">
                                 <i class="fas fa-plus"></i> Ghi chú tương tác
                             </button>
                         </div>
-                        <div class="interaction-timeline">
-                            <?php if(empty($interactions)): ?>
+                        <div class="prof-interaction-timeline">
+                            <?php if (empty($interactions)) { ?>
                                 <p style="text-align: center; opacity: 0.5; padding: 40px;">Chưa có lịch sử tương tác nào.</p>
-                            <?php else: ?>
-                                <?php foreach($interactions as $int): ?>
-                                    <div class="timeline-item" style="padding-left: 20px; border-left: 2px solid #0071e3; position: relative; margin-bottom: 25px;">
-                                        <div style="position: absolute; left: -7px; top: 0; width: 12px; height: 12px; border-radius: 50%; background: #0071e3;"></div>
-                                        <div style="font-size: 11px; opacity: 0.6; margin-bottom: 4px;"><?= date('d/m/Y H:i', strtotime($int['interaction_date'])) ?> • <?= esc($int['staff_email']) ?></div>
-                                        <div style="font-weight: 600; font-size: 14px;"><?= esc($int['summary']) ?></div>
-                                        <div style="font-size: 13px; margin-top: 6px; opacity: 0.8;"><?= esc($int['detailed_content']) ?></div>
+                            <?php } else { ?>
+                                <?php foreach ($interactions as $int) { ?>
+                                    <div class="prof-timeline-item">
+                                        <div class="prof-timeline-dot"></div>
+                                        <div class="prof-timeline-meta"><?= date('d/m/Y H:i', strtotime($int['interaction_date'])) ?> • <?= esc($int['staff_email']) ?></div>
+                                        <div class="prof-timeline-summary"><?= esc($int['summary']) ?></div>
+                                        <div class="prof-timeline-content"><?= esc($int['detailed_content']) ?></div>
                                     </div>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
+                                <?php } ?>
+                            <?php } ?>
                         </div>
                     </div>
 
@@ -195,39 +199,43 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach($payments as $pay): ?>
-                                <tr>
-                                    <td><?= date('d/m/Y', strtotime($pay['payment_date'])) ?></td>
-                                    <td style="font-weight: 700;"><?= number_format($pay['amount'], 0, ',', '.') ?></td>
-                                    <td><?= esc($pay['method']) ?></td>
-                                    <td><?= esc($pay['description']) ?></td>
-                                </tr>
-                                <?php endforeach; ?>
+                                <?php if (empty($payments)) { ?>
+                                    <tr><td colspan="4" style="text-align: center; opacity: 0.5; padding: 20px;">Chưa có lịch sử thanh toán.</td></tr>
+                                <?php } else { ?>
+                                    <?php foreach ($payments as $pay) { ?>
+                                    <tr>
+                                        <td><?= date('d/m/Y', strtotime($pay['payment_date'])) ?></td>
+                                        <td class="prof-val-bold"><?= number_format($pay['amount'], 0, ',', '.') ?></td>
+                                        <td><?= esc($pay['method']) ?></td>
+                                        <td><?= esc($pay['description']) ?></td>
+                                    </tr>
+                                    <?php } ?>
+                                <?php } ?>
                             </tbody>
                         </table>
                     </div>
 
                     <!-- Tab: Documents -->
                     <div class="tab-pane" id="docs">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div class="vault-header">
                             <h4 style="margin: 0;">Hồ sơ số hóa (Vault)</h4>
                             <button class="btn-premium-sm" onclick="document.getElementById('modalUpload').style.display='flex'">
                                 <i class="fas fa-upload"></i> Tải lên tài liệu
                             </button>
                         </div>
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
-                            <?php foreach($documents as $doc): ?>
-                                <div class="premium-card" style="padding: 15px; background: #fafafa;">
-                                    <div style="font-size: 24px; color: #0071e3; margin-bottom: 10px;">
+                        <div class="vault-grid">
+                            <?php foreach ($documents as $doc) { ?>
+                                <div class="premium-card vault-card">
+                                    <div class="vault-icon">
                                         <i class="fas fa-file-pdf"></i>
                                     </div>
-                                    <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px;"><?= esc($doc['document_type']) ?></div>
-                                    <div style="font-size: 11px; opacity: 0.6;"><?= esc($doc['file_name']) ?></div>
-                                    <div style="margin-top: 10px; display: flex; gap: 10px;">
+                                    <div class="vault-doc-type"><?= esc($doc['document_type']) ?></div>
+                                    <div class="vault-file-name"><?= esc($doc['file_name']) ?></div>
+                                    <div class="vault-actions">
                                         <a href="<?= base_url($doc['file_path']) ?>" class="btn-secondary-sm" target="_blank">Xem</a>
                                     </div>
                                 </div>
-                            <?php endforeach; ?>
+                            <?php } ?>
                         </div>
                     </div>
                 </div>
@@ -237,8 +245,8 @@
 </div>
 
 <!-- Modal: Interaction -->
-<div id="modalInteraction" class="modal-premium-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-    <div class="premium-card" style="width: 500px; padding: 30px;">
+<div id="modalInteraction" class="modal-overlay-cust">
+    <div class="premium-card modal-content-500">
         <h3 style="margin-top: 0;">Ghi chú tương tác</h3>
         <form action="<?= base_url('customers/add-interaction/' . $customer['id']) ?>" method="post">
             <?= csrf_field() ?>
@@ -269,8 +277,8 @@
 </div>
 
 <!-- Modal: Upload -->
-<div id="modalUpload" class="modal-premium-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-    <div class="premium-card" style="width: 500px; padding: 30px;">
+<div id="modalUpload" class="modal-overlay-cust">
+    <div class="premium-card modal-content-500">
         <h3 style="margin-top: 0;">Tải lên tài liệu</h3>
         <form action="<?= base_url('customers/upload-document/' . $customer['id']) ?>" method="post" enctype="multipart/form-data">
             <?= csrf_field() ?>
