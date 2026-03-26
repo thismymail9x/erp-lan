@@ -1,0 +1,118 @@
+/* ==========================================================================
+   System Logs Module (Audit & Event Log Filtering)
+   ========================================================================== */
+
+.filter-bar-apple {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    background: #fff;
+    padding: 8px 16px;
+    border-radius: 14px;
+    border: 1px solid var(--border-color);
+    flex-wrap: wrap;
+}
+
+.filter-input-date {
+    border: none;
+    font-size: 14px;
+    outline: none;
+    background: transparent;
+    color: var(--apple-text);
+}
+
+.filter-divider-line {
+    height: 20px;
+    width: 1px;
+    background: var(--border-color);
+}
+
+.filter-select-minimal {
+    border: none;
+    font-size: 14px;
+    outline: none;
+    background: transparent !important;
+    cursor: pointer;
+    max-width: 200px;
+}
+
+.filter-submit-btn-sm {
+    background: var(--apple-blue);
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.filter-submit-btn-sm:hover {
+    background: #0077ed;
+}
+
+.log-entry-meta {
+    display: flex;
+    flex-direction: column;
+}
+
+.log-user-email {
+    font-weight: 600;
+    color: var(--apple-blue);
+    font-size: 14px;
+}
+
+.log-user-id {
+    font-size: 11px;
+    color: var(--apple-text-muted);
+}
+
+.log-details-box {
+    font-size: 13px;
+    max-width: 450px;
+    color: var(--apple-text-muted);
+    line-height: 1.5;
+}
+
+.log-change-item {
+    margin-bottom: 4px;
+    display: block;
+}
+
+.log-ip-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--apple-text-muted);
+}
+
+.logs-empty-icon {
+    font-size: 3rem; 
+    display: block; 
+    margin-bottom: 15px; 
+    color: var(--apple-text-muted);
+    opacity: 0.15;
+}
+
+.logs-col-time { width: 180px; }
+
+/* Log Badges */
+.badge-log {
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 8px;
+    display: inline-block;
+}
+
+@media (max-width: 768px) {
+    .filter-bar-apple {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .filter-divider-line {
+        display: none;
+    }
+}

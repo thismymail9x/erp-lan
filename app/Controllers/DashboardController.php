@@ -4,10 +4,6 @@ namespace App\Controllers;
 
 /**
  * DashboardController
- * 
- * Trung tâm điều khiển chính của hệ thống ERP.
- * Hiển thị trang nhắm mắt (Overview) dành cho nhân viên và quản lý sau khi đăng nhập.
- * Trình bày các chỉ số nhanh: Trạng thái chấm công, Thông báo mới, và Tổng quan quyền hạn.
  */
 class DashboardController extends BaseController
 {
@@ -16,35 +12,96 @@ class DashboardController extends BaseController
      */
     public function index()
     {
-        // 1. KIỂM TRA PHIÊN (Session Check): 
-        // Bắt buộc người dùng phải đăng nhập mới được truy cập vào giao diện quản trị.
+        // 1. KIỂM TRA PHIÊN (Session Check)
         if (!session()->has('isLoggedIn')) {
             return redirect()->to('/login');
         }
 
-        // 2. KHỞI TẠO TIỆN ÍCH DASHBOARD (Widgets):
-        // Lấy thông tin trạng thái chấm công hôm nay của nhân sự hiện tại.
-        $attendanceService = new \App\Services\AttendanceService();
         $employeeId = session()->get('employee_id');
-        $attendanceStatus = null;
+        $role = session()->get('role_name');
+        $isPrivileged = in_array($role, \Config\AppConstants::PRIVILEGED_ROLES);
+
+        // 2. KHỞI TẠO DỊCH VỤ & MODEL
+        $attendanceService = new \App\Services\AttendanceService();
+        $db = \Config\Database::connect();
         
+        // 3. TÍNH TOÁN CÁC CHỈ SỐ (Statistics)
+        $stats = [];
+        
+        // --- A. Vụ việc đang xử lý ---
+        $caseBuilder = $db->table('cases');
+        $caseBuilder->whereIn('status', ['moi_tiep_nhan', 'dang_xu_ly', 'cho_tham_tam', 'open', 'in_progress']);
+        $caseBuilder->where('deleted_at', null);
+        
+        if (!$isPrivileged) {
+            $caseBuilder->groupStart()
+                ->where('assigned_lawyer_id', $employeeId)
+                ->orWhere('assigned_staff_id', $employeeId)
+                ->orWhereIn('id', function($builder) use ($employeeId) {
+                    $builder->select('case_id')->from('case_members')->where('employee_id', $employeeId);
+                })
+            ->groupEnd();
+        }
+        $stats['cases'] = $caseBuilder->countAllResults();
+
+        // --- B. Tổng Khách hàng ---
+        $customerBuilder = $db->table('customers');
+        $customerBuilder->where('deleted_at', null);
+        
+        if (!$isPrivileged) {
+            $customerBuilder->whereIn('id', function($builder) use ($employeeId) {
+                $builder->select('customer_id')->from('cases')
+                    ->groupStart()
+                        ->where('assigned_lawyer_id', $employeeId)
+                        ->orWhere('assigned_staff_id', $employeeId)
+                        ->orWhereIn('id', function($sub) use ($employeeId) {
+                            $sub->select('case_id')->from('case_members')->where('employee_id', $employeeId);
+                        })
+                    ->groupEnd();
+            });
+        }
+        $stats['customers'] = $customerBuilder->countAllResults();
+
+        // --- C. Doanh thu ---
+        $stats['revenue'] = 0;
+
+        // --- D. Tỉ lệ chấm công ---
+        $stats['attendance_rate'] = 0;
+        if ($isPrivileged) {
+            $totalEmployees = $db->table('employees')->where('deleted_at', null)->countAllResults();
+            if ($totalEmployees > 0) {
+                $todayCheckedIn = $db->table('attendances')
+                    ->where('attendance_date', date('Y-m-d'))
+                    ->countAllResults();
+                $stats['attendance_rate'] = round(($todayCheckedIn / $totalEmployees) * 100);
+            }
+        } else {
+            $daysElapsed = (int)date('d');
+            $myCheckins = $db->table('attendances')
+                ->where('employee_id', $employeeId)
+                ->where('attendance_date >=', date('Y-m-01'))
+                ->countAllResults();
+            $stats['attendance_rate'] = $daysElapsed > 0 ? round(($myCheckins / $daysElapsed) * 100) : 0;
+        }
+
+        // 4. TRẠNG THÁI CHẤM CÔNG CÁ NHÂN
+        $attendanceStatus = null;
         if ($employeeId) {
-            // Kiểm tra xem nhân viên đã Check-in hay Check-out chưa để hiển thị Nút/Trạng thái tương ứng.
             $attendanceStatus = $attendanceService->getTodayStatus($employeeId);
         }
 
-        // 3. ĐÓNG GÓI DỮ LIỆU (Data Packaging):
+        // 5. ĐÓNG GÓI DỮ LIỆU
         $data = [
             'title'            => 'Bảng điều khiển | L.A.N ERP',
-            'attendanceStatus' => $attendanceStatus, // Thông tin chấm công realtime
+            'attendanceStatus' => $attendanceStatus,
+            'stats'            => $stats,
+            'isPrivileged'     => $isPrivileged,
             'user'  => [
-                'email' => session()->get('email'), // Hiển thị email định danh
-                // Map ID vai trò sang tên hiển thị (Localization)
-                'role'  => session()->get('role_id') == 1 ? 'Quản trị viên' : 'Nhân viên'
+                'email' => session()->get('email'),
+                'role'  => $role
             ]
         ];
 
-        // 4. RENDER GIAO DIỆN CHÍNH
         return view('dashboard/index', $data);
     }
 }

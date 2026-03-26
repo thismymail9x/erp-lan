@@ -93,7 +93,7 @@ class UserController extends BaseController
         $data = [
             'title' => 'Thêm tài khoản mới | L.A.N ERP',
             // Lấy danh sách vai trò và phòng ban để người dùng chọn trong dropdown
-            'roles' => $this->roleModel->orderBy('role_name', 'ASC')->findAll(),
+            'roles' => $this->roleModel->orderBy('name', 'ASC')->findAll(),
             'departments' => $this->departmentModel->orderBy('name', 'ASC')->findAll()
         ];
         return view('dashboard/users/create', $data);

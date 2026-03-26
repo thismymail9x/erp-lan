@@ -73,6 +73,7 @@ $routes->group('cases', function($routes) {
     $routes->post('update-status/(:num)', 'CaseController::updateStatus/$1');
     $routes->post('update-members/(:num)', 'CaseController::updateMembers/$1');
     $routes->post('upload-doc/(:num)', 'CaseController::uploadDocument/$1');
+    $routes->post('import-doc/(:num)', 'CaseController::importDocument/$1');
     $routes->post('complete-step/(:num)', 'CaseController::completeStep/$1');
     $routes->post('approve-step/(:num)', 'CaseController::approveStep/$1');
     $routes->post('reject-step/(:num)', 'CaseController::rejectStep/$1');
@@ -98,7 +99,8 @@ $routes->group('customers', function($routes) {
     // API actions
     $routes->get('check-duplicate', 'CustomerController::checkDuplicate');
     $routes->post('add-interaction/(:num)', 'CustomerController::addInteraction/$1');
-    $routes->post('upload-document/(:num)', 'CustomerController::uploadDocument/$1');
+    $routes->post('upload-doc/(:num)', 'CustomerController::uploadDocument/$1');
+    $routes->post('import-doc/(:num)', 'CustomerController::importDocument/$1');
     $routes->get('stale', 'CustomerController::stale');
 });
 
@@ -112,6 +114,15 @@ $routes->group('workflows', function($routes) {
     $routes->get('delete/(:num)', 'WorkflowController::delete/$1');
     $routes->get('steps/(:num)', 'WorkflowController::steps/$1');
     $routes->post('update-steps/(:num)', 'WorkflowController::updateSteps/$1');
+});
+
+// DMS (Document Management System) Routes
+$routes->group('documents', function($routes) {
+    $routes->get('/', 'DocumentController::index');
+    $routes->post('upload', 'DocumentController::upload');
+    $routes->get('view/(:num)', 'DocumentController::view/$1');
+    $routes->get('delete/(:num)', 'DocumentController::delete/$1');
+    $routes->get('vault-list', 'DocumentController::getVaultDocuments');
 });
 
 // Utility Routes (For Browser-based DB Setup)

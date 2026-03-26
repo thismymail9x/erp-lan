@@ -19,6 +19,10 @@
         
         <div class="form-grid">
             <div class="form-group-premium">
+                <label for="title">Tên vụ việc / Tiêu đề hồ sơ</label>
+                <input type="text" name="title" id="title" required class="form-control-premium" placeholder="Ví dụ: Giải quyết tranh chấp đất đai tại Quận 1..." title="Tóm tắt ngắn gọn nội dung vụ việc">
+            </div>
+            <div class="form-group-premium">
                 <label for="customer_id">Khách hàng yêu cầu</label>
                 <select name="customer_id" id="customer_id" required class="form-control-premium select2-enable" title="Chọn khách hàng chủ quản của vụ việc">
                     <option value="" disabled selected>-- Chọn khách hàng --</option>
@@ -26,20 +30,14 @@
                         <option value="<?= $c['id'] ?>"><?= esc($c['name']) ?> (<?= $c['phone'] ?: 'N/A' ?>)</option>
                     <?php } ?>
                 </select>
-                <p class="form-helper-text">Chọn khách hàng đã tồn tại trong hệ thống.</p>
             </div>
 
-            <div class="form-group-premium">
-                <label for="title">Tên vụ việc / Tiêu đề hồ sơ</label>
-                <input type="text" name="title" id="title" required class="form-control-premium" placeholder="Ví dụ: Giải quyết tranh chấp đất đai tại Quận 1..." title="Tóm tắt ngắn gọn nội dung vụ việc">
-            </div>
-
-            <div class="form-group-premium">
+            <div class="form-group-premium" style="display: none">
                 <label for="code">Mã số hồ sơ</label>
-                <input type="text" name="code" id="code" required class="form-control-premium" placeholder="TTDS-2024-001" value="<?= 'CASE-'.date('Y').'-'.rand(100,999) ?>" title="Mã định danh duy nhất của hồ sơ">
+                <input type="text" name="code" id="code" required class="form-control-premium" placeholder="TTDS-2024-001" value="<?= date('Y').'-'.date('m').'-'.rand(100,999) ?>" title="Mã định danh duy nhất của hồ sơ">
             </div>
 
-            <div class="form-group-premium" style="grid-column: span 2;">
+            <div class="form-group-premium">
                 <label for="workflow_template_id">Quy trình xử lý (Template)</label>
                 <select name="workflow_template_id" id="workflow_template_id" required class="form-control-premium select2-enable" title="Chọn quy trình nghiệp vụ áp dụng cho vụ việc này">
                     <option value="" disabled selected>-- Chọn quy trình mẫu --</option>
@@ -47,9 +45,7 @@
                         <option value="<?= $t['id'] ?>"><?= esc($t['name']) ?> (Dự kiến <?= $t['total_estimated_days'] ?> ngày)</option>
                     <?php } ?>
                 </select>
-                <p class="form-helper-text">Quy trình này sẽ tự động xác định loại hình vụ việc, các bước thực hiện và thời hạn hoàn thành.</p>
             </div>
-
             <div class="form-group-premium">
                 <label for="priority">Mức độ ưu tiên</label>
                 <select name="priority" id="priority" class="form-control-premium" title="Xác định độ khẩn cấp xử lý">
@@ -102,15 +98,26 @@
 </div>
 
 <script>
+    /**
+     * L.A.N ERP - Khởi tạo Vụ việc mới
+     * Xử lý giao diện Form và tích hợp thư viện Select2 cho các trường chọn nhân sự/khách hàng.
+     */
     document.addEventListener('DOMContentLoaded', function() {
+        // Kiểm tra xem thư viện jQuery và Select2 đã được tải chưa
         if (typeof jQuery !== 'undefined' && jQuery.fn.select2) {
+            
+            // 1. Khởi tạo Select2 cho các trường chọn NHIỀU nhân sự (Phân công, Hỗ trợ)
             $('.select2-multi').select2({
-                placeholder: "Chọn nhân sự...",
-                allowClear: true
+                placeholder: "Chọn nhân sự tham gia...",
+                allowClear: true,
+                width: '100%' // Đảm bảo chiếm trọn chiều ngang khung form
             });
+
+            // 2. Khởi tạo Select2 cho các trường chọn ĐƠN (Khách hàng, Quy trình mẫu)
             $('.select2-enable').select2({
-                placeholder: "Chọn mục...",
-                allowClear: true
+                placeholder: "Chọn mục từ danh sách...",
+                allowClear: true,
+                width: '100%'
             });
         }
     });

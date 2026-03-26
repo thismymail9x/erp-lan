@@ -38,9 +38,16 @@ class AccessControlService extends BaseService
         ];
 
         // 1. MODULE CHẤM CÔNG (Attendance):
-        // Hiển thị nếu có quyền xem danh sách chấm công hoặc là Admin
-        if (has_permission('attendance.view') || has_permission('sys.admin')) {
-            $menu[] = ['title' => 'Chấm công', 'url' => 'attendance/list', 'icon' => 'fas fa-clock'];
+        if (session()->get('employee_id')) {
+            if (has_permission('attendance.view') || has_permission('sys.admin')) {
+                // Dành cho Quản lý/Admin: Xem bảng tổng quát hàng ngày
+                $menu[] = ['title' => 'Quản lý chấm công', 'url' => 'attendance/list', 'icon' => 'fas fa-clock'];
+            } else {
+                // Dành cho Nhân viên: Xem lịch sử cá nhân theo tháng
+                $menu[] = ['title' => 'Lịch sử chấm công', 'url' => 'attendance/list?view=monthly', 'icon' => 'fas fa-history'];
+            }
+            // Mục điểm danh trực tiếp cho tất cả nhân viên
+//            $menu[] = ['title' => 'Điểm danh Camera', 'url' => 'attendance', 'icon' => 'fas fa-camera'];
         }
 
         // 2. MODULE VỤ VIỆC PHÁP LÝ (Legal Cases):
@@ -51,7 +58,13 @@ class AccessControlService extends BaseService
         
         // 3. MODULE KHÁCH HÀNG (Customers):
         if (has_permission('customer.view')) {
-            $menu[] = ['title' => 'Khách hàng', 'url' => 'customers', 'icon' => 'fas fa-users'];
+            $menu[] = ['title' => 'Khách hàng', 'url' => 'customers', 'icon' => 'fas fa-id-card'];
+        }
+
+        // 3.5 MODULE QUẢN LÝ TÀI LIỆU (DMS):
+        // Mọi thành viên đều được vào kho tài liệu (DMS), quyền xem chi tiết sẽ check bên trong Service
+        if (session()->get('employee_id')) {
+            $menu[] = ['title' => 'Tài liệu (DMS)', 'url' => 'documents', 'icon' => 'fas fa-folder-open'];
         }
 
         // 4. MODULE QUẢN TRỊ NHÂN SỰ & TÀI KHOẢN:

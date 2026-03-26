@@ -1,5 +1,9 @@
 <?= $this->extend('layouts/dashboard') ?>
 
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('css/attendance.css') ?>">
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
 <div class="attendance-history-wrapper">
     <div class="dashboard-header-wrapper">
@@ -107,4 +111,22 @@
         </div>
     </div>
 </div>
+<script>
+/**
+ * L.A.N ERP - Lịch sử Chấm công Cá nhân
+ * Quản lý các tương tác xem lại dữ liệu chấm công.
+ */
+
+/**
+ * Tiện ích Xem trước hình ảnh minh chứng.
+ * Mở ảnh trong tab mới để xem chi tiết khuôn mặt hoặc vị trí chụp.
+ * @param {string} src - Đường dẫn (URL) tới hình ảnh cần xem.
+ */
+function previewImage(src) {
+    if (src) {
+        // Mở cửa sổ mới với các thuộc tính bảo mật phù hợp
+        window.open(src, '_blank', 'noopener,noreferrer');
+    }
+}
+</script>
 <?= $this->endSection() ?>

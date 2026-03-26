@@ -220,139 +220,90 @@
 </style>
 
 <script>
-let stepCount = <?= count($steps) ?>;
+    /**
+     * L.A.N ERP - Trình khởi tạo Quy trình nghiệp vụ
+     * Điều khiển việc thêm, xóa, sắp xếp và lưu trữ các giai đoạn trong một quy trình mẫu.
+     */
+    let stepCount = <?= count($steps) ?>; // Đếm số lượng bước hiện có
 
-function addNewStep() {
-    const container = document.getElementById('steps-container');
-    const emptyState = container.querySelector('.empty-steps-state');
-    if (emptyState) emptyState.remove();
+    /**
+     * Thêm một giai đoạn mới vào cuối danh sách.
+     * Tạo cấu trúc HTML động và khởi tạo Select2 cho các trường chọn mới.
+     */
+    function addNewStep() {
+        const container = document.getElementById('steps-container');
+        
+        // Ẩn thông báo "Trống" nếu đây là bước đầu tiên
+        const emptyState = container.querySelector('.empty-steps-state');
+        if (emptyState) emptyState.remove();
 
-    const index = stepCount;
-    const stepHtml = `
-        <div class="step-card premium-card m-b-15" data-index="${index}">
-            <div class="step-card-header">
-                <div class="step-number">#${index + 1}</div>
-                <input type="text" name="steps[${index}][step_name]" class="step-name-input" value="" placeholder="Tên bước mới..." required>
-                <button type="button" class="btn-remove-step" onclick="removeStep(this)">
-                    <i class="far fa-trash-alt"></i>
-                </button>
-            </div>
-            <div class="step-card-body">
-                <div class="form-row-steps">
-                    <div class="form-group-mini">
-                        <label>Số ngày</label>
-                        <input type="number" name="steps[${index}][duration_days]" value="3" min="1" required>
-                    </div>
-                    <div class="form-group-mini">
-                        <label>Người nhận thông báo</label>
-                        <select class="select2-multiple" name="steps[${index}][responsible_role][]" multiple="multiple" style="width: 100%;">
-                            <optgroup label="Theo Vai trò">
-                                <?php foreach ($roles as $val => $lbl) { ?>
-                                    <option value="role:<?= $val ?>"><?= $lbl ?></option>
-                                <?php } ?>
-                            </optgroup>
-                            <optgroup label="Cá nhân cụ thể">
-                                <?php foreach ($employees as $emp) { ?>
-                                    <option value="user:<?= $emp['id'] ?>">
-                                        <?= esc($emp['full_name']) ?> (<?= esc($emp['position']) ?>)
-                                    </option>
-                                <?php } ?>
-                            </optgroup>
-                        </select>
-                    </div>
-                    <div class="form-group-mini flex-2">
-                        <label>Tài liệu bắt buộc (cách nhau bởi dấu phẩy)</label>
-                        <input type="text" name="steps[${index}][required_documents_raw]" value="" placeholder="Ví dụ: Đơn, Chứng cứ...">
+        const index = stepCount;
+        const stepHtml = `
+            <div class="step-card premium-card m-b-15" data-index="${index}">
+                <div class="step-card-header">
+                    <div class="step-number">#${index + 1}</div>
+                    <input type="text" name="steps[${index}][step_name]" class="step-name-input" value="" placeholder="Tên bước mới..." required>
+                    <button type="button" class="btn-remove-step" onclick="removeStep(this)">
+                        <i class="far fa-trash-alt"></i>
+                    </button>
+                </div>
+                <div class="step-card-body">
+                    <div class="form-row-steps">
+                        <div class="form-group-mini">
+                            <label>Số ngày định mức</label>
+                            <input type="number" name="steps[${index}][duration_days]" value="3" min="1" required title="Số ngày dự kiến hoàn thành bước này">
+                        </div>
+                        <div class="form-group-mini">
+                            <label>Phân quyền/Người phụ trách</label>
+                            <select class="select2-multiple" name="steps[${index}][responsible_role][]" multiple="multiple" style="width: 100%;">
+                                <optgroup label="Theo Vai trò (Role)">
+                                    <?php foreach ($roles as $val => $lbl) { ?>
+                                        <option value="role:<?= $val ?>"><?= $lbl ?></option>
+                                    <?php } ?>
+                                </optgroup>
+                                <optgroup label="Nhân viên cụ thể">
+                                    <?php foreach ($employees as $emp) { ?>
+                                        <option value="user:<?= $emp['id'] ?>">
+                                            <?= esc($emp['full_name']) ?> (<?= esc($emp['position']) ?>)
+                                        </option>
+                                    <?php } ?>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="form-group-mini flex-2">
+                            <label>Tài liệu cần có (Phân tách bằng dấu phẩy)</label>
+                            <input type="text" name="steps[${index}][required_documents_raw]" value="" placeholder="Ví dụ: Đơn khởi kiện, CCCD, Bản án...">
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    `;
-    container.insertAdjacentHTML('beforeend', stepHtml);
-    
-    // Khởi tạo Select2 cho element mới
-    $(`.step-card[data-index="${index}"] .select2-multiple`).select2({
-        placeholder: "Chọn vai trò hoặc nhân sự...",
-        allowClear: true
-    });
+        `;
+        
+        // Chèn HTML mới vào container
+        container.insertAdjacentHTML('beforeend', stepHtml);
+        
+        // Khởi tạo thư viện Select2 cho các element vừa tạo động
+        $(`.step-card[data-index="${index}"] .select2-multiple`).select2({
+            placeholder: "Chọn đối tượng xử lý...",
+            allowClear: true
+        });
 
-    stepCount++;
-    reorderSteps();
-}
-
-function removeStep(btn) {
-    if (confirm('Xóa giai đoạn này?')) {
-        btn.closest('.step-card').remove();
-        reorderSteps();
+        stepCount++;
+        reorderSteps(); // Cập nhật lại số hiệu #1, #2...
     }
-}
 
-function reorderSteps() {
-    const cards = document.querySelectorAll('.step-card');
-    cards.forEach((card, i) => {
-        card.querySelector('.step-number').textContent = `#${i + 1}`;
-        card.dataset.index = i;
-        // Update input names for proper indexing on server
-        card.querySelectorAll('input, select').forEach(input => {
-            const name = input.getAttribute('name');
-            if (name) {
-                // Handle multiple select brackets []
-                const baseName = name.split('[')[2].split(']')[0]; // gets step_name, responsible_role etc
-                const isMultiple = name.endsWith('[]');
-                input.setAttribute('name', `steps[${i}][${baseName}]${isMultiple ? '[]' : ''}`);
+    /**
+     * Xóa một giai đoạn khỏi quy trình.
+     * @param {HTMLElement} btn - Nút xóa được nhấn.
+     */
+    function removeStep(btn) {
+        if (confirm('Xác nhận xóa giai đoạn này? Thứ tự các bước sau nó sẽ được cập nhật lại.')) {
+            // Xóa khối cha gần nhất có class .step-card
+            const card = btn.closest('.step-card');
+            if (card) {
+                card.remove();
+                reorderSteps();
             }
-        });
-    });
-    stepCount = cards.length;
-}
-
-function saveWorkflowSteps() {
-    const form = document.getElementById('workflow-steps-form');
-    const hiddenContainer = document.getElementById('hidden-inputs-container');
-    hiddenContainer.innerHTML = '';
-
-    const cards = document.querySelectorAll('.step-card');
-    if (cards.length === 0) {
-        alert('Hãy thiết lập ít nhất một bước quy trình.');
-        return;
-    }
-
-    cards.forEach((card, i) => {
-        const stepName = card.querySelector('input[name*="[step_name]"]').value;
-        const duration = card.querySelector('input[name*="[duration_days]"]').value;
-        const docsRaw = card.querySelector('input[name*="[required_documents_raw]"]').value;
-        
-        // Thu thập các giá trị từ Select2 multiple
-        const selectedValues = $(card).find('select[name*="[responsible_role]"]').val() || [];
-
-        // Process document list into array
-        const docArray = docsRaw.split(',').map(d => d.trim()).filter(d => d !== '');
-
-        appendHidden(hiddenContainer, `steps[${i}][step_name]`, stepName);
-        appendHidden(hiddenContainer, `steps[${i}][duration_days]`, duration);
-        
-        // Gửi mảng người nhận
-        selectedValues.forEach((val, valIdx) => {
-            appendHidden(hiddenContainer, `steps[${i}][responsible_role][${valIdx}]`, val);
-        });
-        
-        docArray.forEach((doc, docIdx) => {
-            appendHidden(hiddenContainer, `steps[${i}][required_documents][${docIdx}]`, doc);
-        });
-    });
-
-    form.submit();
-}
-
-// Khởi tạo Select2 cho các bản ghi đã có sẵn
-$(document).ready(function() {
-    $('.select2-multiple').select2({
-        placeholder: "Chọn vai trò hoặc nhân sự...",
-        allowClear: true
-    });
-});
-
-function appendHidden(container, name, value) {
     const input = document.createElement('input');
     input.type = 'hidden';
     input.name = name;

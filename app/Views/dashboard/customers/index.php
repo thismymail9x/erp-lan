@@ -1,5 +1,9 @@
 <?= $this->extend('layouts/dashboard') ?>
 
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('css/customers.css') ?>">
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
 <div class="customers-page-container">
     <div class="dashboard-header-wrapper">
@@ -65,23 +69,29 @@
     <!-- Filter & Table: Công cụ tìm kiếm và bảng dữ liệu chính -->
     <div class="premium-card premium-card-full">
         <!-- Bộ lọc tìm kiếm (Search Bar & Filter dropdown) -->
-        <div class="dashboard-header-wrapper m-b-20">
-            <div class="header-controls w-100 gap-15">
-                <form action="<?= base_url('customers') ?>" method="get" class="filter-form flex-1 w-100 gap-10">
-                    <!-- Tìm kiếm đa năng theo Tên, SĐT, CCCD hoặc Mã khách hàng -->
-                    <input type="text" name="q" class="form-control-premium flex-1" placeholder="Tìm tên, SĐT, CCCD, MST..." value="<?= service('request')->getGet('q') ?>" title="Tìm kiếm theo Tên, Số điện thoại, CCCD, Mã số thuế hoặc Mã khách hàng">
-                    <!-- Lọc nhanh theo Loại hình sở hữu -->
-                    <select name="type" class="form-control-premium w-200" title="Lọc theo loại khách hàng Cá nhân hoặc Doanh nghiệp">
-                        <option value="">Tất cả loại khách</option>
-                        <option value="ca_nhan" <?= service('request')->getGet('type') == 'ca_nhan' ? 'selected' : '' ?>>Cá nhân</option>
-                        <option value="doanh_nghiep" <?= service('request')->getGet('type') == 'doanh_nghiep' ? 'selected' : '' ?>>Doanh nghiệp</option>
-                    </select>
-                    <button type="submit" class="btn-premium" title="Thực hiện lọc dữ liệu">
-                        <i class="fas fa-search"></i> <span class="hide-mobile">Lọc kết quả</span>
-                    </button>
-                </form>
+        <!-- Bộ lọc và tìm kiếm chuyên sâu -->
+        <form action="<?= base_url('customers') ?>" method="get" class="search-filter-bar">
+            <!-- Ô tìm kiếm -->
+            <div class="search-input-group">
+                <i class="fas fa-search"></i>
+                <input type="text" name="q" placeholder="Tìm tên, SĐT, CCCD, MST..." value="<?= esc(service('request')->getGet('q')) ?>">
             </div>
-        </div>
+
+            <!-- Loại khách -->
+            <select name="type" class="filter-select">
+                <option value="">Tất cả loại khách</option>
+                <option value="ca_nhan" <?= service('request')->getGet('type') == 'ca_nhan' ? 'selected' : '' ?>>Cá nhân</option>
+                <option value="doanh_nghiep" <?= service('request')->getGet('type') == 'doanh_nghiep' ? 'selected' : '' ?>>Doanh nghiệp</option>
+            </select>
+            
+            <button type="submit" class="btn-filter-submit">
+                <i class="fas fa-search"></i> Lọc
+            </button>
+            
+            <?php if (service('request')->getUri()->getQuery() !== '') { ?>
+                <a href="<?= base_url('customers') ?>" class="btn-filter-secondary">Xóa lọc</a>
+            <?php } ?>
+        </form>
 
         <!-- Bảng danh sách khách hàng -->
         <div class="table-container">

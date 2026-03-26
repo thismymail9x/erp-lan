@@ -1,5 +1,9 @@
 <?= $this->extend('layouts/dashboard') ?>
 
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('css/attendance.css') ?>">
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
 <div class="attendance-admin-wrapper">
     <div class="dashboard-header-wrapper">
@@ -7,49 +11,43 @@
             <h2 class="content-title">Nhật ký</h2>
             <p class="content-subtitle hide-mobile">Quản lý chuyên cần.</p>
         </div>
-        
-        <div class="header-controls">
-            <form action="<?= base_url('attendance/list') ?>" method="get" class="filter-form">
-                <div class="form-group-apple">
-                    <label>Chế độ</label>
-                    <select name="view" class="form-control-premium" onchange="this.form.submit()" title="Chuyển đổi giữa xem chi tiết theo ngày hoặc tổng hợp theo tháng">
-                        <option value="daily" <?= ($viewType ?? '') == 'daily' ? 'selected' : '' ?>>Theo ngày</option>
-                        <option value="monthly" <?= ($viewType ?? '') == 'monthly' ? 'selected' : '' ?>>Theo tháng</option>
-                    </select>
-                </div>
+    </div>
 
-                <?php if (($viewType ?? 'daily') == 'daily') { ?>
-                <div class="form-group-apple">
-                    <label>Ngày</label>
-                    <input type="date" name="date" value="<?= $currentDate ?>" class="form-control-premium" onchange="this.form.submit()" title="Chọn ngày cụ thể để xem danh sách điểm danh">
-                </div>
-                <?php } else { ?>
-                <div class="form-group-apple">
-                    <label>Tháng</label>
-                    <input type="month" name="month" value="<?= $currentMonth ?>" class="form-control-premium" onchange="this.form.submit()" title="Chọn tháng cần xem bảng công tổng hợp">
-                </div>
-                <?php } ?>
-                
-                <div class="form-group-apple">
-                    <label>Phòng ban</label>
-                    <select name="department_id" class="form-control-premium" onchange="this.form.submit()" title="Lọc nhân viên theo phòng ban chuyên môn">
-                        <option value="">Tất cả phòng ban</option>
-                        <?php foreach($departments as $d) { ?>
-                            <option value="<?= $d['id'] ?>" <?= $currentDept == $d['id'] ? 'selected' : '' ?>><?= esc($d['name']) ?></option>
-                        <?php } ?>
-                    </select>
-                </div>
-            </form>
-            
-            <div class="actions-group">
-                <a href="<?= base_url('attendance') ?>" class="btn-premium-sm hide-mobile" title="Chuyển sang giao diện chấm công cá nhân">
-                    <i class="fas fa-camera"></i> Chấm công tôi
-                </a>
-                <a href="<?= base_url('attendance/export') ?>?month=<?= date('Y-m', strtotime($currentDate)) ?>" class="btn-secondary-sm" title="Xuất dữ liệu bảng công ra file Excel/CSV">
-                    <i class="fas fa-download"></i> Xuất Excel
-                </a>
+    <!-- Attendance Filter Bar -->
+    <form action="<?= base_url('attendance/list') ?>" method="get" class="search-filter-bar">
+        <select name="view" class="filter-select" onchange="this.form.submit()">
+            <option value="daily" <?= ($viewType ?? '') == 'daily' ? 'selected' : '' ?>>Theo ngày</option>
+            <option value="monthly" <?= ($viewType ?? '') == 'monthly' ? 'selected' : '' ?>>Theo tháng</option>
+        </select>
+
+        <?php if (($viewType ?? 'daily') == 'daily') { ?>
+            <div class="search-input-group">
+                <i class="fas fa-calendar-day"></i>
+                <input type="date" name="date" value="<?= $currentDate ?>" onchange="this.form.submit()">
             </div>
-        </div>
+        <?php } else { ?>
+            <div class="search-input-group">
+                <i class="fas fa-calendar-alt"></i>
+                <input type="month" name="month" value="<?= $currentMonth ?>" onchange="this.form.submit()">
+            </div>
+        <?php } ?>
+        
+        <select name="department_id" class="filter-select" onchange="this.form.submit()">
+            <option value="">Tất cả phòng ban</option>
+            <?php if (!empty($departments) && is_array($departments)) { ?>
+                <?php foreach($departments as $d) { ?>
+                    <option value="<?= $d['id'] ?>" <?= $currentDept == $d['id'] ? 'selected' : '' ?>><?= esc($d['name']) ?></option>
+                <?php } ?>
+            <?php } ?>
+        </select>
+
+        <button type="submit" class="btn-filter-submit">Lọc</button>
+        <a href="<?= base_url('attendance/export') ?>?month=<?= ($viewType == 'monthly' ? $currentMonth : date('Y-m', strtotime($currentDate))) ?>" class="btn-filter-secondary">Xuất Excel</a>
+    </form>
+    <div class="header-actions-row m-b-24" style="display: flex; justify-content: flex-end;">
+        <a href="<?= base_url('attendance') ?>" class="btn-premium-sm hide-mobile" title="Chuyển sang giao diện chấm công cá nhân">
+            <i class="fas fa-camera"></i> Chấm công tôi
+        </a>
     </div>
 
     <div class="premium-card att-card-table">
@@ -126,7 +124,7 @@ $currentOrder = $currentOrder ?? 'desc';
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (empty($records)) { ?>
+                    <?php if (empty($records) || !is_array($records)) { ?>
                         <tr><td colspan="10" style="padding: 60px; text-align: center; color: var(--apple-text-muted);">Không tìm thấy dữ liệu phù hợp.</td></tr>
                     <?php } else { ?>
                         <?php foreach($records as $row) { ?>
@@ -136,7 +134,7 @@ $currentOrder = $currentOrder ?? 'desc';
                                 </td>
                                 <?php if (($viewType ?? 'daily') == 'monthly') { ?>
                                     <td class="att-table-td att-date-main">
-                                        <?= date('d/m', strtotime($row['attendance_date'])) ?>
+                                        <?= isset($row['attendance_date']) ? date('d/m', strtotime($row['attendance_date'])) : '--' ?>
                                     </td>
                                 <?php } ?>
                                 <td class="att-table-td">
@@ -222,12 +220,21 @@ $currentOrder = $currentOrder ?? 'desc';
 </div>
 
 <script>
-// Bulk Actions Logic
+/**
+ * L.A.N ERP - Quản lý Chuyên cần (Admin)
+ * Xử lý các thao tác hàng loạt, cập nhật trạng thái và xem ảnh minh chứng.
+ */
+
+// 1. Khởi tạo các phần tử DOM phục vụ thao tác hàng loạt (Bulk Actions)
 const checkAll = document.getElementById('check-all');
 const recordChecks = document.querySelectorAll('.record-check');
 const bulkBar = document.getElementById('bulk-bar');
 const selectedCount = document.getElementById('selected-count');
 
+/**
+ * Cập nhật hiển thị của thanh công cụ hàng loạt.
+ * Hiển thị thanh bar nếu có ít nhất 1 mục được chọn, ngược lại thì ẩn.
+ */
 function updateBulkBar() {
     const checked = document.querySelectorAll('.record-check:checked');
     if (checked.length > 0) {
@@ -238,23 +245,31 @@ function updateBulkBar() {
     }
 }
 
+// 2. Lắng nghe sự kiện Check-All (Chọn tất cả)
 if (checkAll) {
     checkAll.addEventListener('change', function() {
+        // Đồng bộ trạng thái của tất cả checkbox theo checkbox "Check All"
         recordChecks.forEach(cb => cb.checked = checkAll.checked);
         updateBulkBar();
     });
 }
 
+// 3. Lắng nghe thay đổi trên từng Checkbox dòng dữ liệu
 recordChecks.forEach(cb => {
     cb.addEventListener('change', updateBulkBar);
 });
 
+/**
+ * 4. Hàm thực thi Cập nhật trạng thái hàng loạt.
+ * Thu thập các ID đã chọn, trạng thái mới và gửi via AJAX (POST).
+ */
 async function applyBulkUpdate() {
     const status = document.getElementById('bulk-status').value;
-    if (!status) return alert('Vui lòng chọn trạng thái mới');
+    if (!status) return alert('Vui lòng chọn trạng thái mới để cập nhật.');
 
     const ids = Array.from(document.querySelectorAll('.record-check:checked')).map(cb => cb.value);
     
+    // Xác nhận từ quản trị viên trước khi thực hiện
     if (!confirm('Hệ thống sẽ cập nhật trạng thái cho ' + ids.length + ' nhân viên được chọn. Tiếp tục?')) return;
 
     try {
@@ -262,19 +277,32 @@ async function applyBulkUpdate() {
         ids.forEach(id => formData.append('ids[]', id));
         formData.append('status', status);
 
+        // Gửi yêu cầu cập nhật lên Server
         const response = await fetch('<?= base_url('attendance/bulk-update') ?>', {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
 
         const res = await response.json();
         if (res.code === 0) {
+            // Reload trang để cập nhật giao diện sau khi thành công
             location.reload();
         } else {
-            alert('Lỗi: ' + res.error);
+            alert('Lỗi từ máy chủ: ' + res.error);
         }
     } catch (err) {
-        alert('Lỗi kết nối máy chủ');
+        alert('Lỗi kết nối máy chủ: Vui lòng kiểm tra lại đường truyền mạng.');
+    }
+}
+
+/**
+ * 5. Tiện ích Xem trước hình ảnh minh chứng.
+ * Mở ảnh trong tab mới để xem chi tiết khuôn mặt hoặc vị trí chụp.
+ */
+function previewImage(src) {
+    if (src) {
+        window.open(src, '_blank', 'noopener,noreferrer');
     }
 }
 </script>

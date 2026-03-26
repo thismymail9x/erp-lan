@@ -1,0 +1,134 @@
+/* ==========================================================================
+   User Management & Permissions Module
+   ========================================================================== */
+
+.user-list-wrapper .user-email {
+    font-weight: 600;
+    color: var(--apple-blue);
+    font-size: 14px;
+}
+
+.user-list-wrapper .user-meta-mobile {
+    font-size: 11px;
+    color: #8e8e93;
+    margin-top: 2px;
+}
+
+.status-active {
+    color: var(--apple-green);
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.status-locked {
+    color: var(--apple-red);
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.status-active i,
+.status-locked i {
+    font-size: 11px;
+}
+
+/* Bulk Actions (User Exclusive) */
+.floating-bulk-actions {
+    background: #1d1d1f;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 12px;
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: fit-content;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    animation: slideUpUserBulk 0.3s ease;
+}
+
+@keyframes slideUpUserBulk {
+    from { transform: translate(-50%, 100%); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+.selected-count-label {
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.bulk-delete-button {
+    background: #ff3b30;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    font-weight: 600;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.bulk-delete-button:hover { background: #ff453a; transform: translateY(-1px); }
+
+/* Permissions System GUI */
+.perm-user-info-header {
+    background: rgba(0,0,0,0.02); 
+    padding: 15px; 
+    border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.perm-groups-scroll {
+    max-height: 480px; 
+    overflow-y: auto;
+    padding: 2px;
+}
+
+.perm-group-header {
+    border-bottom: 1px solid #f0f0f2; 
+    padding-bottom: 8px; 
+    margin: 24px 0 16px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--apple-text-muted);
+}
+
+.perm-table-full {
+    width: 100%;
+    margin-bottom: 30px;
+}
+
+.perm-col-40 { width: 40%; }
+.perm-col-20 { width: 20%; }
+
+.perm-actions-row {
+    margin-top: 32px;
+    border-top: 1px solid #f2f2f7;
+    padding-top: 24px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+@media (max-width: 768px) {
+    .floating-bulk-actions {
+        width: 90%;
+        justify-content: space-between;
+        padding: 12px 18px;
+    }
+    .selected-count-label { font-size: 13px; }
+    .bulk-delete-button { padding: 10px 16px; font-size: 13px; }
+}

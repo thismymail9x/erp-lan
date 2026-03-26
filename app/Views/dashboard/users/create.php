@@ -21,7 +21,6 @@
             <div class="form-group-premium">
                 <label for="email">Email đăng nhập</label>
                 <input type="email" name="email" id="email" class="form-control-premium" required placeholder="nhanvien@lawfirm.erp" title="Địa chỉ email dùng để đăng nhập hệ thống">
-                <p class="form-helper-text">Sử dụng email công ty để đảm bảo tính bảo mật.</p>
             </div>
 
             <div class="form-group-premium">

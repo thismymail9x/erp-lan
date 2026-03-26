@@ -5,36 +5,78 @@ namespace App\Models;
 /**
  * DocumentModel
  * 
- * Quản lý hồ sơ, tài liệu đính kèm vụ việc.
- */
-/**
- * DocumentModel
- * 
- * Quản lý danh sách các tài liệu, hồ sơ, bằng chứng đính kèm trong từng vụ việc.
- * Phân loại và lưu trữ đường dẫn file phục vụ việc tra cứu nhanh của Luật sư.
+ * Quản lý kho tài liệu tập trung (DMS) cho toàn hệ thống.
+ * Hỗ trợ liên kết khách hàng, vụ việc, phân loại thông minh và quản lý phiên bản.
  */
 class DocumentModel extends BaseModel
 {
-    // 1. Cấu hình bảng
     protected $table            = 'documents';
     protected $primaryKey       = 'id';
     protected $useAutoIncrement = true;
     protected $returnType       = 'array';
+    protected $useSoftDeletes   = true;
     protected $protectFields    = true;
 
-    // 2. Các trường thông tin tài liệu hồ sơ
     protected $allowedFields    = [
-        'case_id',     // Thuộc vụ việc nào
-        'step_id',     // Thuộc bước nào (tùy chọn)
-        'file_name',   // Tên tài liệu (Ví dụ: Đơn khởi kiện.pdf)
-        'type',        // Loại tài liệu (Bằng chứng, Văn bản tòa án, Hợp đồng...)
-        'file_path',   // Đường dẫn lưu trữ trên server
-        'uploaded_by', // Người tải lên
-        'created_at'   // Ngày tải lên
+        'customer_id',
+        'case_id',
+        'step_id',
+        'document_category',
+        'file_name',
+        'file_path',
+        'file_type',
+        'mime_type',
+        'size',
+        'uploaded_by',
+        'version_number',
+        'is_encrypted',
+        'is_confidential',
+        'tags',
+        'description',
+        'retention_period',
+        'expiry_date'
     ];
 
-    // 3. Quản lý thời gian
     protected $useTimestamps = true;
     protected $createdField  = 'created_at';
-    protected $updatedField  = '';
+    protected $updatedField  = 'updated_at';
+    protected $deletedField  = 'deleted_at';
+
+    // Validation rules for DMS
+    protected $validationRules = [
+        'file_name'         => 'required|min_length[3]',
+        'file_path'         => 'required',
+        'document_category' => 'required',
+        'uploaded_by'       => 'required'
+    ];
+
+    /**
+     * Tìm kiếm tài liệu theo bộ lọc đa năng.
+     */
+    public function searchDocuments($filters = [])
+    {
+        $builder = $this->builder();
+        
+        if (!empty($filters['customer_id'])) {
+            $builder->where('customer_id', $filters['customer_id']);
+        }
+        
+        if (!empty($filters['case_id'])) {
+            $builder->where('case_id', $filters['case_id']);
+        }
+        
+        if (!empty($filters['category'])) {
+            $builder->where('document_category', $filters['category']);
+        }
+        
+        if (!empty($filters['keyword'])) {
+            $builder->groupStart()
+                    ->like('file_name', $filters['keyword'])
+                    ->orLike('description', $filters['keyword'])
+                    ->orLike('tags', $filters['keyword'])
+                    ->groupEnd();
+        }
+
+        return $builder->orderBy('created_at', 'DESC')->get()->getResultArray();
+    }
 }

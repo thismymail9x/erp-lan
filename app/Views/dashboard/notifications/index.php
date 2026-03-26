@@ -62,22 +62,37 @@
 
 <?= $this->section('scripts') ?>
 <script>
+/**
+ * L.A.N ERP - Quản lý Thông báo
+ * Xử lý các tương tác: Đánh dấu đã đọc đơn lẻ và Đánh dấu tất cả.
+ */
 $(document).ready(function() {
+    
+    // 1. Đánh dấu một thông báo là đã đọc (Xử lý AJAX)
     $('.btn-mark-read').click(function() {
-        let btn = $(this);
-        let id = btn.data('id');
+        const btn = $(this);
+        const id = btn.data('id'); // Lấy ID thông báo từ thuộc tính data-id
+
+        // Gửi yêu cầu POST lên server qua jQuery AJAX
         $.post('<?= base_url("notifications/read/") ?>' + id, function() {
-            let row = btn.closest('.notif-item-page');
-            row.removeClass('unread').addClass('read');
-            row.find('.notif-title').removeClass('unread').addClass('read');
-            btn.remove();
+            // Sau khi server xử lý thành công: Cập nhật giao diện người dùng ngay lập tức
+            const row = btn.closest('.notif-item-page');
+            row.removeClass('unread').addClass('read'); // Đổi màu nền (bỏ highlight)
+            row.find('.notif-title').removeClass('unread').addClass('read'); // Đổi màu chữ tiêu đề
+            btn.remove(); // Xóa nút bấm vì đã đọc xong
+            
+            // Tùy chọn: Cập nhật số lượng thông báo trên chuông thông báo (Navbar) nếu cần
         });
     });
 
+    // 2. Đánh dấu tất cả thông báo là đã đọc
     $('#markAllReadPage').click(function() {
-        $.post('<?= base_url("notifications/read-all") ?>', function() {
-            location.reload();
-        });
+        if (confirm('Bạn có muốn đánh dấu tất cả thông báo hiện tại là đã đọc không?')) {
+            $.post('<?= base_url("notifications/read-all") ?>', function() {
+                // Tải lại trang để áp dụng thay đổi cho toàn bộ danh sách và phân trang
+                location.reload();
+            });
+        }
     });
 });
 </script>

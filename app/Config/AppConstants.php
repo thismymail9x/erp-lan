@@ -62,6 +62,9 @@ class AppConstants
     // === CHẤM CÔNG (ATTENDANCE) ===
     public const ATT_STANDARD_IN    = '08:00:00';
     public const ATT_STANDARD_OUT   = '17:30:00';
+    public const ATT_LATE_THRESHOLD = '08:30:00';
+    public const ATT_BREAK_START    = '12:00:00';
+    public const ATT_BREAK_END      = '13:30:00';
     public const ATT_OFFICE_LAT     = 21.051701;
     public const ATT_OFFICE_LNG     = 105.780193;
     public const ATT_RADIUS_KM      = 0.2; // Tăng lên 200m để ổn định hơn

@@ -47,7 +47,18 @@ class NotificationController extends BaseController
     {
         $userId = session()->get('user_id');
         $count = $this->notificationModel->countUnread($userId);
-        return $this->response->setJSON(['status' => 'success', 'count' => $count]);
+        
+        $latest = [];
+        if ($count > 0) {
+            // Lấy thêm nội dung tóm tắt cho thanh chạy thông báo (Ticker)
+            $latest = $this->notificationModel->getUnread($userId, 5);
+        }
+        
+        return $this->response->setJSON([
+            'status' => 'success', 
+            'count'  => $count, 
+            'latest' => $latest
+        ]);
     }
 
     /**

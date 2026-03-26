@@ -1,5 +1,9 @@
 <?= $this->extend('layouts/dashboard') ?>
 
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('css/users.css') ?>">
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
 <div class="user-list-wrapper">
     <div class="dashboard-header-wrapper">
@@ -94,14 +98,22 @@
 </div>
 
 <script>
-    // Variables & Configuration
+    /**
+     * L.A.N ERP - Quản lý Tài khoản & Phân quyền
+     * Bao gồm các tính năng: Tìm kiếm AJAX, Thao tác hàng loạt (Bulk actions) và Ma trận phân quyền nâng cao.
+     */
+
+    // 1. Khai báo các đối tượng DOM chính
     const searchInput = document.getElementById('user-search');
     const tableContainer = document.getElementById('users-table-container');
-    let searchTimeout;
+    let searchTimeout; // Dùng cho kỹ thuật Debounce
     
-    // Bulk Actions Elements (will be initialized in rebind)
+    // Các phần tử phục vụ Thao tác hàng loạt (Bulk Actions)
     let checkAll, recordChecks, bulkBar, selectedCount;
 
+    /**
+     * Khởi tạo lại các tham chiếu DOM cho Bulk Actions mỗi khi bảng được làm mới bằng AJAX.
+     */
     function initBulkElements() {
         checkAll = document.getElementById('check-all');
         recordChecks = document.querySelectorAll('.record-check');
@@ -109,6 +121,9 @@
         selectedCount = document.getElementById('selected-count');
     }
 
+    /**
+     * Cập nhật trạng thái hiển thị của Thanh thao tác hàng loạt (màu xanh dương phía dưới).
+     */
     function updateBulkBar() {
         const checked = document.querySelectorAll('.record-check:checked');
         if (checked && bulkBar) {
@@ -121,26 +136,34 @@
         }
     }
 
+    /**
+     * Gán lại các sự kiện (Event Listeners) cho các checkbox sau khi bảng cập nhật dữ liệu.
+     */
     function rebindBulkActions() {
         initBulkElements();
         if (checkAll) {
+            // Sự kiện 'Chọn tất cả'
             checkAll.addEventListener('change', function() {
                 recordChecks.forEach(cb => cb.checked = checkAll.checked);
                 updateBulkBar();
             });
         }
+        // Sự kiện cho từng checkbox lẻ
         recordChecks.forEach(cb => {
             cb.addEventListener('change', updateBulkBar);
         });
         updateBulkBar();
     }
 
-    // AJAX Handler for Search, Sort & Pagination
+    /**
+     * Xử lý tải lại bảng dữ liệu qua AJAX (Tìm kiếm, Sắp xếp, Phân trang).
+     * @param {URL} url - Địa chỉ API
+     */
     async function fetchByUrl(url) {
         try {
             tableContainer.style.opacity = '0.5';
             
-            // Ensure search term is preserved
+            // Luôn đảm bảo giá trị tìm kiếm được giữ lại
             if (!url.searchParams.has('search')) {
                 url.searchParams.set('search', searchInput.value);
             }
@@ -148,17 +171,20 @@
             const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             const html = await response.text();
             
+            // Cập nhật nội dung bảng và gán lại sự kiện
             tableContainer.innerHTML = html;
             tableContainer.style.opacity = '1';
             window.history.pushState(null, '', url);
             rebindBulkActions();
         } catch (err) {
-            console.error('Fetch error:', err);
+            console.error('Lỗi khi tải dữ liệu người dùng:', err);
             tableContainer.style.opacity = '1';
         }
     }
 
-    // Real-time Search
+    /**
+     * Tìm kiếm Real-time (Debounce 300ms).
+     */
     searchInput.addEventListener('input', function() {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
@@ -169,7 +195,9 @@
         }, 300);
     });
 
-    // Listen for Pagination & Sort link clicks
+    /**
+     * Lắng nghe click trên phân trang hoặc nút sắp xếp.
+     */
     tableContainer.addEventListener('click', function(e) {
         const link = e.target.closest('.pagination a, .sort-link');
         if (link) {
@@ -178,7 +206,9 @@
         }
     });
 
-    // Bulk Delete Action
+    /**
+     * Xử lý Xóa hàng loạt tài khoản.
+     */
     async function applyBulkDelete() {
         const ids = Array.from(document.querySelectorAll('.record-check:checked')).map(cb => cb.value);
         if (!confirm('Hệ thống sẽ xóa vĩnh viễn ' + ids.length + ' tài khoản. Tiếp tục?')) return;
@@ -195,31 +225,33 @@
             if (res.code === 0) location.reload();
             else alert('Lỗi: ' + res.error);
         } catch (err) {
-            alert('Lỗi kết nối máy chủ');
+            alert('Lỗi kết nối máy chủ khi thực hiện xóa hàng loạt');
         }
     }
 
-    // Advanced Permissions AJAX Logic
+    /**
+     * Mở Modal Phân quyền nâng cao (Asynchronous - AJAX).
+     * @param {number} userId - ID của người dùng cần cấu hình.
+     */
     function openPermissionModal(userId) {
         document.getElementById('permissionModal').style.display = 'flex';
         document.getElementById('permissionMatrixContainer').innerHTML = '<div class="text-center p-20 text-muted-dark"><i class="fas fa-spinner fa-spin m-r-5"></i> Đang tải dữ liệu bộ máy quyền...</div>';
         
-        // Cần đảm bảo route users/permissions/matrix/ tồn tại trong Routes.php
         fetch('<?= base_url('users/permissions/matrix') ?>/' + userId)
             .then(res => {
                 if (!res.ok) throw new Error('Network');
                 return res.text();
             })
             .then(html => {
+                // Kiểm tra xem server có trả về JSON lỗi không (ví dụ: hết hạn session)
                 try {
-                    // Xử lý trường hợp bị lỗi Auth trả về JSON
                     const json = JSON.parse(html);
                     if (json.status === 'error') {
                         alert(json.message);
                         closePermissionModal();
                         return;
                     }
-                } catch(e) { /* is pure HTML */ }
+                } catch(e) { /* Trả về HTML chuẩn */ }
                 
                 document.getElementById('permissionMatrixContainer').innerHTML = html;
             })
@@ -229,17 +261,23 @@
             });
     }
 
+    /**
+     * Đóng Modal phân quyền.
+     */
     function closePermissionModal() {
         document.getElementById('permissionModal').style.display = 'none';
     }
 
+    /**
+     * Lưu thông tin Phân quyền nâng cao từ ma trận.
+     */
     async function savePermissions(e, userId) {
         e.preventDefault();
         const form = e.target;
         const formData = new FormData(form);
         
         const btn = form.querySelector('button[type="submit"]');
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải...';
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
         btn.disabled = true;
 
         try {
@@ -251,11 +289,9 @@
             const res = await response.json();
             if (res.status === 'success') {
                 closePermissionModal();
-                // Hiển thị toast hoặc thay đổi giao diện nhẹ thay vì reload (nếu cần thiết)
-                try {
-                    if (typeof showToast === "function") showToast(res.message, 'success');
-                    else alert(res.message);
-                } catch(e) { alert(res.message); }
+                // Thông báo thành công và reload nhẹ nếu cần
+                alert(res.message);
+                if (typeof showToast === "function") showToast(res.message, 'success');
             } else {
                 alert(res.message);
             }
@@ -267,7 +303,7 @@
         }
     }
 
-    // Initialize on page load
+    // Khởi tạo các sự kiện khi trang tải hoàn tất
     document.addEventListener('DOMContentLoaded', rebindBulkActions);
 </script>
 <?= $this->endSection() ?>

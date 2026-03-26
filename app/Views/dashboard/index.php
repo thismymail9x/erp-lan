@@ -34,22 +34,38 @@
 <div class="stats-grid">
     <div class="stat-card">
         <div class="stat-icon"><i class="fas fa-scale-balanced"></i></div>
-        <div class="stat-value">24</div>
+        <div class="stat-value"><?= number_format($stats['cases'] ?? 0) ?></div>
         <div class="stat-label">Vụ việc đang xử lý</div>
     </div>
     <div class="stat-card">
         <div class="stat-icon"><i class="fas fa-user-friends"></i></div>
-        <div class="stat-value">150</div>
-        <div class="stat-label">Tổng khách hàng</div>
+        <div class="stat-value"><?= number_format($stats['customers'] ?? 0) ?></div>
+        <div class="stat-label"><?= $isPrivileged ? 'Tổng khách hàng' : 'KH đang phụ trách' ?></div>
     </div>
+    <!-- Tạm thời ẩn Doanh thu do bảng accounting chưa tồn tại -->
+    <?php /* ?>
     <div class="stat-card">
         <div class="stat-icon"><i class="fas fa-file-invoice-dollar"></i></div>
-        <div class="stat-value">450M</div>
-        <div class="stat-label">Doanh thu tháng này</div>
+        <div class="stat-value">
+            <?php 
+                $rev = $stats['revenue'] ?? 0;
+                if ($rev >= 1000000000) {
+                    echo number_format($rev / 1000000000, 1) . 'B';
+                } elseif ($rev >= 1000000) {
+                    echo number_format($rev / 1000000, 1) . 'M';
+                } elseif ($rev >= 1000) {
+                    echo number_format($rev / 1000, 0) . 'K';
+                } else {
+                    echo number_format($rev, 0);
+                }
+            ?>
+        </div>
+        <div class="stat-label">Doanh thu tháng này (VND)</div>
     </div>
+    <?php */ ?>
     <div class="stat-card">
         <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
-        <div class="stat-value">98%</div>
+        <div class="stat-value"><?= $stats['attendance_rate'] ?? 0 ?>%</div>
         <div class="stat-label">Tỷ lệ chấm công</div>
     </div>
 </div>

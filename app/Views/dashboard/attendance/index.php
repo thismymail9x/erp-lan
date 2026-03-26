@@ -1,17 +1,35 @@
 <?= $this->extend('layouts/dashboard') ?>
 
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('css/attendance.css') ?>">
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
 <div class="attendance-page-container">
     <div class="dashboard-header-actions">
-        <h2 class="content-title">Điểm danh thông minh</h2>
-        <p class="content-subtitle">Ghi nhận thời gian làm việc bằng hình ảnh và vị trí GPS.</p>
+        <h2 class="content-title">Điểm danh</h2>
     </div>
 
     <div class="attendance-main-card">
         <!-- Clock Display -->
         <div class="clock-display-group">
             <div id="current-time" class="clock-display-time" title="Thời gian hiện tại theo hệ thống">00:00:00</div>
-            <div class="clock-display-date" title="Ngày tháng hiện tại"><?= \CodeIgniter\I18n\Time::now('Asia/Ho_Chi_Minh')->toLocalizedString('cccc, dd/MM/yyyy', 'vi') ?></div>
+            <div class="clock-display-date" title="Ngày tháng hiện tại">
+                <?php
+                $time = \CodeIgniter\I18n\Time::now('Asia/Ho_Chi_Minh');
+                $dayEng = $time->format('l');
+                $daysTranslate = [
+                    'Monday'    => 'Thứ Hai',
+                    'Tuesday'   => 'Thứ Ba',
+                    'Wednesday' => 'Thứ Tư',
+                    'Thursday'  => 'Thứ Năm',
+                    'Friday'    => 'Thứ Sáu',
+                    'Saturday'  => 'Thứ Bảy',
+                    'Sunday'    => 'Chủ Nhật',
+                ];
+                echo ($daysTranslate[$dayEng] ?? $dayEng) . ', ' . $time->format('d/m/Y');
+                ?>
+            </div>
         </div>
 
         <!-- Status Banner -->
@@ -23,7 +41,7 @@
         <div id="office-pc-status" style="display: none; margin-bottom: 20px;">
             <div class="lan-status-box lan-status-success" style="background: rgba(52, 199, 89, 0.1); border: 1px solid #34c759;">
                 <i class="fas fa-desktop lan-box-icon" style="color: #34c759;"></i>
-                <h3 class="lan-box-title" style="color: #1a7f37;">Điểm danh tại Văn Phòng</h3>
+                <h3 class="lan-box-title" style="color: #1a7f37;">Điểm danh bằng máy tính</h3>
                 <button id="btn-token-submit" class="btn btn-blue-apple">
                     <i class="fas fa-check-circle"></i> Xác nhận Điểm Danh
                 </button>
@@ -32,7 +50,7 @@
 
         <?php if ($isMobile) { ?>
             <!-- Camera Area (Only for Mobile) -->
-            <div class="capture-viewport" title="Khung nhìn camera để nhận diện khuôn mặt">
+            <div id="camera-area" class="capture-viewport" title="Khung nhìn camera để nhận diện khuôn mặt" style="display: none;">
                 <video id="video-preview" class="capture-video" autoplay playsinline></video>
                 <canvas id="photo-canvas" style="display: none;"></canvas>
 
@@ -81,15 +99,15 @@
                     <!-- PC Out of Office -->
                     <div id="out-of-office-box" class="lan-status-box lan-status-error">
                         <i class="fas fa-exclamation-triangle lan-box-icon" style="color: #e11d48;"></i>
-                        <h3 class="lan-box-title" style="color: #9f1239;">Lỗi kết nối Mạng Văn Phòng</h3>
-                        <p class="lan-box-desc" style="color: #be123c;">Chỉ được phép điểm danh bằng thiết bị PC/Laptop tại mạng nội bộ văn phòng.<br>Nếu bạn đang đi công tác, vui lòng dùng <strong>Điện thoại</strong> để điểm danh.</p>
+                        <h3 class="lan-box-title" style="color: #9f1239;">Lỗi kết nối</h3>
+                        <p class="lan-box-desc" style="color: #be123c;">Chỉ được phép điểm danh bằng thiết bị PC/Laptop tại văn phòng.<br>Nếu bạn đang đi công tác, vui lòng dùng <strong>Điện thoại</strong> để điểm danh.</p>
                     </div>
                 <?php } ?>
             </div>
 
-            <div class="attendance-note-form" style="margin: 20px auto;">
+            <div class="attendance-note-form" style="margin: 20px 0;">
                 <label for="note">Ghi chú bổ sung</label>
-                <textarea id="note" rows="3" placeholder="Đi muộn do kẹt xe, làm bù giờ..." title="Ghi chú nội dung làm việc hoặc lý do bất thường"></textarea>
+                <textarea id="note" rows="3" placeholder="Lên CATP, đi tòa A..." title="Ghi chú nội dung làm việc hoặc lý do bất thường"></textarea>
             </div>
         <?php } ?>
 
@@ -116,23 +134,33 @@
 </div>
 
 <script>
+    /**
+     * L.A.N ERP - Hệ thống Chấm công Đa phương thức (Mobile / LAN / Office Token)
+     * Đảm bảo tính nhất thực và vị trí của nhân viên khi Check-in/Check-out.
+     */
+
+    // 1. Quản lý Đồng hồ Thời gian thực (Real-time Clock)
     (function () {
+        const timeElement = document.getElementById('current-time'); // Cập nhật ID để khớp với HTML
+        const dateElement = document.querySelector('.clock-display-date'); // Lấy phần tử ngày tháng
+        const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+
         function updateClock() {
-            const clock = document.getElementById('current-time');
-            if (!clock) return;
+            if (!timeElement) return;
             const now = new Date();
-            const h = now.getHours();
-            const m = now.getMinutes();
-            const s = now.getSeconds();
-            clock.textContent = (h < 10 ? '0' + h : h) + ':' +
-                (m < 10 ? '0' + m : m) + ':' +
-                (s < 10 ? '0' + s : s);
+            timeElement.textContent = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            // Cập nhật ngày tháng chỉ một lần hoặc khi cần thiết, vì PHP đã render
+            // Để tránh ghi đè lên nội dung PHP, chỉ cập nhật nếu không có nội dung PHP
+            if (dateElement && dateElement.textContent.trim() === '') {
+                dateElement.textContent = days[now.getDay()] + ', ' + now.toLocaleDateString('vi-VN');
+            }
         }
         setInterval(updateClock, 1000);
         document.addEventListener('DOMContentLoaded', updateClock);
     })();
 
     document.addEventListener('DOMContentLoaded', function () {
+        // Khởi tạo các biến DOM và trạng thái
         const statusBanner = document.getElementById('attendance-status');
         const video = document.getElementById('video-preview');
         const canvas = document.getElementById('photo-canvas');
@@ -142,13 +170,15 @@
         const btnLanSubmit = document.getElementById('btn-lan-submit');
         const btnTokenSubmit = document.getElementById('btn-token-submit');
         const capturedContainer = document.getElementById('captured-container');
+        const cameraArea = document.getElementById('camera-area');
         const capturedPhoto = document.getElementById('captured-photo');
         const placeholder = document.getElementById('photo-placeholder');
         const note = document.getElementById('note');
         
+        // Lấy token thiết bị văn phòng từ LocalStorage (nếu có)
         const officeToken = localStorage.getItem('office_security_token');
 
-        // Check for Token Authorization
+        // Logic hiển thị nút bấm tương ứng với quyền/thiết bị
         if (officeToken && !'<?= $isMobile ?>') {
             const tokenBox = document.getElementById('office-pc-status');
             const pcArea = document.getElementById('pc-attendance-area');
@@ -161,6 +191,9 @@
         let photoBlob = null;
         let isSubmitting = false;
 
+        /**
+         * Kiểm tra trạng thái chấm công hiện tại của User từ Server.
+         */
         async function checkStatus() {
             try {
                 const res = await fetch('<?= base_url('attendance/status') ?>');
@@ -168,9 +201,13 @@
                 if (result.code === 0) {
                     updateUI(result.data);
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error('Lỗi check status:', e); }
         }
 
+        /**
+         * Cập nhật giao diện (Banner, Nút bấm) dựa trên trạng thái (Chưa vào / Đã vào / Đã xong).
+         * @param {object} data - Dữ liệu trạng thái từ server.
+         */
         function updateUI(data) {
             const actionBtns = [btnSubmit, btnLanSubmit, btnTokenSubmit].filter(b => b);
             
@@ -197,41 +234,73 @@
             }
         }
 
-        // Logic Mobile
+        // --- NHÓM LOGIC DÀNH CHO MOBILE (SỬ DỤNG CAMERA & GPS) ---
         <?php if ($isMobile) { ?>
-            if (btnInit) {
-                btnInit.onclick = async () => {
-                    btnInit.disabled = true;
-                    statusBanner.textContent = 'Đang khởi động Camera & Định vị...';
-                    navigator.geolocation.getCurrentPosition(pos => {
-                        geoLocation = pos;
-                        navigator.mediaDevices.getUserMedia({video: {facingMode: 'user'}, audio: false})
-                        .then(s => {
-                            stream = s; video.srcObject = s; video.style.display = 'block';
-                            placeholder.style.display = 'none'; btnSnap.disabled = false;
-                            statusBanner.textContent = 'Sẵn sàng! Vui lòng chụp ảnh khuôn mặt.';
-                        }).catch(e => {
-                            statusBanner.className = 'status-indicator-banner status-banner-error';
-                            statusBanner.textContent = 'Lỗi Camera: ' + e.message;
-                            btnInit.disabled = false;
-                        });
-                    }, err => {
+            /**
+             * Khởi động quy trình chấm công Mobile (Camera + GPS).
+             */
+            async function startAttendance() {
+                if (btnInit.disabled) return;
+                btnInit.disabled = true;
+                statusBanner.textContent = 'Đang khởi động Camera & Định vị...';
+                
+                // Lấy tọa độ GPS người dùng
+                navigator.geolocation.getCurrentPosition(pos => {
+                    geoLocation = pos;
+                    // Yêu cầu quyền Camera
+                    navigator.mediaDevices.getUserMedia({video: {facingMode: 'user'}, audio: false})
+                    .then(s => {
+                        stream = s; 
+                        video.srcObject = s; 
+                        video.style.display = 'block';
+                        if (cameraArea) cameraArea.style.display = 'flex';
+                        placeholder.style.display = 'none'; 
+                        btnSnap.disabled = false;
+                        statusBanner.textContent = 'Sẵn sàng! Vui lòng chụp ảnh khuôn mặt.';
+                    }).catch(e => {
                         statusBanner.className = 'status-indicator-banner status-banner-error';
-                        statusBanner.textContent = 'Lỗi GPS: Vui lòng bật định vị và thử lại.';
+                        statusBanner.textContent = 'Lỗi Camera: Không thể truy cập máy ảnh.';
                         btnInit.disabled = false;
+                        if (cameraArea) cameraArea.style.display = 'none';
                     });
-                };
+                }, err => {
+                    statusBanner.className = 'status-indicator-banner status-banner-error';
+                    statusBanner.textContent = 'Lỗi GPS: Vui lòng bật định vị và cấp quyền cho trình duyệt.';
+                    btnInit.disabled = false;
+                    if (cameraArea) cameraArea.style.display = 'none';
+                });
             }
+
+            if (btnInit) {
+                btnInit.onclick = startAttendance;
+                
+                // Tự động kích hoạt khi vào trang nếu chưa hoàn thành công việc
+                setTimeout(() => {
+                    if (!btnInit.disabled) startAttendance();
+                }, 500);
+            }
+
+            /**
+             * Chụp ảnh từ luồng Video và chuyển đổi sang Blob.
+             */
             btnSnap.onclick = () => {
                 canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                 canvas.getContext('2d').drawImage(video, 0, 0);
                 canvas.toBlob(blob => {
-                    photoBlob = blob; capturedPhoto.src = URL.createObjectURL(blob);
-                    capturedContainer.style.display = 'block'; video.style.display = 'none';
-                    btnSnap.disabled = true; btnSubmit.disabled = false;
+                    photoBlob = blob; 
+                    capturedPhoto.src = URL.createObjectURL(blob);
+                    capturedContainer.style.display = 'block'; 
+                    video.style.display = 'none';
+                    btnSnap.disabled = true; 
+                    btnSubmit.disabled = false;
+                    // Dừng luồng camera sau khi đã chụp để tiết kiệm pin
                     if (stream) stream.getTracks().forEach(t => t.stop());
                 }, 'image/jpeg', 0.8);
             };
+
+            /**
+             * Gửi dữ liệu chấm công Mobile lên server.
+             */
             btnSubmit.onclick = () => {
                 const fd = new FormData();
                 fd.append('latitude', geoLocation.coords.latitude);
@@ -242,7 +311,7 @@
             };
         <?php } ?>
 
-        // Logic LAN
+        // --- NHÓM LOGIC DÀNH CHO MẠNG NỘI BỘ (LAN) ---
         if (btnLanSubmit) {
             btnLanSubmit.onclick = () => {
                 const fd = new FormData();
@@ -251,7 +320,7 @@
             };
         }
 
-        // Logic Token
+        // --- NHÓM LOGIC DÀNH CHO THIẾT BỊ ĐÃ XÁC THỰC (OFFICE TOKEN) ---
         if (btnTokenSubmit) {
             btnTokenSubmit.onclick = () => {
                 const fd = new FormData();
@@ -261,7 +330,7 @@
             };
         }
 
-        // Admin Authorize PC
+        // --- LOGIC XÁC THỰC MÁY TÍNH VĂN PHÒNG (DÀNH CHO ADMIN) ---
         const btnAuth = document.getElementById('btn-authorize-pc');
         if (btnAuth) {
             btnAuth.onclick = async () => {
@@ -269,16 +338,23 @@
                 const res = await fetch('<?= base_url('attendance/get-office-token') ?>');
                 const result = await res.json();
                 if (result.code === 0) {
+                    // Lưu định danh máy tính vào LocalStorage của trình duyệt
                     localStorage.setItem('office_security_token', result.token);
                     document.getElementById('auth-success-msg').style.display = 'block';
                     btnAuth.style.display = 'none';
                     setTimeout(() => location.reload(), 2000);
                 } else {
-                    alert('Lỗi: ' + result.error);
+                    alert('Lỗi xác thực: ' + result.error);
                 }
             };
         }
 
+        /**
+         * Hàm trung tâm gửi dữ liệu lên Server.
+         * Quản lý trạng thái loading và phản hồi từ API.
+         * @param {FormData} formData - Dữ liệu cần gửi.
+         * @param {HTMLElement} btnElem - Nút bấm kích hoạt để hiển thị loading.
+         */
         async function submitData(formData, btnElem) {
             if (isSubmitting) return;
             isSubmitting = true;
@@ -287,13 +363,17 @@
             btnElem.textContent = 'Đang xử lý...';
 
             try {
-                const res = await fetch('<?= base_url('attendance/submit') ?>', { method: 'POST', body: formData });
+                const res = await fetch('<?= base_url('attendance/submit') ?>', { 
+                    method: 'POST', 
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
                 const result = await res.json();
                 if (result.code === 0) {
                     alert(result.message);
                     location.reload();
                 } else {
-                    alert('Lỗi: ' + result.error);
+                    alert('Không thành công: ' + result.error);
                     btnElem.disabled = false;
                     btnElem.innerHTML = originalHTML;
                     isSubmitting = false;

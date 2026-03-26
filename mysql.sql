@@ -741,4 +741,52 @@ ALTER TABLE workflow_templates DROP COLUMN version;
 -- --------------------------------------------------------
 -- ATTENDANCE OFFICE TOKEN CONFIGURATION
 -- --------------------------------------------------------
-INSERT IGNORE INTO system_settings (\key\, \alue\) VALUES ('office_security_token', 'OFFICE_AUTO_GEN');
+INSERT IGNORE INTO system_settings (`key`, `value`) VALUES ('office_security_token', 'OFFICE_AUTO_GEN');
+
+-- ==========================================================
+-- 10. PHÂN HỆ QUẢN LÝ TÀI LIỆU NÂNG CAO (Advanced DMS)
+-- Generated: 2026-03-26
+-- ==========================================================
+
+-- Cập nhật bảng documents: Thêm Metadata & Linking đa tầng
+ALTER TABLE `documents` 
+    ADD COLUMN `customer_id` INT(11) UNSIGNED NULL COMMENT 'Khách hàng sở hữu tài liệu' AFTER `id`,
+    ADD COLUMN `document_category` ENUM('client_intake', 'case_file', 'correspondence', 'financial', 'template', 'internal') DEFAULT 'case_file' COMMENT 'Phân loại tài liệu (Hồ sơ KH, Vụ việc, Thư từ...)' AFTER `step_id`,
+    ADD COLUMN `file_type` VARCHAR(10) COMMENT 'Phần mở rộng tệp (.pdf, .docx, .png...)' AFTER `file_name`,
+    ADD COLUMN `mime_type` VARCHAR(100) COMMENT 'Kiểu MIME của tệp tin' AFTER `file_type`,
+    ADD COLUMN `size` BIGINT(20) DEFAULT 0 COMMENT 'Kích thước tệp tính bằng Byte' AFTER `mime_type`,
+    ADD COLUMN `version_number` INT(5) DEFAULT 1 COMMENT 'Số hiệu phiên bản hiện tại' AFTER `uploaded_by`,
+    ADD COLUMN `is_encrypted` TINYINT(1) DEFAULT 0 COMMENT 'Trạng thái mã hóa tệp (0: không, 1: có)' AFTER `version_number`,
+    ADD COLUMN `is_confidential` TINYINT(1) DEFAULT 0 COMMENT 'Trạng thái bảo mật cao (chỉ định quyền xem)' AFTER `is_encrypted`,
+    ADD COLUMN `tags` JSON NULL COMMENT 'Thẻ từ khóa để tìm kiếm nhanh' AFTER `is_confidential`,
+    ADD COLUMN `description` TEXT NULL COMMENT 'Mô tả chi tiết nội dung tài liệu' AFTER `tags`,
+    ADD COLUMN `retention_period` INT(3) DEFAULT 10 COMMENT 'Thời gian lưu trữ tối thiểu (số năm)' AFTER `description`,
+    ADD COLUMN `expiry_date` DATE NULL COMMENT 'Ngày tệp tin hết hạn hiệu lực' AFTER `retention_period`,
+    ADD CONSTRAINT `fk_doc_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE `documents` MODIFY COLUMN `case_id` INT(11) UNSIGNED NULL COMMENT 'Vụ việc liên quan';
+
+-- Bảng lưu vết phiên bản cũ (Versioning System)
+CREATE TABLE IF NOT EXISTS `document_versions` (
+  `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `document_id` INT(11) UNSIGNED NOT NULL COMMENT 'ID của tài liệu gốc',
+  `version_number` INT(5) NOT NULL COMMENT 'Số hiệu phiên bản cũ',
+  `file_name` VARCHAR(255) NOT NULL COMMENT 'Tên tệp của phiên bản này',
+  `file_path` VARCHAR(255) NOT NULL COMMENT 'Đường dẫn thực tế trong storage',
+  `uploaded_by` INT(11) UNSIGNED NOT NULL COMMENT 'ID người tải lên phiên bản này',
+  `uploaded_at` DATETIME NOT NULL COMMENT 'Thời điểm cập nhật phiên bản',
+  `change_log` TEXT NULL COMMENT 'Ghi chú về các thay đổi trong phiên bản này',
+  CONSTRAINT `fk_ver_doc` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Lưu trữ lịch sử các phiên bản của tài liệu trong hệ thống';
+
+-- Bảng nhật ký truy cập bảo mật (Audit Log)
+CREATE TABLE IF NOT EXISTS `document_access_logs` (
+  `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `document_id` INT(11) UNSIGNED NOT NULL COMMENT 'ID tài liệu được truy cập',
+  `user_id` INT(11) UNSIGNED NOT NULL COMMENT 'ID nhân viên truy cập',
+  `action` ENUM('view', 'download', 'edit', 'delete', 'upload') NOT NULL COMMENT 'Hành động cụ thể',
+  `ip_address` VARCHAR(45) NULL COMMENT 'Địa chỉ IP truy cập',
+  `user_agent` VARCHAR(255) NULL COMMENT 'Thông tin trình duyệt/thiết bị',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Thời điểm thao tác',
+  CONSTRAINT `fk_log_doc` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Lịch sử chi tiết hành động của người dùng với tài liệu nhạy cảm';

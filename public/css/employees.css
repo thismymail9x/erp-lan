@@ -1,0 +1,43 @@
+/* ==========================================================================
+   Employee Management Module Styles
+   ========================================================================== */
+
+.employee-list-wrapper .emp-name {
+    font-weight: 600;
+    color: var(--apple-blue);
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.employee-list-wrapper .emp-meta-mobile {
+    font-size: 11px;
+    color: #8e8e93;
+    margin-top: 2px;
+}
+
+.employee-list-wrapper .currency {
+    font-size: 11px;
+    color: #999;
+}
+
+.employee-list-wrapper .emp-position-col {
+    display: table-cell;
+}
+
+@media (max-width: 768px) {
+    .employee-list-wrapper .emp-position-col {
+        display: none !important;
+    }
+}
+
+/* History Context Cell (Shared across specific detail views) */
+.att-emp-link {
+    text-decoration: none;
+    font-weight: 600;
+    color: var(--apple-blue);
+}
+
+.att-emp-dept {
+    font-size: 11px;
+    color: var(--apple-text-muted);
+}

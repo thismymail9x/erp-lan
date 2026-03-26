@@ -59,6 +59,29 @@ class CustomerController extends BaseController
             $query->where('type', $type);
         }
 
+        // --- BẢO MẬT: LỌC DỮ LIỆU DANH SÁCH (Data Isolation) ---
+        // Nhân viên thường chỉ thấy khách hàng mà họ đang/đã từng phụ trách vụ việc.
+        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+            $myEmpId = session()->get('employee_id');
+            $db = \Config\Database::connect();
+            
+            // 1. Phụ trách chính (Lawyer/Staff)
+            $subQuery1 = $db->table('cases')
+                ->select('customer_id')
+                ->where('assigned_lawyer_id', $myEmpId)
+                ->orWhere('assigned_staff_id', $myEmpId)
+                ->getCompiledSelect();
+
+            // 2. Là thành viên (CaseMember)
+            $subQuery2 = $db->table('cases')
+                ->select('customer_id')
+                ->join('case_members', 'case_members.case_id = cases.id')
+                ->where('case_members.employee_id', $myEmpId)
+                ->getCompiledSelect();
+
+            $query->where("id IN ($subQuery1) OR id IN ($subQuery2)", null, false);
+        }
+
         // 4. Tổng hợp dữ liệu hiển thị
         $data = [
             'customers' => $query->orderBy('created_at', 'DESC')->findAll(), // Sắp xếp khách hàng mới nhất lên đầu
@@ -117,6 +140,30 @@ class CustomerController extends BaseController
             return redirect()->to(base_url('customers'))->with('error', 'Hồ sơ khách hàng không tồn tại hoặc đã được gỡ bỏ.');
         }
 
+        // --- BẢO MẬT: KIỂM TRA QUYỀN TRUY CẬP TRỰC TIẾP (IDOR Protection) ---
+        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+            $myEmpId = session()->get('employee_id');
+            $db = \Config\Database::connect();
+            $hasAccess = $db->table('cases')
+                ->groupStart()
+                    ->where('customer_id', $id)
+                    ->groupStart()
+                        ->where('assigned_lawyer_id', $myEmpId)
+                        ->orWhere('assigned_staff_id', $myEmpId)
+                    ->groupEnd()
+                ->groupEnd()
+                ->orGroupStart()
+                    ->where('cases.customer_id', $id)
+                    ->join('case_members', 'case_members.case_id = cases.id')
+                    ->where('case_members.employee_id', $myEmpId)
+                ->groupEnd()
+                ->countAllResults() > 0;
+
+            if (!$hasAccess) {
+                return redirect()->to(base_url('customers'))->with('error', 'Bạn không có quyền truy cập hồ sơ khách hàng này.');
+            }
+        }
+
         // 2. BẢO MẬT & TRUY VẾT (Compliance Logging):
         // Nhật ký hệ thống sẽ ghi nhận ai đã xem hồ sơ nhạy cảm này để phục vụ Audit sau này.
         $logService = new \App\Services\SystemLogService();
@@ -129,7 +176,7 @@ class CustomerController extends BaseController
         $caseModel = new CaseModel();                       // Quản lý vụ việc/hồ sơ pháp lý
         $interactionModel = new CustomerInteractionModel(); // Quản lý nhật ký liên lạc
         $paymentModel = new CustomerPaymentModel();         // Quản lý dòng tiền/thanh toán
-        $documentModel = new CustomerDocumentModel();       // Quản lý kho tài liệu số
+        $documentModel = new \App\Models\DocumentModel(); // Sử dụng kho tài liệu DMS trung tâm
 
         // 4. Chuẩn bị dữ liệu hiển thị theo cấu trúc Tabbed UI
         $data = [
@@ -163,34 +210,55 @@ class CustomerController extends BaseController
 
     /**
      * Xử lý tải lên và số hóa tài liệu khách hàng (Digital Asset Management).
-     * 
-     * @param int|string $id ID khách hàng sở hữu tài liệu.
+     * Tích hợp với DMS tập trung, tự động lưu vào phân mục Hồ sơ khách hàng.
      */
     public function uploadDocument($id)
     {
         $file = $this->request->getFile('document');
+        if (!$file) return redirect()->back()->with('error', 'Chưa chọn tệp tin.');
         
-        // 1. Kiểm tra tính toàn vẹn và hợp lệ của tệp tin
-        if ($file->isValid() && !$file->hasMoved()) {
-            // 2. Chế độ lưu trữ an toàn (Safe Storage):
-            // Tạo tên tệp ngẫu nhiên để tránh xung đột và tấn công Local File Inclusion.
-            $newName = $file->getRandomName();
-            $file->move(WRITEPATH . 'uploads/customer_docs', $newName);
-
-            // 3. Lưu trữ siêu dữ liệu (Metadata) để quản lý kho tệp
-            $documentModel = new CustomerDocumentModel();
-            $documentModel->save([
-                'customer_id'   => $id,
-                'document_type' => $this->request->getPost('document_type'), // CCCD, Hợp đồng, Giấy tờ sở hữu,...
-                'file_name'     => $file->getClientName(),                   // Lưu tên gốc để User dễ nhận diện
-                'file_path'     => 'uploads/customer_docs/' . $newName,      // Đường dẫn truy cập trong hệ thống
-                'uploaded_by'   => session()->get('user_id')                 // Truy vết người tải lên
-            ]);
-
-            return redirect()->back()->with('success', 'Tài liệu đã được tải lên và lưu trữ an toàn.');
+        // --- BẢO MẬT: KIỂM TRA QUYỀN (IDOR Protection) ---
+        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+             return redirect()->back()->with('error', 'Cảnh báo bảo mật: Bạn không được quyền tải tài liệu vào hồ sơ khách hàng.');
         }
 
-        return redirect()->back()->with('error', 'Định dạng tệp không hợp lệ hoặc vượt quá dung lượng cho phép.');
+        // 1. CHUẨN BỊ DỮ LIỆU ĐỒNG BỘ
+        $data = [
+            'document_category' => 'client_intake',
+            'customer_id'       => $id,
+            'file_name'         => $this->request->getPost('file_name'),
+            'description'       => $this->request->getPost('description') ?: 'Hồ sơ số hóa khách hàng'
+        ];
+
+        // 2. SỬ DỤNG DỊCH VỤ DMS TRUNG TÂM
+        $docService = new \App\Services\DocumentService();
+        $result = $docService->upload($file, $data);
+
+        if ($result['status'] === 'success') {
+            return redirect()->back()->with('success', 'Hồ sơ tài liệu khách hàng đã được số hóa và đồng bộ vào kho DMS.');
+        }
+
+        return redirect()->back()->with('error', $result['message']);
+    }
+
+    /**
+     * Nhập tài liệu từ kho DMS vào hồ sơ khách hàng.
+     */
+    public function importDocument($customerId)
+    {
+        $docId = $this->request->getPost('document_id');
+        if (!$docId) return $this->response->setJSON(['status' => 'error', 'message' => 'Chưa chọn tài liệu.']);
+
+        $docModel = new \App\Models\DocumentModel();
+        $updated = $docModel->update($docId, [
+            'customer_id' => $customerId
+        ]);
+
+        if ($updated) {
+            return $this->response->setJSON(['status' => 'success', 'message' => 'Đã thêm tài liệu vào hồ sơ khách hàng.']);
+        }
+
+        return $this->response->setJSON(['status' => 'error', 'message' => 'Lỗi khi liên kết tài liệu.']);
     }
 
     /**

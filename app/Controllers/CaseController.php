@@ -291,6 +291,17 @@ class CaseController extends BaseController
             return redirect()->to(base_url('cases'))->with('error', 'Dữ liệu hồ sơ không còn tồn tại trên hệ thống.');
         }
 
+        // --- BẢO MẬT: KIỂM TRA QUYỀN TRUY CẬP (IDOR Protection) ---
+        $myEmpId = session()->get('employee_id');
+        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+            $isAssigned = ($case['assigned_lawyer_id'] == $myEmpId || $case['assigned_staff_id'] == $myEmpId);
+            $isMember = model('CaseMemberModel')->where('case_id', $id)->where('employee_id', $myEmpId)->first();
+            
+            if (!$isAssigned && !$isMember) {
+                return redirect()->to(base_url('cases'))->with('error', 'Cảnh báo bảo mật: Bạn không có quyền truy cập hồ sơ này.');
+            }
+        }
+
         // 2. Quản lý Timeline (Workflow Steps)
         $steps = $this->stepModel->where('case_id', $id)->orderBy('sort_order', 'ASC')->findAll();
 
@@ -430,6 +441,15 @@ class CaseController extends BaseController
         $content = $this->request->getPost('content');
         if (empty($content)) return redirect()->back();
 
+        // Kiểm tra quyền (Phải là thành viên vụ việc)
+        $myEmpId = session()->get('employee_id');
+        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+            $case = $this->caseModel->find($id);
+            $isAssigned = ($case['assigned_lawyer_id'] == $myEmpId || $case['assigned_staff_id'] == $myEmpId);
+            $isMember = model('CaseMemberModel')->where('case_id', $id)->where('employee_id', $myEmpId)->first();
+            if (!$isAssigned && !$isMember) return redirect()->back()->with('error', 'Bạn không có quyền bình luận hồ sơ này.');
+        }
+
         $this->commentModel->save([
             'case_id' => $id,
             'user_id' => session()->get('user_id'),
@@ -448,7 +468,17 @@ class CaseController extends BaseController
     {
         try {
             $role = session()->get('role_name');
-            
+            $myEmpId = session()->get('employee_id');
+            $step = $this->stepModel->find($stepId);
+
+            // Kiểm tra quyền truy cập hồ sơ chứa bước này
+            if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+                $case = $this->caseModel->find($step['case_id']);
+                $isAssigned = ($case['assigned_lawyer_id'] == $myEmpId || $case['assigned_staff_id'] == $myEmpId);
+                $isMember = model('CaseMemberModel')->where('case_id', $step['case_id'])->where('employee_id', $myEmpId)->first();
+                if (!$isAssigned && !$isMember) return redirect()->back()->with('error', 'Bạn không có quyền thao tác trên hồ sơ này.');
+            }
+
             // --- CƠ CHẾ KIỂM SOÁT PHÊ DUYỆT (Gatekeeping) ---
             // Nếu là tài khoản 'Nhân viên', mọi bước hoàn thành phải được gửi cho 'Người duyệt' thẩm định.
             if (strpos(strtolower($role), 'nhân viên') !== false || $role == 'Nhân viên chính thức') {
@@ -546,6 +576,13 @@ class CaseController extends BaseController
         $case = $this->caseModel->find($id);
         if (!$case) return redirect()->back()->with('error', 'Không tìm thấy hồ sơ vụ việc.');
 
+        // Kiểm tra quyền cập nhật trạng thái
+        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+            if ($case['assigned_lawyer_id'] != session()->get('employee_id')) {
+                 return redirect()->back()->with('error', 'Chỉ Quản lý hoặc Luật sư phụ trách chính mới được quyền đổi trạng thái hồ sơ.');
+            }
+        }
+
         $oldStatus = $case['status'];
         
         if ($this->caseModel->update($id, ['status' => $newStatus])) {
@@ -560,35 +597,77 @@ class CaseController extends BaseController
      * Quản lý hồ sơ số: Số hóa tài liệu.
      * Tiếp nhận tệp tin, phân loại và lưu trữ theo cấu trúc thư mục vụ việc an toàn.
      */
+    /**
+     * Quản lý hồ sơ số: Số hóa tài liệu và tích hợp DMS tập trung.
+     * Tiếp nhận tệp tin, tự động liên kết với vụ việc và khách hàng mà không cần nhập liệu thủ công.
+     */
     public function uploadDocument($id)
     {
         $file = $this->request->getFile('doc_file');
-        
-        if ($file->isValid() && !$file->hasMoved()) {
-            // 1. CHẾ ĐỘ LƯU TRỮ PHÂN TÁN (Scoped Storage):
-            // Mỗi vụ việc có folder riêng (public/uploads/cases/{id}) để dễ kiểm soát dung lượng và phân quyền.
-            $newName = $file->getRandomName();
-            $file->move(ROOTPATH . 'public/uploads/cases/' . $id, $newName);
+        if (!$file) return redirect()->back()->with('error', 'Chưa chọn tệp tin để tải lên.');
 
-            // 2. Định danh và liên kết tài liệu vào Timeline (Document Association)
-            $docData = [
-                'case_id'     => $id,
-                'step_id'     => $this->request->getPost('step_id'), // Gắn vào Bước quy trình cụ thể
-                'file_name'   => $this->request->getPost('file_name') ?: $file->getClientName(),
-                'type'        => $this->request->getPost('doc_type'),
-                'file_path'   => 'uploads/cases/' . $id . '/' . $newName,
-                'uploaded_by' => session()->get('user_id')
-            ];
+        // 1. KIỂM TRA QUYỀN TRUY CẬP (Thành viên vụ việc hoặc Admin)
+        $myEmpId = session()->get('employee_id');
+        $case = $this->caseModel->find($id);
+        if (!$case) return redirect()->back()->with('error', 'Vụ việc không tồn tại.');
 
-            $this->documentModel->save($docData);
-            
-            // 3. Ghi vết Audit Log
-            $this->logHistory($id, 'upload_ho_so', null, $docData['file_name'], 'Bổ sung tài liệu pháp lý vào hồ sơ số của dự án.');
-
-            return redirect()->back()->with('success', 'Tài liệu đã được số hóa và lưu trữ an toàn.');
+        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+            $isAssigned = ($case['assigned_lawyer_id'] == $myEmpId || $case['assigned_staff_id'] == $myEmpId);
+            $isMember = model('CaseMemberModel')->where('case_id', $id)->where('employee_id', $myEmpId)->first();
+            if (!$isAssigned && !$isMember) {
+                return redirect()->back()->with('error', 'Bạn không có quyền tải tài liệu lên hồ sơ này.');
+            }
         }
 
-        return redirect()->back()->with('error', 'Tệp tin không hợp lệ hoặc lỗi trong quá trình truyền dữ liệu.');
+        // 2. CHUẨN BỊ METADATA TỰ ĐỘNG (Automation)
+        $data = [
+            'document_category' => 'case_file',
+            'case_id'           => $id,
+            'customer_id'       => $case['customer_id'], // Tự động lấy ID khách hàng từ vụ việc
+            'step_id'           => $this->request->getPost('step_id'), // Nếu có gắn với bước quy trình
+            'file_name'         => $this->request->getPost('file_name'), // Tên hiển thị tùy chỉnh
+            'is_confidential'   => $this->request->getPost('is_confidential') ?? 0,
+            'description'       => $this->request->getPost('description') ?: 'Tài liệu bổ sung cho vụ việc: ' . $case['code']
+        ];
+
+        // 3. SỬ DỤNG DỊCH VỤ DMS TRUNG TÂM
+        $docService = new \App\Services\DocumentService();
+        $result = $docService->upload($file, $data);
+
+        if ($result['status'] === 'success') {
+            // Ghi vết nhật ký vụ việc
+            $this->logHistory($id, 'upload_ho_so', null, $data['file_name'] ?: $file->getClientName(), 'Số hóa và lưu trữ tài liệu vào kho DMS trung tâm.');
+            return redirect()->back()->with('success', 'Tài liệu đã được tải lên và đồng bộ vào kho dữ liệu DMS.');
+        }
+
+        return redirect()->back()->with('error', $result['message']);
+    }
+
+    /**
+     * Nhập tài liệu vào vụ việc từ kho DMS trung tâm (Import from Vault).
+     * @param int $caseId ID vụ việc.
+     */
+    public function importDocument($caseId)
+    {
+        $docId = $this->request->getPost('document_id');
+        if (!$docId) return $this->response->setJSON(['status' => 'error', 'message' => 'Chưa chọn tài liệu.']);
+
+        $case = $this->caseModel->find($caseId);
+        if (!$case) return $this->response->setJSON(['status' => 'error', 'message' => 'Vụ việc không tồn tại.']);
+
+        // Cập nhật chỉ số liên kết
+        $docModel = new \App\Models\DocumentModel();
+        $updated = $docModel->update($docId, [
+            'case_id'     => $caseId,
+            'customer_id' => $case['customer_id']
+        ]);
+
+        if ($updated) {
+            $this->logHistory($caseId, 'import_ho_so', null, $docId, 'Nhập tài liệu vào vụ việc từ kho lưu trữ DMS tập trung.');
+            return $this->response->setJSON(['status' => 'success', 'message' => 'Đã nhập tài liệu thành công.']);
+        }
+
+        return $this->response->setJSON(['status' => 'error', 'message' => 'Lỗi khi liên kết tài liệu.']);
     }
 
     /**

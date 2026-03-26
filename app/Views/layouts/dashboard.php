@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Core styles -->
     <link rel="stylesheet" href="<?= base_url('css/dashboard.css') ?>">
+    <link rel="stylesheet" href="<?= base_url('css/notifications.css') ?>">
     <link rel="stylesheet" href="<?= base_url('vendor/select2/select2.min.css') ?>">
     <!-- Page specific styles -->
     <?= $this->renderSection('styles') ?>
@@ -58,6 +59,11 @@
         <main class="main-content">
             <!-- Top Navbar for Notifications -->
             <header class="top-navbar">
+                <div class="notif-ticker-container" id="notifTickerContainer" style="display: none;">
+                    <div class="notif-ticker-content" id="notifTicker">
+                        <!-- Ticker contents injected by JS -->
+                    </div>
+                </div>
                 <div class="notification-dropdown">
                     <a href="#" id="notifDropdownToggle" class="notif-dropdown-toggle">
                         <i class="fas fa-bell"></i>
@@ -120,8 +126,35 @@
                 if(resp.status === 'success') {
                     if(resp.count > 0) {
                         $('#notifBadge').text(resp.count).show();
+                        
+                        // Cập nhật thanh chạy thông báo (Ticker) với màu sắc và link
+                        if (resp.latest && resp.latest.length > 0) {
+                            let tickerHtml = '';
+                            const colors = [
+                                { bg: 'rgba(0, 113, 227, 0.1)', text: '#0071e3' },
+                                { bg: 'rgba(52, 199, 89, 0.1)', text: '#34c759' },
+                                { bg: 'rgba(255, 149, 0, 0.1)', text: '#ff9500' },
+                                { bg: 'rgba(255, 59, 48, 0.1)', text: '#ff3b30' },
+                                { bg: 'rgba(175, 82, 222, 0.1)', text: '#af52de' }
+                            ];
+                            
+                            resp.latest.forEach((n, idx) => {
+                                let c = colors[idx % colors.length];
+                                tickerHtml += `
+                                    <a href="javascript:void(0)" 
+                                       class="ticker-item notif-item" 
+                                       data-id="${n.id}" 
+                                       data-link="${n.link}"
+                                       style="background: ${c.bg}; color: ${c.text}; border: 1px solid ${c.bg};">
+                                       <i class="fas fa-bell"></i> <strong>${n.title}</strong>: ${n.message}
+                                    </a>`;
+                            });
+                            $('#notifTicker').html(tickerHtml);
+                            $('#notifTickerContainer').css('display', 'flex').hide().fadeIn();
+                        }
                     } else {
                         $('#notifBadge').hide();
+                        $('#notifTickerContainer').fadeOut();
                     }
                 }
             });
@@ -168,11 +201,11 @@
             }
         });
 
-        $('#notifList').on('click', '.notif-item', function() {
+        $(document).on('click', '.notif-item', function() {
             let id = $(this).data('id');
             let link = $(this).data('link');
             $.post('<?= base_url("notifications/read/") ?>' + id, function() {
-                if(link) window.location.href = link;
+                if(link && link !== 'null') window.location.href = link;
                 else location.reload();
             });
         });

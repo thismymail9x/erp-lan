@@ -139,8 +139,8 @@ class AttendanceService extends BaseService
         if (!$record) {
             $status = AppConstants::ATT_STATUS_REGULAR; // Mặc định là Đúng giờ
             
-            // Nếu quá giờ quy định mà không có lý do (note) -> Tính là Đi muộn
-            if ($nowTime->format('H:i:s') > AppConstants::ATT_STANDARD_IN && empty($data['note'])) {
+            // Nếu đến muộn quá 8h30 thì tính là Đi muộn luôn
+            if ($nowTime->format('H:i:s') > AppConstants::ATT_LATE_THRESHOLD && empty($data['note'])) {
                 $status = AppConstants::ATT_STATUS_LATE;
             }
 
@@ -172,15 +172,26 @@ class AttendanceService extends BaseService
                 return $this->fail('Bạn đã hoàn tất phiếu điểm danh RA cho ngày hôm nay.');
             }
 
-            // Tính toán tổng thời gian làm việc (Đơn vị: Giờ)
-            $checkInTime = strtotime($record['check_in_time']);
-            $checkOutTime = strtotime($now);
-            $workedHours = round(($checkOutTime - $checkInTime) / 3600, 2);
+            // 5. Tính toán tổng thời gian làm việc (Đã trừ giờ nghỉ)
+            $workedHours = $this->calculateWorkedHours($record['check_in_time'], $now);
 
-            // Giữ nguyên trạng thái từ bản Check-in (nếu muộn thì vẫn là muộn)
+            // 6. LOGIC "HOÀN THÀNH BÙ" (FLEX-TIME):
+            // Lấy các mốc giờ cấu hình
+            $checkInTimeStr = date('H:i:s', strtotime($record['check_in_time']));
+            $standardInTime = AppConstants::ATT_STANDARD_IN;
+            $standardOutTime = AppConstants::ATT_STANDARD_OUT;
+
+            // Tính toán thời gian đi muộn so với 8h00 để cộng dồn vào giờ về
+            $lateSeconds = max(0, strtotime($checkInTimeStr) - strtotime($standardInTime));
+            // Giờ bắt buộc phải ở lại để đủ công (Ví dụ: 8h15 đến -> 17h45 mới được về)
+            $requiredCheckOutStr = date('H:i:s', strtotime($standardOutTime) + $lateSeconds);
+
+            // Giữ nguyên trạng thái từ bản Check-in (nếu là LATE thì vẫn là LATE)
             $status = $record['status'];
-            // Nếu về sớm trước giờ quy định mà không có lý bảo lưu
-            if ($nowTime->format('H:i:s') < AppConstants::ATT_STANDARD_OUT && empty($data['note'])) {
+            
+            // Kiểm tra vi phạm giờ về:
+            // Nếu chưa thỏa mãn giờ về tối thiểu đã bù thời gian
+            if ($nowTime->format('H:i:s') < $requiredCheckOutStr && empty($data['note'])) {
                 $status = AppConstants::ATT_STATUS_EARLY_LEAVE;
             }
 
@@ -270,6 +281,34 @@ class AttendanceService extends BaseService
                                      ->where('attendance_date <=', date('Y-m-t', strtotime($month . '-01')))
                                      ->orderBy('attendance_date', 'DESC')
                                      ->findAll();
+    }
+
+    /**
+     * Tính toán tổng thời gian làm việc (Đơn vị: Giờ) thực tế trừ thời gian nghỉ.
+     * Quy định nghỉ cố định từ AppConstants::ATT_BREAK_START đến AppConstants::ATT_BREAK_END.
+     */
+    private function calculateWorkedHours($checkIn, $checkOut)
+    {
+        $start = is_string($checkIn) ? strtotime($checkIn) : $checkIn;
+        $end = is_string($checkOut) ? strtotime($checkOut) : $checkOut;
+        
+        if ($start >= $end) return 0;
+        
+        $date = date('Y-m-d', $start);
+        $breakStart = strtotime($date . ' ' . AppConstants::ATT_BREAK_START);
+        $breakEnd = strtotime($date . ' ' . AppConstants::ATT_BREAK_END);
+        
+        $totalSeconds = $end - $start;
+        
+        // Tính toán khoảng trùng (overlap) giữa ca làm và giờ nghỉ
+        $overlapStart = max($start, $breakStart);
+        $overlapEnd = min($end, $breakEnd);
+        
+        if ($overlapStart < $overlapEnd) {
+            $totalSeconds -= ($overlapEnd - $overlapStart);
+        }
+        
+        return round($totalSeconds / 3600, 2);
     }
 
     /**

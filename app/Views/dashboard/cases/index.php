@@ -1,5 +1,9 @@
 <?= $this->extend('layouts/dashboard') ?>
 
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('css/cases.css') ?>">
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
 <div class="cases-page-container">
     <div class="dashboard-header-wrapper">
@@ -87,48 +91,75 @@
 </div>
 
 <script>
+    /**
+     * L.A.N ERP - Quản lý Danh sách Vụ việc
+     * Điều khiển các thao tác tìm kiếm Real-time, Phân trang và Sắp xếp AJAX.
+     */
+
+    // 1. Khởi tạo các tham chiếu DOM
     const searchInput = document.getElementById('case-search');
     const tableContainer = document.getElementById('cases-table-container');
-    let searchTimeout;
+    let searchTimeout; // Biến dùng cho kỹ thuật Debounce (trì hoãn gửi request khi gõ phím)
 
-    // Real-time Search
+    /**
+     * 2. Tìm kiếm Real-time (Thời gian thực).
+     * Sử dụng Debounce 300ms để tránh gửi quá nhiều yêu cầu lên server khi người dùng đang gõ.
+     */
     searchInput.addEventListener('input', function() {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
             const url = new URL(window.location.href);
             url.searchParams.set('search', this.value);
-            url.searchParams.set('page', 1);
+            url.searchParams.set('page', 1); // Reset về trang 1 khi bắt đầu tìm kiếm mới
             fetchByUrl(url);
         }, 300);
     });
 
-    // AJAX Pagination & Sorting
+    /**
+     * 3. Phân trang và Sắp xếp qua AJAX.
+     * Lắng nghe sự kiện click trên các link phân trang hoặc sắp xếp (Event Delegation).
+     */
     tableContainer.addEventListener('click', function(e) {
+        // Tìm kiếm xem click có nằm trong link phân trang hoặc link sắp xếp không
         const link = e.target.closest('.pagination a, .sort-link');
         if (link) {
             e.preventDefault();
-            fetchByUrl(new URL(link.href));
+            const url = new URL(link.href);
+            fetchByUrl(url);
         }
     });
 
+    /**
+     * 4. Hàm thực thi Tải dữ liệu bằng AJAX.
+     * Cập nhật nội dung bảng mà không làm tải lại toàn bộ trang.
+     * @param {URL} url - Địa chỉ API chứa các tham số lọc/sắp xếp/phân trang.
+     */
     async function fetchByUrl(url) {
         try {
+            // Hiệu ứng mờ dần để báo hiệu đang tải dữ liệu
             tableContainer.style.opacity = '0.5';
-            // Đảm bảo giữ lại giá trị search hiện tại nếu url không có
+            
+            // Đảm bảo truy vấn luôn kèm theo giá trị search hiện tại của ô input
             if (!url.searchParams.has('search')) {
                 url.searchParams.set('search', searchInput.value);
             }
 
+            // Gửi yêu cầu với header XMLHttpRequest để Controller nhận diện AJAX
             const response = await fetch(url, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
+
+            // Lấy nội dung HTML (Index_table view) từ server trả về
             const html = await response.text();
+            
+            // Cập nhật DOM
             tableContainer.innerHTML = html;
             tableContainer.style.opacity = '1';
             
+            // Cập nhật URL trên thanh địa chỉ trình duyệt mà không cần reload
             window.history.pushState(null, '', url);
         } catch (err) {
-            console.error('Fetch error:', err);
+            console.error('Lỗi khi tải dữ liệu vụ việc:', err);
             tableContainer.style.opacity = '1';
         }
     }

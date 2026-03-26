@@ -378,7 +378,7 @@ class WorkflowService extends BaseService
         $totalDays = 0;
         foreach ($steps as $index => $step) {
             $step['template_id'] = $templateId;
-            $step['step_order']  = $index + 1; // Sắp xếp lại chỉ số trình tự
+            $step['step_order']  = $index; // Sắp xếp lại chỉ số trình tự (0-indexed)
             
             // Xử lý nén dữ liệu phức tạp (JSON) để lưu trữ vào MySQL
             if (isset($step['required_documents']) && is_array($step['required_documents'])) {
