@@ -23,12 +23,12 @@
         <form action="<?= base_url('register') ?>" method="POST">
             <?= csrf_field() ?>
             <div class="input-group">
-                <input type="email" name="email" id="email" placeholder=" " required value="<?= old('email') ?>">
+                <input type="email" name="email" id="email" required value="<?= old('email') ?>" placeholder=" ">
                 <label for="email">Email mới</label>
             </div>
 
             <div class="input-group">
-                <input type="password" name="password" id="password" placeholder=" " required>
+                <input type="password" name="password" id="password" required placeholder=" ">
                 <label for="password">Mật khẩu mới</label>
             </div>
 

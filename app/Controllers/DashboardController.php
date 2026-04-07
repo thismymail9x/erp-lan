@@ -16,10 +16,12 @@ class DashboardController extends BaseController
         if (!session()->has('isLoggedIn')) {
             return redirect()->to('/login');
         }
-
         $employeeId = session()->get('employee_id');
         $role = session()->get('role_name');
-        $isPrivileged = in_array($role, \Config\AppConstants::PRIVILEGED_ROLES);
+        $myDeptId = session()->get('department_id');
+        $isAdmin = in_array($role, [\Config\AppConstants::ROLE_ADMIN, \Config\AppConstants::ROLE_MOD]);
+        $isManager = ($role === \Config\AppConstants::ROLE_TRUONG_PHONG);
+        $isLegalManager = ($isManager && $myDeptId == \Config\AppConstants::DEPT_PHAP_LY);
 
         // 2. KHỞI TẠO DỊCH VỤ & MODEL
         $attendanceService = new \App\Services\AttendanceService();
@@ -33,7 +35,34 @@ class DashboardController extends BaseController
         $caseBuilder->whereIn('status', ['moi_tiep_nhan', 'dang_xu_ly', 'cho_tham_tam', 'open', 'in_progress']);
         $caseBuilder->where('deleted_at', null);
         
-        if (!$isPrivileged) {
+        if ($isAdmin) {
+            // ADMIN: Xem toàn cục công ty
+        } elseif ($isManager) {
+            // QUẢN LÝ (TEAM-BASED): Thấy dữ liệu của đội mình (Sếp + Quân)
+            $myTeamIds = $db->table('employees')->where('manager_id', $employeeId)->select('id')->get()->getResultArray();
+            $myTeamIds = array_column($myTeamIds, 'id');
+            $myTeamIds[] = $employeeId; // Bao gồm sếp
+
+            $caseBuilder->groupStart()
+                // A. Hồ sơ của ĐỘI
+                ->groupStart()
+                    ->whereIn('assigned_lawyer_id', $myTeamIds)
+                    ->orWhereIn('assigned_staff_id', $myTeamIds)
+                    ->orWhereIn('id', function($builder) use ($myTeamIds) {
+                        return $builder->select('case_id')->from('case_members')->whereIn('employee_id', $myTeamIds);
+                    })
+                ->groupEnd();
+
+                // B. NGOẠI LỆ PHÁP LÝ: Thấy hồ sơ mồ kôi để quản trị
+                if ($isLegalManager) {
+                    $caseBuilder->orGroupStart()
+                        ->where('assigned_lawyer_id IS NULL')
+                        ->where('assigned_staff_id IS NULL')
+                    ->groupEnd();
+                }
+            $caseBuilder->groupEnd();
+        } else {
+            // NHÂN VIÊN bình thường: Chỉ thấy vụ việc mình tham gia
             $caseBuilder->groupStart()
                 ->where('assigned_lawyer_id', $employeeId)
                 ->orWhere('assigned_staff_id', $employeeId)
@@ -48,7 +77,36 @@ class DashboardController extends BaseController
         $customerBuilder = $db->table('customers');
         $customerBuilder->where('deleted_at', null);
         
-        if (!$isPrivileged) {
+        if ($isAdmin) {
+            // ADMIN: Xem toàn bộ công ty
+        } elseif ($isManager) {
+            // QUẢN LÝ (TEAM-BASED): Thấy khách hàng của đội mình
+            $myTeamIds = $db->table('employees')->where('manager_id', $employeeId)->select('id')->get()->getResultArray();
+            $myTeamIds = array_column($myTeamIds, 'id');
+            $myTeamIds[] = $employeeId;
+
+            $customerBuilder->whereIn('id', function($builder) use ($myTeamIds, $isLegalManager) {
+                $builder->select('customer_id')->from('cases')->groupStart();
+                    // A. Nhúng trong hồ sơ của ĐỘI (Sếp + Quân)
+                    $builder->groupStart()
+                        ->whereIn('assigned_lawyer_id', $myTeamIds)
+                        ->orWhereIn('assigned_staff_id', $myTeamIds)
+                        ->orWhereIn('id', function($sub) use ($myTeamIds) {
+                            return $sub->select('case_id')->from('case_members')->whereIn('employee_id', $myTeamIds);
+                        })
+                    ->groupEnd();
+
+                    // B. NGOẠI LỆ PHÁP LÝ: Thấy khách của hồ sơ mồ kôi
+                    if ($isLegalManager) {
+                        $builder->orGroupStart()
+                            ->where('assigned_lawyer_id IS NULL')
+                            ->where('assigned_staff_id IS NULL')
+                        ->groupEnd();
+                    }
+                $builder->groupEnd();
+            });
+        } else {
+            // NHÂN VIÊN bình thường
             $customerBuilder->whereIn('id', function($builder) use ($employeeId) {
                 $builder->select('customer_id')->from('cases')
                     ->groupStart()
@@ -67,15 +125,27 @@ class DashboardController extends BaseController
 
         // --- D. Tỉ lệ chấm công ---
         $stats['attendance_rate'] = 0;
-        if ($isPrivileged) {
+        if ($isAdmin) {
             $totalEmployees = $db->table('employees')->where('deleted_at', null)->countAllResults();
             if ($totalEmployees > 0) {
-                $todayCheckedIn = $db->table('attendances')
-                    ->where('attendance_date', date('Y-m-d'))
-                    ->countAllResults();
+                $todayCheckedIn = $db->table('attendances')->where('attendance_date', date('Y-m-d'))->countAllResults();
                 $stats['attendance_rate'] = round(($todayCheckedIn / $totalEmployees) * 100);
             }
+        } elseif ($isManager) {
+            // Trưởng phòng: Tỉ lệ chấm công của phòng trong ngày hôm nay
+            $deptEmpIds = $db->table('employees')->where('department_id', $myDeptId)->select('id')->get()->getResultArray();
+            $deptEmpIds = array_column($deptEmpIds, 'id');
+            $totalInDept = count($deptEmpIds);
+            
+            if ($totalInDept > 0) {
+                $todayDeptCheckedIn = $db->table('attendances')
+                    ->where('attendance_date', date('Y-m-d'))
+                    ->whereIn('employee_id', $deptEmpIds)
+                    ->countAllResults();
+                $stats['attendance_rate'] = round(($todayDeptCheckedIn / $totalInDept) * 100);
+            }
         } else {
+            // Nhân viên: Tỉ lệ chấm công cá nhân trong tháng
             $daysElapsed = (int)date('d');
             $myCheckins = $db->table('attendances')
                 ->where('employee_id', $employeeId)
@@ -90,12 +160,111 @@ class DashboardController extends BaseController
             $attendanceStatus = $attendanceService->getTodayStatus($employeeId);
         }
 
-        // 5. ĐÓNG GÓI DỮ LIỆU
+        // --- D. Thống kê theo bộ phận (Departmental Customization) ---
+        $deptStats = null;
+        $isHRDept = ($myDeptId == \Config\AppConstants::DEPT_HANH_CHINH);
+        $isSaleDept = ($myDeptId == \Config\AppConstants::DEPT_SALE);
+
+        if ($isManager) {
+            if ($isLegalManager) {
+                // Đã xử lý ở mục A & B
+            } elseif ($isHRDept) {
+                // BỘ PHẬN HÀNH CHÍNH (HR/ADMIN): Thống kê nhân sự toàn công ty
+                $deptStats = [
+                    'total_company_employees' => $db->table('employees')->where('deleted_at', null)->countAllResults(),
+                    'new_hires_this_month'   => $db->table('employees')
+                                                    ->where('MONTH(join_date)', date('m'))
+                                                    ->where('YEAR(join_date)', date('Y'))
+                                                    ->where('deleted_at', null)
+                                                    ->countAllResults(),
+                    'company_attendance_today' => $db->table('attendances')
+                                                    ->where('attendance_date', date('Y-m-d'))
+                                                    ->countAllResults()
+                ];
+                $totalEmp = $deptStats['total_company_employees'];
+                $deptStats['attendance_percent'] = $totalEmp > 0 ? round(($deptStats['company_attendance_today'] / $totalEmp) * 100) : 0;
+            } else {
+                // CÁC BỘ PHẬN KHÁC (Sale, Marketing...): Thống kê nhân sự và chấm công TEAM
+                $deptStats = [
+                    'total_members' => $db->table('employees')->where('department_id', $myDeptId)->where('deleted_at', null)->countAllResults(),
+                    'today_attendance' => $db->table('attendances')
+                        ->whereIn('employee_id', function($builder) use ($myDeptId) {
+                            $builder->select('id')->from('employees')->where('department_id', $myDeptId);
+                        })
+                        ->where('attendance_date', date('Y-m-d'))
+                        ->countAllResults(),
+                ];
+                
+                if ($deptStats['total_members'] > 0) {
+                    $deptStats['attendance_percent'] = round(($deptStats['today_attendance'] / $deptStats['total_members']) * 100);
+                } else {
+                    $deptStats['attendance_percent'] = 0;
+                }
+
+                // Nếu là Sale, có thể thêm thống kê khách hàng (nhưng chỉ khách của team)
+                if ($isSaleDept) {
+                    $deptStats['dept_customers'] = $stats['customers'] ?? 0;
+                }
+            }
+        }
+
+        // --- E. Danh sách nhân sự nghỉ phép (Calendar Data) ---
+        $currentMonthStart = date('Y-m-01');
+        $currentMonthEnd = date('Y-m-t');
+        
+        $leaveRecords = $db->table('leave_requests')
+            ->select('leave_requests.*, employees.full_name as employee_name, departments.name as department_name')
+            ->join('employees', 'employees.id = leave_requests.employee_id')
+            ->join('departments', 'departments.id = employees.department_id', 'left')
+            ->where('leave_requests.status', 'approved')
+            ->groupStart()
+                ->where('leave_requests.start_date >=', $currentMonthStart)
+                ->where('leave_requests.start_date <=', $currentMonthEnd)
+                ->orGroupStart()
+                    ->where('leave_requests.end_date >=', $currentMonthStart)
+                    ->where('leave_requests.end_date <=', $currentMonthEnd)
+                ->groupEnd()
+            ->groupEnd()
+            ->get()->getResultArray();
+
+        $absentCalendar = [];
+        foreach ($leaveRecords as $record) {
+            $start = new \DateTime($record['start_date']);
+            $end = new \DateTime($record['end_date']);
+            
+            // Lặp qua từng ngày trong khoảng nghỉ
+            $interval = new \DateInterval('P1D');
+            $period = new \DatePeriod($start, $interval, $end->modify('+1 day'));
+
+            foreach ($period as $date) {
+                $dateStr = $date->format('Y-m-d');
+                // Chỉ lấy các ngày trong tháng hiện tại
+                if ($dateStr >= $currentMonthStart && $dateStr <= $currentMonthEnd) {
+                    if (!isset($absentCalendar[$dateStr])) {
+                        $absentCalendar[$dateStr] = [];
+                    }
+                    $absentCalendar[$dateStr][] = [
+                        'name' => $record['employee_name'],
+                        'dept' => $record['department_name'],
+                        'type' => $record['leave_type']
+                    ];
+                }
+            }
+        }
         $data = [
             'title'            => 'Bảng điều khiển | L.A.N ERP',
             'attendanceStatus' => $attendanceStatus,
             'stats'            => $stats,
-            'isPrivileged'     => $isPrivileged,
+            'deptStats'        => $deptStats,
+            'isAdmin'          => $isAdmin,
+            'isManager'        => $isManager,
+            'isLegalDept'      => ($myDeptId == \Config\AppConstants::DEPT_PHAP_LY),
+            'isHRDept'         => $isHRDept,
+            'isSaleDept'       => $isSaleDept,
+            'absentCalendar'   => $absentCalendar,
+            'currentMonthDisplay' => date('m/Y'),
+            'daysInMonth'      => (int)date('t'),
+            'firstDayOfWeek'   => (int)date('w', strtotime($currentMonthStart)),
             'user'  => [
                 'email' => session()->get('email'),
                 'role'  => $role

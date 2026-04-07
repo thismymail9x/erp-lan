@@ -51,7 +51,10 @@ class SystemLogController extends BaseController
             'users'   => $userModel->select('id, email')->findAll() // Danh sách user tối giản để lọc
         ];
 
-        // 3. Trả về giao diện danh sách
+        if ($this->request->isAJAX()) {
+            return view('dashboard/system_logs/index_table', $data);
+        }
+
         return view('dashboard/system_logs/index', $data);
     }
 }

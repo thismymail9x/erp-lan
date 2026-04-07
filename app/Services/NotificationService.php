@@ -106,4 +106,20 @@ class NotificationService extends BaseService
         }
         return true;
     }
+
+    /**
+     * Gửi thông báo đến toàn bộ Ban quản lý (Admin và Trưởng phòng).
+     * Dùng cho các cảnh báo nghiêm trọng như QUÁ HẠN tiến độ.
+     */
+    public function notifyManagement($title, $message, $type = 'alert', $link = null, $senderId = null)
+    {
+        // 1. Gửi cho toàn bộ Admin (Role ID 1)
+        $this->notifyAdmins($title, $message, $type, $link, $senderId);
+        
+        // 2. Gửi cho toàn bộ Trưởng phòng (Role ID 3)
+        $managers = $this->userModel->where('role_id', 3)->where('active_status', 1)->findAll();
+        foreach ($managers as $manager) {
+            $this->sendToUser($manager['id'], $title, $message, $type, $link, $senderId);
+        }
+    }
 }

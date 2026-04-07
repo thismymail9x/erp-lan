@@ -207,7 +207,7 @@
     });
 
     /**
-     * Xử lý Xóa hàng loạt tài khoản.
+     * Xử lý Xóa chọn tài khoản.
      */
     async function applyBulkDelete() {
         const ids = Array.from(document.querySelectorAll('.record-check:checked')).map(cb => cb.value);
@@ -225,7 +225,7 @@
             if (res.code === 0) location.reload();
             else alert('Lỗi: ' + res.error);
         } catch (err) {
-            alert('Lỗi kết nối máy chủ khi thực hiện xóa hàng loạt');
+            alert('Lỗi kết nối máy chủ khi thực hiện Xóa chọn');
         }
     }
 

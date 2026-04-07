@@ -17,6 +17,17 @@ use CodeIgniter\I18n\Time;
  */
 class AttendanceController extends BaseController
 {
+    /**
+     * Khai báo metadata cho hệ thống Tự động Đồng bộ (Auto-Sync Permissions).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $modulePermissions = [
+        'group' => 'Thời gian & Chấm công',
+        'permissions' => [
+            'attendance.view' => 'Xem và quản lý nhật ký chấm công (Dashboard/History)'
+        ]
+    ];
+
     protected $attendanceService;
     protected $employeeModel;
     protected $deptModel;
@@ -43,22 +54,30 @@ class AttendanceController extends BaseController
     {
         // 1. Kiểm tra tài khoản đã liên kết với hồ sơ nhân sự chưa
         $employeeId = session()->get('employee_id');
+        $role = session()->get('role_name');
+
         if (!$employeeId) {
             return redirect()->to('/dashboard')->with('error', 'Tài khoản chưa được gán hồ sơ nhân sự để thực hiện điểm danh.');
         }
 
-        // 2. Kiểm tra IP hiện tại có thuộc dải mạng LAN văn phòng không
-        $isLan = $this->attendanceService->isLanIp($this->request->getIPAddress());
-        
-        // 3. Phân tích User Agent để xác định giao diện (Mobile cần GPS & Cam, PC LAN có thể bỏ qua)
+        // 3. Kiểm tra Token ủy quyền từ Cookie (Nếu có)
+        $cookieToken = $this->request->getCookie('office_security_token');
+        $isAuthorized = false;
+        if ($cookieToken) {
+            $isAuthorized = $this->attendanceService->isInternalAccess($this->request->getIPAddress(), $cookieToken);
+        }
+
+        // 4. Phân tích User Agent để xác định giao diện (Mobile cần GPS & Cam, PC LAN có thể bỏ qua)
         $userAgent = $this->request->getUserAgent();
         $isMobile = $userAgent->isMobile();
+        $isLan = $this->attendanceService->isLanIp($this->request->getIPAddress());
 
-        // 4. Đóng gói dữ liệu trạng thái hiện tại (Đã In chưa? Đã Out chưa?)
+        // 5. Đóng gói dữ liệu trạng thái hiện tại (Đã In chưa? Đã Out chưa?)
         $data = [
             'title' => 'Chấm công thông minh | L.A.N ERP',
             'status' => $this->attendanceService->getTodayStatus($employeeId),
             'isLan' => $isLan,
+            'isAuthorized' => $isAuthorized,
             'isMobile' => $isMobile,
             'role' => session()->get('role_name')
         ];
@@ -87,12 +106,20 @@ class AttendanceController extends BaseController
         $deptId = $this->request->getGet('department_id');
         $empFilterId = $this->request->getGet('employee_id');
 
-        // Khởi tạo Builder truy vấn dữ liệu chấm công kết nối với bảng Nhân sự và Phòng ban
+        // Khởi tạo Builder truy vấn dữ liệu chấm công kết nối với bảng Nhân sự, Phòng ban, User và Role
         $db = \Config\Database::connect();
         $builder = $db->table('employees e');
         $builder->select('a.id, e.id as emp_id, e.full_name, d.name as dept_name, a.attendance_date, a.check_in_time, a.check_out_time, a.status, a.worked_hours, a.is_valid_location, a.check_in_photo, a.check_out_photo, a.check_in_note, a.check_out_note');
         $builder->join('departments d', 'd.id = e.department_id', 'left');
+        $builder->join('users u', 'u.id = e.user_id', 'inner');
+        $builder->join('roles r', 'r.id = u.role_id', 'inner');
         
+        // RULE: Không hiển thị bản ghi của Admin trong danh sách chấm công
+        $builder->where('r.name !=', AppConstants::ROLE_ADMIN);
+        $builder->where('u.deleted_at IS NULL');
+        $builder->where('e.deleted_at IS NULL'); // Bỏ qua nhân sự đã xóa
+        $builder->where('u.active_status', 1);
+
         // Xử lý Sắp xếp (Sorting)
         $sort = $this->request->getGet('sort') ?? 'date';
         $order = $this->request->getGet('order') ?? 'desc';
@@ -145,6 +172,7 @@ class AttendanceController extends BaseController
             'title'       => 'Nhật ký chấm công | L.A.N ERP',
             'records'     => $records,
             'departments' => $this->deptModel->findAll(),
+            'employees'   => get_available_employees($role === AppConstants::ROLE_TRUONG_PHONG ? $myDeptId : null),
             'currentDate' => $date,
             'currentDept' => $deptId,
             'currentEmployee' => $empFilterId,
@@ -157,16 +185,26 @@ class AttendanceController extends BaseController
 
         // Nếu là nhân sự bình thường, chuyển sang View lịch sử tối giản
         if (!in_array($role, AppConstants::PRIVILEGED_ROLES) || ($empFilterId && $viewType === 'monthly')) {
-            return view('dashboard/attendance/history', [
-                'title'   => ($empFilterId && $empFilterId != $myEmployeeId) ? 'Lịch sử chấm công: ' . ($data['employeeInfo']['full_name'] ?? '...') : 'Lịch sử chấm công cá nhân | L.A.N ERP',
+            $historyData = [
+                'title'   => ($empFilterId && $empFilterId != $myEmployeeId) ? 'Lịch sử chấm công: ' . ($data['employeeInfo']['full_name'] ?? '...') : 'Lịch sử chấm công | L.A.N ERP',
                 'history' => $records,
                 'currentMonth' => $data['currentMonth'],
                 'targetEmployeeId' => $empFilterId,
                 'isViewingOthers' => ($empFilterId && $empFilterId != $myEmployeeId)
-            ]);
+            ];
+            
+            if ($this->request->isAJAX()) {
+                return view('dashboard/attendance/history_table', $historyData);
+            }
+
+            return view('dashboard/attendance/history', $historyData);
         }
 
         // Quản lý xem View Dashboard tổng quát
+        if ($this->request->isAJAX()) {
+            return view('dashboard/attendance/admin_table', $data);
+        }
+
         return view('dashboard/attendance/admin_index', $data);
     }
 
@@ -195,7 +233,9 @@ class AttendanceController extends BaseController
         // 1. Phân tích môi trường yêu cầu
         $isMobile = $this->request->getUserAgent()->isMobile();
         $isLan = $this->attendanceService->isLanIp($this->request->getIPAddress());
-        $officeToken = $this->request->getPost('officeToken');
+        
+        // Lấy token từ POST hoặc dự phòng từ Cookie
+        $officeToken = $this->request->getPost('officeToken') ?: $this->request->getCookie('office_security_token');
 
         // 2. LOGIC ĐIỀU KIỆN (BẮT BUỘC TRUYỀN MEDIA):
         // Nếu là Mobile HOẶC (PC không thuộc LAN và không có Token xác thực văn phòng) -> Bắt buộc Ảnh & GPS
@@ -287,6 +327,13 @@ class AttendanceController extends BaseController
         $builder->select('e.full_name, d.name as dept_name, a.attendance_date, a.check_in_time, a.check_out_time, a.worked_hours, a.status');
         $builder->join('employees e', 'e.id = a.employee_id');
         $builder->join('departments d', 'd.id = e.department_id', 'left');
+        $builder->join('users u', 'u.id = e.user_id', 'inner');
+        $builder->join('roles r', 'r.id = u.role_id', 'inner');
+        
+        $builder->where('r.name !=', AppConstants::ROLE_ADMIN);
+        $builder->where('u.deleted_at IS NULL');
+        $builder->where('e.deleted_at IS NULL');
+        $builder->where('u.active_status', 1);
         $builder->where('a.attendance_date >=', $month . '-01');
         $lastDay = Time::createFromFormat('Y-m-d', $month . '-01')->format('Y-m-t');
         $builder->where('a.attendance_date <=', $lastDay);

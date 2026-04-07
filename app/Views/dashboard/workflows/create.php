@@ -1,49 +1,50 @@
 <?= $this->extend('layouts/dashboard') ?>
 
 <?= $this->section('content') ?>
-<div class="workflow-create-container">
-    <div class="dashboard-header-wrapper m-b-24">
+<div class="create-container">
+    <div class="dashboard-header-wrapper">
         <div class="header-title-container">
-            <h2 class="content-title">Tạo Quy trình mới</h2>
-            <p class="content-subtitle">Bắt đầu bằng cách định nghĩa các thông tin cơ bản của quy trình.</p>
+            <h2 class="content-title text-center">Tạo Quy trình nghiệp vụ mới</h2>
+            <p class="content-subtitle text-center">Bắt đầu bằng cách định nghĩa các thông tin cơ bản của quy trình mẫu.</p>
         </div>
-        <div class="header-controls">
+        <div class="header-back-btn">
             <a href="<?= base_url('workflows') ?>" class="btn-secondary-sm">
-                <i class="fas fa-arrow-left"></i> Quay lại
+                <i class="fas fa-arrow-left"></i>&nbsp; Quay lại
             </a>
         </div>
     </div>
 
-    <div class="premium-card p-30 max-w-700 m-auto">
+    <div class="premium-card premium-card-lg">
         <form action="<?= base_url('workflows/store') ?>" method="POST" class="premium-form">
             <?= csrf_field() ?>
             
-            <div class="form-group-premium m-b-24">
-                <label class="form-label-premium">Tên quy trình</label>
-                <input type="text" name="name" class="form-control-premium" placeholder="Ví dụ: Quy trình Xóa án tích 2026" required>
-                <small class="text-muted-dark">Tên gọi giúp bạn phân biệt với các quy trình khác.</small>
-            </div>
+            <div class="form-grid">
+                <div class="form-group-premium" style="grid-column: span 2;">
+                    <label class="label-premium">Tên quy trình <span style="color: #ff3b30;">*</span></label>
+                    <input type="text" name="name" class="form-control-premium" placeholder="Ví dụ: Quy trình Xóa án tích 2026" required>
+                    <p class="form-help-text">Tên gọi giúp bạn phân biệt với các quy trình nghiệp vụ khác.</p>
+                </div>
 
-            <div class="form-row m-b-24">
-                <div class="form-group-premium flex-1 m-r-12">
-                    <label class="form-label-premium">Mã định danh (Code)</label>
+                <div class="form-group-premium">
+                    <label class="label-premium">Mã định danh (Code) <span style="color: #ff3b30;">*</span></label>
                     <input type="text" name="code" class="form-control-premium text-monospace" placeholder="XOA_AN_TICH_V1" required>
                 </div>
-                <div class="form-group-premium flex-1 m-l-12">
-                    <label class="form-label-premium">Trạng thái</label>
-                    <div class="flex-row align-center p-t-10">
+
+                <div class="form-group-premium">
+                    <label class="label-premium">Trạng thái hoạt động</label>
+                    <div style="display: flex; align-items: center; padding-top: 10px; gap: 12px;">
                         <label class="switch-minimal">
                             <input type="checkbox" name="is_active" value="1" checked>
                             <span class="slider-round"></span>
                         </label>
-                        <span class="m-l-10 text-sm">Cho phép sử dụng ngay</span>
+                        <span style="font-size: 14px; font-weight: 500; color: #1d1d1f;">Cho phép sử dụng ngay</span>
                     </div>
                 </div>
             </div>
 
-            <div class="form-actions-row m-t-40">
-                <button type="submit" class="btn-premium w-100">
-                    Tiếp tục thiết lập các bước <i class="fas fa-chevron-right m-l-8"></i>
+            <div class="form-actions-premium">
+                <button type="submit" class="btn-premium btn-submit-premium" style="min-width: 220px;">
+                    Tiếp tục thiết lập các bước <i class="fas fa-chevron-right m-l-8" style="font-size: 12px;"></i>
                 </button>
             </div>
         </form>
@@ -51,12 +52,6 @@
 </div>
 
 <style>
-.max-w-700 { max-width: 700px; }
-.m-auto { margin-left: auto; margin-right: auto; }
-.flex-row { display: flex; }
-.flex-1 { flex: 1; }
-.align-center { align-items: center; }
-
 /* Minimal Switch Style */
 .switch-minimal {
   position: relative;

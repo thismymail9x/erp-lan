@@ -2,21 +2,45 @@
 
 <?= $this->section('styles') ?>
 <link rel="stylesheet" href="<?= base_url('css/customers.css') ?>">
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<style>
+    /* Tùy chỉnh nhẹ giao diện Quill để "ton-sur-ton" với Apple style */
+    .ql-toolbar.ql-snow {
+        border-top-left-radius: 12px;
+        border-top-right-radius: 12px;
+        border: 1px solid #d2d2d7;
+        background: #fbfbfd;
+    }
+    .ql-container.ql-snow {
+        border-bottom-left-radius: 12px;
+        border-bottom-right-radius: 12px;
+        border: 1px solid #d2d2d7;
+        min-height: 200px;
+        font-family: 'Inter', sans-serif;
+    }
+    .ql-editor {
+        font-size: 14px;
+        line-height: 1.6;
+        color: #1d1d1f;
+    }
+</style>
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
 <div class="customer-profile-container">
     <div class="dashboard-header-wrapper">
         <div class="header-title-container">
-            <h2 class="content-title">Hồ sơ khách hàng: <?= esc($customer['name']) ?></h2>
+            <h2 class="content-title">Hồ sơ: <?= esc($customer['name']) ?></h2>
             <p class="content-subtitle"><?= esc($customer['code']) ?> • <?= ($customer['type'] == 'ca_nhan') ? 'Cá nhân' : 'Doanh nghiệp' ?></p>
         </div>
         <div class="header-controls">
+            <?php if (isset($canEdit) && $canEdit) { ?>
             <a href="<?= base_url('customers/edit/' . $customer['id']) ?>" class="btn-secondary">
-                <i class="fas fa-edit"></i> Chỉnh sửa
+                <i class="fas fa-edit"></i> Sửa
             </a>
+            <?php } ?>
             <a href="<?= base_url('cases/create?customer_id=' . $customer['id']) ?>" class="btn-premium">
-                <i class="fas fa-folder-plus"></i> Tạo vụ việc mới
+                <i class="fas fa-plus-circle"></i> Thêm
             </a>
         </div>
     </div>
@@ -36,13 +60,19 @@
                 </div>
 
                 <div class="prof-info-list">
+                    <?php 
+                        $canSeePhone = has_permission('sys.admin') || ($customer['created_by'] == session()->get('employee_id'));
+                        $maskedPhone = $canSeePhone ? $customer['phone'] : substr($customer['phone'], 0, 4) . '****' . substr($customer['phone'], -3);
+                        $maskedEmail = $canSeePhone ? ($customer['email'] ?: '--') : '***@***.***';
+                        $maskedIdentity = $canSeePhone ? ($customer['identity_number'] ?: '--') : '********';
+                    ?>
                     <div class="prof-info-row">
                         <span class="prof-label-dim">SĐT:</span>
-                        <span class="prof-val-bold"><?= esc($customer['phone']) ?></span>
+                        <span class="prof-val-bold"><?= esc($maskedPhone) ?></span>
                     </div>
                     <div class="prof-info-row">
                         <span class="prof-label-dim">Email:</span>
-                        <span class="prof-val-bold"><?= esc($customer['email'] ?: '--') ?></span>
+                        <span class="prof-val-bold"><?= esc($maskedEmail) ?></span>
                     </div>
                     <div class="prof-info-row-last">
                         <span class="prof-label-dim">Địa chỉ:</span>
@@ -52,7 +82,7 @@
             </div>
 
             <div class="premium-card prof-health-section">
-                <h4 class="prof-health-title">Chỉ số sức khỏe</h4>
+                <h4 class="prof-health-title">Chỉ số</h4>
                 <div class="prof-health-grid">
                     <div class="prof-stat-box">
                         <div class="prof-stat-val-blue"><?= $customer['total_cases'] ?></div>
@@ -71,11 +101,11 @@
             <div class="premium-card premium-card-full" style="padding: 0;">
                 <div class="prof-tabs-nav">
                     <div class="tabs-container" id="customerModuleTabs">
-                        <button class="tab-btn active" data-tab="overview">Tổng quan</button>
-                        <button class="tab-btn" data-tab="cases">Vụ việc (<?= !empty($cases) && is_array($cases) ? count($cases) : 0 ?>)</button>
-                        <button class="tab-btn" data-tab="interactions">Tương tác</button>
-                        <button class="tab-btn" data-tab="finance">Tài chính</button>
-                        <button class="tab-btn" data-tab="docs">Tài liệu</button>
+                        <button class="tab-btn active" data-tab="overview"><i class="fas fa-info-circle"></i> Q.Sát</button>
+                        <button class="tab-btn" data-tab="cases"><i class="fas fa-briefcase"></i> Vụ việc (<?= !empty($cases) && is_array($cases) ? count($cases) : 0 ?>)</button>
+                        <button class="tab-btn" data-tab="interactions"><i class="fas fa-comments"></i> Tương tác</button>
+                        <button class="tab-btn" data-tab="finance"><i class="fas fa-wallet"></i> Tài chính</button>
+                        <button class="tab-btn" data-tab="docs"><i class="fas fa-file-alt"></i> Hồ sơ</button>
                     </div>
                 </div>
 
@@ -84,7 +114,7 @@
                     <div class="tab-pane active" id="overview">
                         <div class="prof-overview-grid">
                             <div>
-                                <h4 class="prof-section-h4"><i class="fas fa-id-card prof-section-icon"></i>Thông tin định danh</h4>
+                                <h4 class="prof-section-h4"><i class="fas fa-id-card prof-section-icon"></i>Định danh</h4>
                                 <table class="prof-info-table">
                                     <tr>
                                         <td class="prof-table-label-td">Loại định danh:</td>
@@ -92,21 +122,21 @@
                                     </tr>
                                     <tr>
                                         <td class="prof-table-label-td">Số định danh:</td>
-                                        <td class="prof-table-val-td"><?= esc($customer['identity_number'] ?: '--') ?></td>
+                                        <td class="prof-table-val-td"><?= esc($maskedIdentity) ?></td>
                                     </tr>
                                     <tr>
                                         <td class="prof-table-label-td">Ngày cấp:</td>
-                                        <td class="prof-table-val-td-med"><?= $customer['issue_date'] ? date('d/m/Y', strtotime($customer['issue_date'])) : '--' ?></td>
+                                        <td class="prof-table-val-td-med"><?= ($canSeePhone && $customer['issue_date']) ? date('d/m/Y', strtotime($customer['issue_date'])) : '--' ?></td>
                                     </tr>
                                     <tr>
                                         <td class="prof-table-label-td">Nơi cấp:</td>
-                                        <td class="prof-table-val-td-med"><?= esc($customer['issued_by'] ?: '--') ?></td>
+                                        <td class="prof-table-val-td-med"><?= $canSeePhone ? esc($customer['issued_by'] ?: '--') : '--' ?></td>
                                     </tr>
                                 </table>
                             </div>
                             <?php if ($customer['type'] == 'doanh_nghiep') { ?>
                             <div>
-                                <h4 class="prof-section-h4"><i class="fas fa-building prof-section-icon"></i>Thông tin doanh nghiệp</h4>
+                                <h4 class="prof-section-h4"><i class="fas fa-building prof-section-icon"></i>Doanh nghiệp</h4>
                                 <table class="prof-info-table">
                                     <tr>
                                         <td class="prof-table-label-td">Tên công ty:</td>
@@ -126,18 +156,17 @@
                         </div>
 
                         <div class="prof-tags-box">
-                            <h4 class="prof-section-h4"><i class="fas fa-tags prof-section-icon"></i>Tags & Phân loại</h4>
+                            <h4 class="prof-section-h4"><i class="fas fa-tags prof-section-icon"></i>Nhãn & Phân loại</h4>
                             <div class="prof-tags-flex">
-                                <?php
-                                    $tags = explode(',', $customer['tags'] ?: '');
-                                    foreach ($tags as $tag) {
-                                        if (trim($tag)) {
-                                ?>
-                                    <span class="badge-log badge-secondary-minimal"><?= esc(trim($tag)) ?></span>
-                                <?php
-                                        }
-                                    }
-                                ?>
+                                <?php if (empty($tags)) { ?>
+                                    <span class="text-xs text-muted-dark" style="margin-left: 10px;">Chưa gắn nhãn.</span>
+                                <?php } else { ?>
+                                    <?php foreach ($tags as $tag) { ?>
+                                        <span class="badge-log" style="background-color: <?= esc($tag['color']) ?>; color: white;">
+                                            <i class="fas fa-tag"></i> <?= esc($tag['name']) ?>
+                                        </span>
+                                    <?php } ?>
+                                <?php } ?>
                             </div>
                         </div>
                     </div>
@@ -187,7 +216,7 @@
                                         <div class="prof-timeline-dot"></div>
                                         <div class="prof-timeline-meta"><?= date('d/m/Y H:i', strtotime($int['interaction_date'])) ?> • <?= esc($int['staff_email'] ?? '--') ?></div>
                                         <div class="prof-timeline-summary"><?= esc($int['summary']) ?></div>
-                                        <div class="prof-timeline-content"><?= esc($int['detailed_content']) ?></div>
+                                        <div class="prof-timeline-content ql-editor" style="padding: 0; min-height: auto; font-size: inherit; color: inherit;"><?= $int['detailed_content'] ?></div>
                                     </div>
                                 <?php } ?>
                             <?php } ?>
@@ -228,7 +257,7 @@
                             <h4 style="margin: 0;">Hồ sơ số hóa (Vault)</h4>
                             <div style="display: flex; gap: 10px;">
                                 <button class="btn-secondary-sm" onclick="openVaultModal()">
-                                    <i class="fas fa-archive"></i> Kho tài liệu (DMS)
+                                    <i class="fas fa-archive"></i> Kho tài liệu
                                 </button>
                                 <button class="btn-premium-sm" onclick="document.getElementById('modalUpload').style.display='flex'">
                                     <i class="fas fa-upload m-r-8"></i> Tải tài liệu mới
@@ -283,12 +312,13 @@
                 <input type="text" name="summary" class="form-control-premium" required placeholder="Ví dụ: Gọi điện báo phí">
             </div>
             <div class="form-group-premium">
-                <label class="label-premium">Chi tiết</label>
-                <textarea name="detailed_content" class="form-control-premium" rows="3"></textarea>
+                <label class="label-premium">Chi tiết cuộc trao đổi</label>
+                <div id="editor-container"></div>
+                <input type="hidden" name="detailed_content" id="detailed_content_input">
             </div>
             <div style="margin-top: 25px; display: flex; gap: 10px; justify-content: flex-end;">
                 <button type="button" class="btn-secondary" onclick="window.document.getElementById('modalInteraction').style.display='none'">Hủy</button>
-                <button type="submit" class="btn-premium">Lưu tương tác</button>
+                <button type="submit" class="btn-premium" id="btnSaveInteraction">Lưu tương tác</button>
             </div>
         </form>
     </div>
@@ -351,116 +381,13 @@
 
         <div class="form-actions-row m-t-20" style="display: flex; gap: 10px; justify-content: flex-end;">
             <button type="button" class="btn-secondary" onclick="document.getElementById('vaultModal').style.display='none'">Đóng</button>
-            <button type="button" id="btnConfirmImport" class="btn-premium" disabled onclick="confirmImport()">Thêm tài liệu</button>
+            <button type="button" id="btnConfirmImport" class="btn-premium" disabled onclick="confirmImport(<?= $customer['id'] ?>)">Thêm tài liệu</button>
         </div>
     </div>
 </div>
-            </div>
-        </div>
-    </div>
-</div>
+<?= $this->endSection() ?>
 
-<script>
-/**
- * L.A.N ERP - Hồ sơ khách hàng 360 độ
- * Quản lý chuyển đổi Tab nội dung: Tổng quan, Vụ việc, Tương tác, Tài chính, Tài liệu.
- */
-document.addEventListener('DOMContentLoaded', function() {
-    // 1. Lấy danh sách các nút Tab và các khối nội dung (Pane) tương ứng
-    const tabs = document.querySelectorAll('#customerModuleTabs .tab-btn');
-    const panes = document.querySelectorAll('.tab-pane');
-
-    // 2. Lắng nghe sự kiện Click trên từng Tab
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const target = tab.dataset.tab; // Lấy ID của pane cần hiển thị (ví dụ: 'overview')
-
-            // Gỡ bỏ trạng thái 'active' của tất cả các tab và pane hiện tại
-            tabs.forEach(t => t.classList.remove('active'));
-            panes.forEach(p => p.classList.remove('active'));
-
-            // Kích hoạt tab được nhấn và hiển thị pane nội dung tương ứng
-            tab.classList.add('active');
-            const targetPane = document.getElementById(target);
-            if (targetPane) {
-                targetPane.classList.add('active');
-            }
-        });
-    });
-});
-
-let selectedVaultDocId = null;
-
-function openVaultModal() {
-    const modal = document.getElementById('vaultModal');
-    modal.style.display = 'flex';
-    selectedVaultDocId = null;
-    document.getElementById('btnConfirmImport').disabled = true;
-
-    fetch('<?= base_url("documents/vault-list") ?>?category=internal')
-        .then(response => response.json())
-        .then(data => {
-            const tbody = document.getElementById('vaultTableBody');
-            tbody.innerHTML = '';
-            
-            if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center p-20">Kho tài liệu hiện tại đang trống.</td></tr>';
-                return;
-            }
-
-            data.forEach(doc => {
-                const tr = document.createElement('tr');
-                tr.style.cursor = 'pointer';
-                tr.onclick = () => selectVaultDoc(doc.id, tr);
-                tr.innerHTML = `
-                    <td><input type="radio" name="vault_doc" value="${doc.id}"></td>
-                    <td><strong>${doc.file_name}</strong></td>
-                    <td><span class="badge-secondary-minimal text-xs">${doc.document_category}</span></td>
-                    <td class="text-sm">${new Date(doc.created_at).toLocaleDateString('vi-VN')}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        });
-}
-
-function selectVaultDoc(id, row) {
-    selectedVaultDocId = id;
-    document.querySelectorAll('#vaultTableBody tr').forEach(r => r.style.background = 'white');
-    row.style.background = 'rgba(0, 113, 227, 0.05)';
-    row.querySelector('input[type="radio"]').checked = true;
-    document.getElementById('btnConfirmImport').disabled = false;
-}
-
-function confirmImport() {
-    if (!selectedVaultDocId) return;
-
-    const formData = new FormData();
-    formData.append('document_id', selectedVaultDocId);
-    formData.append('<?= csrf_token() ?>', '<?= csrf_hash() ?>');
-
-    fetch('<?= base_url("customers/import-doc/" . $customer['id']) ?>', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.status === 'success') {
-            alert('Đã thêm tài liệu thành công.');
-            location.reload();
-        } else {
-            alert('Có lỗi xảy ra: ' + result.message);
-        }
-    });
-}
-
-function filterVault() {
-    let input = document.getElementById('vaultSearch');
-    let filter = input.value.toUpperCase();
-    let tr = document.querySelectorAll('#vaultTableBody tr');
-    tr.forEach(row => {
-        let text = row.textContent || row.innerText;
-        row.style.display = text.toUpperCase().indexOf(filter) > -1 ? "" : "none";
-    });
-}
-</script>
+<?= $this->section('scripts') ?>
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script src="<?= base_url('js/customer_show.js') ?>"></script>
 <?= $this->endSection() ?>

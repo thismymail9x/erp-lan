@@ -25,12 +25,12 @@
             <input type="hidden" name="token" value="<?= $token ?>">
             
             <div class="input-group">
-                <input type="password" name="password" id="password" placeholder=" " required>
+                <input type="password" name="password" id="password"  required>
                 <label for="password">Mật khẩu mới</label>
             </div>
 
             <div class="input-group">
-                <input type="password" name="password_confirm" id="password_confirm" placeholder=" " required>
+                <input type="password" name="password_confirm" id="password_confirm"  required>
                 <label for="password_confirm">Xác nhận mật khẩu</label>
             </div>
 

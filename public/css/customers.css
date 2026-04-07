@@ -300,3 +300,94 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Utilities for truncating long text */
+.limit-text-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 250px; /* Limit width to save space */
+}
+
+.limit-text-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 250px;
+}
+
+@media screen and (max-width: 1440px) {
+    .profile-grid-layout {
+        grid-template-columns: 280px 1fr;
+        gap: 15px;
+    }
+
+    .prof-sidebar-info, .prof-health-section, .prof-tabs-content {
+        padding: 12px;
+    }
+
+    .prof-avatar-circle {
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
+        margin-bottom: 10px;
+    }
+
+    .prof-name-title {
+        font-size: 15px;
+    }
+
+    .prof-info-list {
+        font-size: 12px;
+    }
+
+    .prof-info-row, .prof-info-row-last {
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+    }
+
+    .prof-stat-box {
+        padding: 8px;
+    }
+
+    .prof-stat-val-blue {
+        font-size: 16px;
+    }
+
+    .prof-stat-val-green {
+        font-size: 13px;
+    }
+
+    .prof-section-h4 {
+        font-size: 13px;
+        margin-bottom: 10px;
+    }
+
+    .prof-info-table {
+        font-size: 12px;
+    }
+
+    .prof-table-label-td {
+        width: 110px;
+        padding: 4px 0;
+    }
+
+    .prof-table-val-td, .prof-table-val-td-med {
+        padding: 4px 0;
+    }
+
+    .vault-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .vault-card {
+        padding: 10px;
+    }
+}

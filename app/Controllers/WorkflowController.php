@@ -16,6 +16,26 @@ use CodeIgniter\API\ResponseTrait;
  */
 class WorkflowController extends BaseController
 {
+    /**
+     * Khai báo metadata cho hệ thống Tự động Đồng bộ (Auto-Sync Permissions).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $modulePermissions = [
+        'group' => 'Hệ thống',
+        'permissions' => [
+            'workflow.manage' => 'Cấu hình và quản trị Quy trình mẫu (Templates/Steps)'
+        ]
+    ];
+
+    /**
+     * Khai báo danh mục thuộc thể loại Nhãn dán (Smart Tags).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $taggable = [
+        'type'  => 'workflows',
+        'label' => 'Quy trình mẫu'
+    ];
+
     use ResponseTrait;
 
     protected $workflowService;
@@ -29,15 +49,29 @@ class WorkflowController extends BaseController
     /**
      * Hiển thị danh sách toàn bộ các quy trình mẫu đang có trên hệ thống.
      */
+    /**
+     * Hiển thị danh sách toàn bộ các quy trình mẫu đang có trên hệ thống.
+     * Hỗ trợ tìm nhanh (AJAX filtering) và phân loại trạng thái.
+     */
     public function index()
     {
-        // BIỆN PHÁP BẢO VỆ: Chỉ Admin mới có quyền truy cập cấu trúc ERP
         $this->checkAdmin();
+
+        $search = (string) $this->request->getGet('q');
+        $status = (string) $this->request->getGet('status');
+
+        $templates = $this->workflowService->getAllTemplates($search, $status);
 
         $data = [
             'title'     => 'Quản lý Quy trình mẫu | L.A.N ERP',
-            'templates' => $this->workflowService->getAllTemplates() // Lấy dữ liệu từ DB
+            'templates' => $templates,
+            'pager'     => $this->workflowService->getPager()
         ];
+
+        // PHẢN HỒI AJAX (PARTIAL VIEW UPDATE)
+        if ($this->request->isAJAX()) {
+            return view('dashboard/workflows/index_grid', $data);
+        }
 
         return view('dashboard/workflows/index', $data);
     }
@@ -109,8 +143,8 @@ class WorkflowController extends BaseController
                 'nhan_vien'    => 'Nhân viên (Trực tiếp xử lý)',
                 'tu_van'       => 'Tư vấn viên (Hỗ trợ hồ sơ)'
             ],
-            // Lấy danh sách nhân sự để có thể chỉ định người mặc định xử lý một bước (Assignment)
-            'employees' => model('EmployeeModel')->select('id, full_name, position')->findAll()
+            // Lấy danh sách nhân sự đang hoạt động để có thể chỉ định người mặc định xử lý một bước (Assignment)
+            'employees' => get_available_employees()
         ];
 
         return view('dashboard/workflows/steps', $data);
@@ -166,10 +200,21 @@ class WorkflowController extends BaseController
         $data['is_active'] = isset($data['is_active']) ? 1 : 0;
 
         try {
-            $this->workflowService->updateTemplate($id, $data);
-            return redirect()->to(base_url('workflows'))->with('success', 'Thông tin quy trình đã được cập nhật.');
+            // NÂNG CẤP LOGIC: Ép kiểu ID vào quy tắc Validate để bỏ qua bản ghi hiện tại khi check Unique
+            $templateModel = model('WorkflowTemplateModel');
+            $templateModel->setValidationRule('code', "required|is_unique[workflow_templates.code,id,$id]");
+
+            $success = $this->workflowService->updateTemplate($id, $data);
+            
+            if (!$success) {
+                // Lấy lỗi truyền dẫn qua Service giúp thông tin chính xác hòan hòan hảo
+                $errors = $this->workflowService->getErrors();
+                return redirect()->back()->withInput()->with('errors', $errors)->with('error', 'Cập nhật thất bại. Vui lòng kiểm tra các mục đánh dấu đỏ.');
+            }
+
+            return redirect()->to(base_url('workflows'))->with('success', 'Thông tin quy trình đã được cập nhật hòan hòan hảo.');
         } catch (\Exception $e) {
-            return redirect()->back()->withInput()->with('error', 'Lỗi cập nhật: ' . $e->getMessage());
+            return redirect()->back()->withInput()->with('error', 'Lỗi hệ thống: ' . $e->getMessage());
         }
     }
 
@@ -188,12 +233,29 @@ class WorkflowController extends BaseController
     }
 
     /**
+     * Tác vụ Nhân bản quy trình (Cloning Action).
+     */
+    public function duplicate($id)
+    {
+        $this->checkAdmin();
+
+        $newId = $this->workflowService->duplicateTemplate($id);
+        
+        if ($newId) {
+            return redirect()->to(base_url('workflows'))->with('success', 'Đã nhân bản quy trình thành công. ');
+        }
+
+        return redirect()->to(base_url('workflows'))->with('error', 'Lỗi: Không thể nhân bản quy trình này.');
+    }
+
+    /**
      * CƠ CHẾ KIỂM TRA QUYỀN TRỊ (Security Guard).
      * Đảm bảo chỉ người dùng tối cao mới được can thiệp vào Logic hệ thống.
      */
     private function checkAdmin()
     {
-        if (session()->get('role_name') !== \Config\AppConstants::ROLE_ADMIN) {
+        // BIỆN PHÁP BẢO VỆ: Chỉ người giữ quyền Quản trị tối cao (sys.admin) HOẶC người được cấp quyền Quản lý quy trình riêng biệt mới được can thiệp vào Logic hệ thống.
+        if (!has_permission('sys.admin') && !has_permission('workflow.manage')) {
             // Ném lỗi 404 để kẻ gian không biết trang này tồn tại (Security by Obscurity)
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
         }

@@ -16,6 +16,26 @@ use App\Services\EmployeeService;
  */
 class EmployeeController extends BaseController
 {
+    /**
+     * Khai báo metadata cho hệ thống Tự động Đồng bộ (Auto-Sync Permissions).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $modulePermissions = [
+        'group' => 'Nhân sự & Tài khoản',
+        'permissions' => [
+            'employee.edit_self' => 'Phân quyền tự chỉnh sửa hồ sơ cá nhân (Self-Service Profile)'
+        ]
+    ];
+
+    /**
+     * Khai báo danh mục thuộc thể loại Nhãn dán (Smart Tags).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $taggable = [
+        'type'  => 'employees',
+        'label' => 'Nhân sự & Hồ sơ'
+    ];
+
     protected $employeeService;
 
     public function __construct()
@@ -34,11 +54,15 @@ class EmployeeController extends BaseController
         $deptName = session()->get('department_name');
 
         // --- KIỂM TRA QUYỀN TRUY CẬP (Access Control) ---
-        // Chỉ Admin, Giám đốc (Mod) và nhân sự phòng Hành chính mới được xem danh sách tổng.
-        if ($roleName !== \Config\AppConstants::ROLE_ADMIN && 
-            $roleName !== \Config\AppConstants::ROLE_MOD && 
-            $deptName !== \Config\AppConstants::DEPT_NAME_HANH_CHINH) {
-            
+        $isPrivileged = (has_permission('sys.admin') || 
+                         has_permission('user.manage') ||
+                         $roleName === \Config\AppConstants::ROLE_ADMIN || 
+                         $roleName === \Config\AppConstants::ROLE_MOD || 
+                         $deptName === \Config\AppConstants::DEPT_NAME_HANH_CHINH);
+        
+        $isManager = ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG);
+
+        if (!$isPrivileged && !$isManager) {
             // Nếu là nhân viên bình thường, tự động chuyển hướng về trang Sửa hồ sơ cá nhân.
             $myEmpId = session()->get('employee_id');
             if ($myEmpId) {
@@ -83,14 +107,14 @@ class EmployeeController extends BaseController
         $deptName = session()->get('department_name');
 
         // Chặn người dùng trái phép
-        if ($roleName !== \Config\AppConstants::ROLE_ADMIN && $deptName !== \Config\AppConstants::DEPT_NAME_HANH_CHINH) {
+        if (!has_permission('sys.admin') && !has_permission('user.manage') && $roleName !== \Config\AppConstants::ROLE_ADMIN && $deptName !== \Config\AppConstants::DEPT_NAME_HANH_CHINH) {
             return redirect()->to('/employees')->with('error', 'Hành động bị từ chối: Chỉ Quản trị viên và bộ phận Hành chính mới được phép thêm nhân sự.');
         }
 
         $data = [
-            'title' => 'Thêm nhân viên mới | L.A.N ERP',
-            'departments' => $this->employeeService->getDepartments(),
-            // Lấy danh sách tài khoản chưa có hồ sơ để liên kết ngay khi tạo
+            'title'         => 'Thêm nhân viên mới | L.A.N ERP',
+            'departments'   => get_departments(), // Core Function
+            'managers'      => get_available_employees(), // Core Function
             'unlinkedUsers' => $this->employeeService->getUnlinkedUsers()
         ];
         return view('dashboard/employees/create', $data);
@@ -130,8 +154,10 @@ class EmployeeController extends BaseController
         $myEmployeeId = (int)session()->get('employee_id');
 
         // --- KIỂM TRA QUYỀN CHỈNH SỬA ---
-        // Bạn chỉ được vào trang này nếu: 1. Là Admin/Hành chính, 2. Là CHÍNH CHỦ của hồ sơ đó.
-        if ($roleName !== \Config\AppConstants::ROLE_ADMIN && 
+        // Bạn chỉ được vào trang này nếu: 1. Là Admin/Hành chính/Có quyền user.manage, 2. Là CHÍNH CHỦ của hồ sơ đó.
+        if (!has_permission('sys.admin') && 
+            !has_permission('user.manage') && 
+            $roleName !== \Config\AppConstants::ROLE_ADMIN && 
             $deptName !== \Config\AppConstants::DEPT_NAME_HANH_CHINH && 
             $id !== $myEmployeeId) {
             return redirect()->to('/employees')->with('error', 'Hành động bị từ chối: Bạn không có quyền xem hoặc sửa đổi thông tin của đồng nghiệp.');
@@ -158,9 +184,10 @@ class EmployeeController extends BaseController
         }
 
         $data = [
-            'title' => 'Chỉnh sửa nhân viên | L.A.N ERP',
-            'employee' => $result['data'],
-            'departments' => $this->employeeService->getDepartments(),
+            'title'         => 'Chỉnh sửa nhân viên | L.A.N ERP',
+            'employee'      => $result['data'],
+            'departments'   => get_departments(), // Core Function
+            'managers'      => get_available_employees(), // Core Function
             'unlinkedUsers' => $unlinkedUsers
         ];
         return view('dashboard/employees/edit', $data);

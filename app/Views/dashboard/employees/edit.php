@@ -78,6 +78,32 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="manager_id">Người quản lý trực tiếp (Sếp)</label>
+                    <?php if ($canEditSensitive) { ?>
+                        <select name="manager_id" id="manager_id">
+                            <option value="">-- Không có sếp trực tiếp --</option>
+                            <?php foreach ($managers as $m) { ?>
+                                <?php if ($m['id'] == $employee['id']) continue; // Không thể quản lý bản thân ?>
+                                <option value="<?= $m['id'] ?>" <?= ($employee['manager_id'] == $m['id']) ? 'selected' : '' ?>>
+                                    <?= esc($m['full_name']) ?> (<?= esc($m['role_name']) ?>)
+                                </option>
+                            <?php } ?>
+                        </select>
+                    <?php } else { ?>
+                        <?php 
+                            $myManager = 'Chưa thiết lập';
+                            foreach ($managers as $m) {
+                                if ($employee['manager_id'] == $m['id']) {
+                                    $myManager = $m['full_name'];
+                                    break;
+                                }
+                            }
+                        ?>
+                        <input type="text" class="form-control-premium" value="<?= esc($myManager) ?>" readonly style="background: #f8f9fa;">
+                    <?php } ?>
+                </div>
+
+                <div class="form-group">
                     <label for="join_date">Ngày vào làm</label>
                     <input type="date" name="join_date" id="join_date" required value="<?= $employee['join_date'] ?>" <?= $restrictedAttr ?>>
                 </div>

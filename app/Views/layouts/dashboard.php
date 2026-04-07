@@ -12,8 +12,15 @@
     <link rel="stylesheet" href="<?= base_url('css/dashboard.css') ?>">
     <link rel="stylesheet" href="<?= base_url('css/notifications.css') ?>">
     <link rel="stylesheet" href="<?= base_url('vendor/select2/select2.min.css') ?>">
+    <script src="<?= base_url('vendor/jquery/jquery.min.js') ?>"></script>
+    <script src="<?= base_url('vendor/select2/select2.min.js') ?>"></script>
     <!-- Page specific styles -->
     <?= $this->renderSection('styles') ?>
+    <script>
+        const baseUrl = '<?= base_url() ?>';
+        const csrfToken = '<?= csrf_token() ?>';
+        const csrfHash = '<?= csrf_hash() ?>';
+    </script>
 </head>
 <body>
     <div class="app-wrapper">
@@ -41,11 +48,21 @@
                 $menu = $accessControl->getSidebarMenu(session()->get('department_id'), session()->get('role_name'));
                 
                 foreach ($menu as $item) { 
-                    $isActive = (current_url() == base_url($item['url'])) ? 'active' : '';
+                    // Tăng cường logic Nhận diện Menu Active:
+                    // Kiểm tra xem Segment đầu tiên của URL hiện tại có trùng với Segment của Menu item không.
+                    // Điều này giúp Menu vẫn "Sáng" khi người dùng vào các tác vụ con như /create, /edit, /show.
+                    $currentUri = service('request')->getUri();
+                    $firstSegment = $currentUri->getTotalSegments() > 0 ? $currentUri->getSegment(1) : '';
+                    
+                    // Lấy segment đầu tiên của menu item
+                    $menuUrl = trim($item['url'], '/');
+                    $menuSegment = explode('/', $menuUrl)[0];
+
+                    $isActive = ($firstSegment == $menuSegment) ? 'active' : '';
                 ?>
                 <li class="nav-item">
                     <a href="<?= base_url($item['url']) ?>" class="nav-link <?= $isActive ?>" title="Truy cập <?= $item['title'] ?>">
-                        <i class="<?= $item['icon'] ?>"></i> <?= $item['title'] ?>
+                        <i class="<?= $item['icon'] ?>"></i> <span><?= $item['title'] ?></span>
                     </a>
                 </li>
                 <?php } ?>
@@ -95,6 +112,25 @@
             <?php } ?>
             
             <section class="content-body">
+                <!-- SYSTEM ALERTS (Flash Data) -->
+                <?php if (session()->getFlashdata('success')) : ?>
+                    <div class="alert-premium-success">
+                        <i class="fas fa-check-circle"></i> <?= session()->getFlashdata('success') ?>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (session()->getFlashdata('error')) : ?>
+                    <div class="alert-premium-danger">
+                        <i class="fas fa-exclamation-circle"></i> <?= session()->getFlashdata('error') ?>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (session()->getFlashdata('warning')) : ?>
+                    <div class="alert-premium-warning">
+                        <i class="fas fa-exclamation-triangle"></i> <?= session()->getFlashdata('warning') ?>
+                    </div>
+                <?php endif; ?>
+
                 <?= $this->renderSection('content') ?>
             </section>
         </main>
@@ -107,8 +143,6 @@
     </div>
 
     <!-- Core scripts -->
-    <script src="<?= base_url('vendor/jquery/jquery.min.js') ?>"></script>
-    <script src="<?= base_url('vendor/select2/select2.min.js') ?>"></script>
     <script src="<?= base_url('js/dashboard.js') ?>"></script>
     <script>
     function previewImage(src) {

@@ -45,6 +45,13 @@
                                         <input type="number" name="steps[<?= $index ?>][duration_days]" value="<?= $step['duration_days'] ?>" min="1" required>
                                     </div>
                                     <div class="form-group-mini">
+                                        <label>Thưởng hoàn thành (KPI)</label>
+                                        <div class="currency-input-wrapper">
+                                            <input type="text" name="steps[<?= $index ?>][kpi_reward]" class="input-currency" value="<?= number_format($step['kpi_reward'] ?? 0, 0, '.', ',') ?>" title="Thưởng hoàn thành (VND)">
+                                            <span class="currency-label">VND</span>
+                                        </div>
+                                    </div>
+                                    <div class="form-group-mini">
                                         <label>Người nhận thông báo</label>
                                         <?php 
                                             // Xử lý giá trị cũ (có thể là chuỗi hoặc json mảng)
@@ -209,6 +216,25 @@
     color: var(--apple-blue);
     background: rgba(0, 122, 255, 0.03);
 }
+.currency-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.input-currency {
+    padding-right: 45px !important;
+    text-align: right;
+    font-weight: 600;
+    color: var(--apple-blue);
+}
+.currency-label {
+    position: absolute;
+    right: 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted-dark);
+    pointer-events: none;
+}
 
 .guide-list {
     padding-left: 18px;
@@ -219,6 +245,9 @@
 .guide-list li { margin-bottom: 12px; }
 </style>
 
+<?= $this->endSection() ?>
+
+<?= $this->section('scripts') ?>
 <script>
     /**
      * L.A.N ERP - Trình khởi tạo Quy trình nghiệp vụ
@@ -252,6 +281,13 @@
                         <div class="form-group-mini">
                             <label>Số ngày định mức</label>
                             <input type="number" name="steps[${index}][duration_days]" value="3" min="1" required title="Số ngày dự kiến hoàn thành bước này">
+                        </div>
+                        <div class="form-group-mini">
+                            <label>Thưởng hoàn thành (KPI)</label>
+                            <div class="currency-input-wrapper">
+                                <input type="text" name="steps[${index}][kpi_reward]" class="input-currency" value="0" title="Thưởng hoàn thành (VND)">
+                                <span class="currency-label">VND</span>
+                            </div>
                         </div>
                         <div class="form-group-mini">
                             <label>Phân quyền/Người phụ trách</label>
@@ -304,11 +340,115 @@
                 card.remove();
                 reorderSteps();
             }
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = name;
-    input.value = value;
-    container.appendChild(input);
-}
+        }
+    }
+
+    /**
+     * Cập nhật lại số hiệu và name attribute của toàn bộ các bước.
+     * Đảm bảo tính nhất quán khi người dùng thêm/xóa/sắp xếp lại.
+     */
+    function reorderSteps() {
+        const cards = document.querySelectorAll('.step-card');
+        cards.forEach((card, index) => {
+            // Cập nhật số hiệu hiển thị (#1, #2...)
+            card.querySelector('.step-number').innerText = `#${index + 1}`;
+            card.dataset.index = index;
+            
+            // Đồng bộ lại attribute 'name' của các input để backend nhận đúng mảng tuần tự
+            const inputs = card.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                const name = input.getAttribute('name');
+                if (name) {
+                    const newName = name.replace(/steps\[\d+\]/, `steps[${index}]`);
+                    input.setAttribute('name', newName);
+                }
+            });
+        });
+        stepCount = cards.length;
+    }
+
+    /**
+     * Thu thập dữ liệu và gửi lên máy chủ.
+     * Chuyển các input 'raw' (như tài liệu cách nhau bằng dấu phẩy) thành cấu trúc mảng chuẩn.
+     */
+    function saveWorkflowSteps() {
+        const form = document.getElementById('workflow-steps-form');
+        const container = document.getElementById('hidden-inputs-container');
+        container.innerHTML = ''; // Clear previous hidden inputs
+
+        const cards = document.querySelectorAll('.step-card');
+        if (cards.length === 0) {
+            alert('Quy trình phải có ít nhất một bước thực hiện.');
+            return;
+        }
+
+        cards.forEach((card, index) => {
+            const stepName = card.querySelector('input[name*="[step_name]"]').value;
+            const duration = card.querySelector('input[name*="[duration_days]"]').value;
+            
+            // Xử lý Responsible Roles (mảng từ Select2)
+            const roles = $(card).find('select[name*="[responsible_role]"]').val() || [];
+            
+            // Xử lý Required Documents (chuyển string comma-separated sang mảng)
+            const docsRaw = card.querySelector('input[name*="[required_documents_raw]"]').value;
+            const docsArray = docsRaw.split(',').map(d => d.trim()).filter(d => d !== "");
+
+            // KPI Reward - Clean formatting before saving
+            const kpiInput = card.querySelector('input[name*="[kpi_reward]"]');
+            const kpiReward = kpiInput.value.replace(/,/g, '') || 0;
+
+            // Gắn vào form ẩn thông qua hidden inputs
+            addHiddenInput(container, `steps[${index}][step_name]`, stepName);
+            addHiddenInput(container, `steps[${index}][duration_days]`, duration);
+            addHiddenInput(container, `steps[${index}][kpi_reward]`, kpiReward);
+            
+            roles.forEach((role, rIdx) => {
+                addHiddenInput(container, `steps[${index}][responsible_role][${rIdx}]`, role);
+            });
+            
+            docsArray.forEach((doc, dIdx) => {
+                addHiddenInput(container, `steps[${index}][required_documents][${dIdx}]`, doc);
+            });
+        });
+
+        // Submit form
+        form.submit();
+    }
+
+    /**
+     * Helper tạo hidden input động.
+     */
+    function addHiddenInput(container, name, value) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        container.appendChild(input);
+    }
+
+    // Khởi tạo Select2 cho các bước có sẵn khi load trang
+    $(document).ready(function() {
+        $('.select2-multiple').select2({
+            placeholder: "Chọn đối tượng xử lý...",
+            allowClear: true
+        });
+
+        // Xử lý định dạng tiền tệ khi nhập liệu
+        $(document).on('input', '.input-currency', function() {
+            let val = $(this).val().replace(/\D/g, "");
+            if (val === "") {
+                $(this).val("0");
+                return;
+            }
+            // Loại bỏ số 0 ở đầu nếu có nhiều chữ số
+            val = parseInt(val, 10).toString();
+            $(this).val(val.replace(/\B(?=(\d{3})+(?!\d))/g, ","));
+        });
+
+        // Click để focus toàn bộ text (tiện lợi khi sửa giá trị)
+        $(document).on('focus', '.input-currency', function() {
+            $(this).select();
+        });
+    });
 </script>
 <?= $this->endSection() ?>

@@ -66,22 +66,27 @@ class DocumentService extends BaseService
             mkdir($uploadPath, 0777, true);
         }
 
+        // Collect metadata BEFORE moving the file to prevent temp file access errors (finfo/stream)
+        $clientName = $file->getClientName();
+        $extension  = $file->getExtension();
+        $mimeType   = $file->getClientMimeType();
+        $fileSize   = $file->getSize();
+
         $file->move($uploadPath, $newName);
         $filePath = 'uploads/dms/' . $subDir . '/' . $newName;
 
         $dbData = [
-            'file_name'         => $data['file_name'] ?? $file->getClientName(),
+            'file_name'         => $data['file_name'] ?? $clientName,
             'file_path'         => $filePath,
-            'file_type'         => $file->getExtension(),
-            'mime_type'         => $file->getClientMimeType(),
-            'size'              => $file->getSize(),
+            'file_type'         => $extension,
+            'mime_type'         => $mimeType,
+            'size'              => $fileSize,
             'uploaded_by'       => session()->get('user_id'),
             'document_category' => $data['document_category'] ?? 'case_file',
-            'customer_id'       => $data['customer_id'] ?? null,
-            'case_id'           => $data['case_id'] ?? null,
-            'step_id'           => $data['step_id'] ?? null,
+            'customer_id'       => !empty($data['customer_id']) ? $data['customer_id'] : null,
+            'case_id'           => !empty($data['case_id']) ? $data['case_id'] : null,
+            'step_id'           => !empty($data['step_id']) ? $data['step_id'] : null,
             'is_confidential'   => $data['is_confidential'] ?? 0,
-            'tags'              => isset($data['tags']) ? json_encode($data['tags']) : null,
             'description'       => $data['description'] ?? '',
             'retention_period'  => $data['retention_period'] ?? 10,
             'expiry_date'       => $data['expiry_date'] ?? null,
@@ -107,13 +112,46 @@ class DocumentService extends BaseService
             $dbData['version_number'] = $oldDoc['version_number'] + 1;
             $this->docModel->update($existingDocId, $dbData);
             $docId = $existingDocId;
-        } else {
-            // TẠI MỚI
-            $docId = $this->docModel->insert($dbData);
-        }
 
-        // 3. Ghi NHẬT KÝ AUDIT
-        $this->logAccess($docId, 'upload');
+            // ĐỒNG BỘ NHÃN DÁN (Smart Tagging System)
+            if (isset($data['tags']) && is_array($data['tags'])) {
+                $tagService = new \App\Services\TagService();
+                $tagService->syncTags($docId, 'documents', $data['tags']);
+            }
+        } else {
+            $this->docModel->db->transStart();
+            try {
+                // TẠO MỚI (Physical Insert)
+                if (!$this->docModel->insert($dbData)) {
+                    throw new \Exception('Insert failed: ' . implode(', ', $this->docModel->errors()));
+                }
+                
+                $docId = $this->docModel->getInsertID() ?: $this->docModel->db->insertID();
+                
+                if (empty($docId)) {
+                    throw new \Exception('Không thể lấy ID tài liệu vừa tạo.');
+                }
+
+                // ĐỒNG BỘ NHÃN DÁN (Smart Tagging System)
+                if (isset($data['tags']) && is_array($data['tags'])) {
+                    $tagService = new \App\Services\TagService();
+                    $tagService->syncTags($docId, 'documents', $data['tags']);
+                }
+
+                // Nhật ký Audit (Bên trong Transaction)
+                $this->logAccess($docId, 'upload');
+                
+                $this->docModel->db->transComplete();
+                
+                if ($this->docModel->db->transStatus() === false) {
+                    throw new \Exception('Transaction failed. Có lỗi ràng buộc dữ liệu (DB Constraint).');
+                }
+            } catch (\Exception $e) {
+                $this->docModel->db->transRollback();
+                log_message('error', 'DMS Insert Error: ' . $e->getMessage());
+                return $this->fail('Lỗi hệ thống: ' . $e->getMessage() . '. Vui lòng kiểm tra liên kết Vụ việc/Khách hàng.');
+            }
+        }
 
         return $this->success(['id' => $docId], 'Tài liệu đã được tải lên thành công.');
     }
@@ -130,7 +168,12 @@ class DocumentService extends BaseService
         $empId = session()->get('employee_id');
 
         // Admin/Mod luôn có quyền
-        if (has_permission('sys.admin')) return true;
+        if (has_permission('sys.admin') || has_permission('case.manage')) return true;
+
+        // Nếu là tài liệu công khai (Nội bộ hoặc Biểu mẫu)
+        if (in_array($doc['document_category'], ['internal', 'template'])) {
+            return true;
+        }
 
         // Nếu là tài liệu vụ việc
         if ($doc['case_id']) {

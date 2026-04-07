@@ -1,8 +1,5 @@
 <?php
 
-namespace App\Models;
-
-// Lưu ý: Các model được gọi thông qua hàm model() hoặc khởi tạo trực tiếp tùy cấu hình.
 namespace App\Controllers;
 
 use App\Models\DepartmentModel;
@@ -19,6 +16,18 @@ use App\Models\RoleModel;
  */
 class UserController extends BaseController
 {
+    /**
+     * Khai báo metadata cho hệ thống Tự động Đồng bộ (Auto-Sync Permissions).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $modulePermissions = [
+        'group' => 'Nhân sự & Tài khoản',
+        'permissions' => [
+            'user.view'   => 'Xem danh sách tài khoản, hồ sơ nhân sự hệ thống',
+            'user.manage' => 'Đặc quyền: Tạo, khóa, cấp quyền ghi đè (Overrides) cho tài khoản'
+        ]
+    ];
+
     protected $userService;
     protected $roleModel;
     protected $departmentModel;
@@ -55,8 +64,8 @@ class UserController extends BaseController
 
         // --- KIỂM TRA PHÂN QUYỀN TRUY CẬP TRANG ---
         $roleName = session()->get('role_name');
-        // Chỉ những vai trò quản lý cao cấp mới được xem danh sách User
-        if ($roleName != \Config\AppConstants::ROLE_ADMIN && $roleName != \Config\AppConstants::ROLE_MOD && $roleName != \Config\AppConstants::ROLE_TRUONG_PHONG) {
+        // BIỆN PHÁP BẢO VỆ: Chỉ những vai trò quản lý hệ thống HOẶC người được cấp quyền user.manage mới được xem danh sách
+        if (!has_permission('sys.admin') && !has_permission('user.manage') && $roleName != \Config\AppConstants::ROLE_ADMIN && $roleName != \Config\AppConstants::ROLE_MOD) {
             return redirect()->to('/dashboard')->with('error', 'Cảnh báo bảo mật: Bạn không có thẩm quyền truy cập trang quản lý nhân sự.');
         }
 
@@ -85,16 +94,15 @@ class UserController extends BaseController
     public function create()
     {
         $roleName = session()->get('role_name');
-        // Chặn bảo mật: Xác minh chắc chắn chỉ Admin mới được mở Form tạo
-        if ($roleName != \Config\AppConstants::ROLE_ADMIN) {
+        // Chặn bảo mật: Xác minh chắc chắn Admin hoặc người có quyền user.manage mới được mở Form tạo
+        if (!has_permission('sys.admin') && !has_permission('user.manage') && $roleName != \Config\AppConstants::ROLE_ADMIN) {
             return redirect()->to('/users')->with('error', 'Từ chối thao tác: Chỉ Quản trị viên (Admin) mới có quyền tạo mới tài khoản.');
         }
 
         $data = [
-            'title' => 'Thêm tài khoản mới | L.A.N ERP',
-            // Lấy danh sách vai trò và phòng ban để người dùng chọn trong dropdown
-            'roles' => $this->roleModel->orderBy('name', 'ASC')->findAll(),
-            'departments' => $this->departmentModel->orderBy('name', 'ASC')->findAll()
+            'title'       => 'Thêm tài khoản mới | L.A.N ERP',
+            'roles'       => get_available_roles(), // Core Function
+            'departments' => get_departments()      // Core Function
         ];
         return view('dashboard/users/create', $data);
     }
@@ -138,11 +146,10 @@ class UserController extends BaseController
         }
 
         $data = [
-            'title' => 'Cập nhật phân quyền / tài khoản | L.A.N ERP',
-            'user'  => $result['data'],
-            'roles' => $this->roleModel->findAll(),
-            'departments' => $this->departmentModel->findAll(),
-            // Truyền Role hiện tại của người đang thao tác để UI có logic ẩn/hiện phù hợp
+            'title'           => 'Cập nhật phân quyền / tài khoản | L.A.N ERP',
+            'user'            => $result['data'],
+            'roles'           => get_available_roles(), // Core Function
+            'departments'     => get_departments(),     // Core Function
             'currentRoleName' => session()->get('role_name') 
         ];
         return view('dashboard/users/edit', $data);
@@ -192,7 +199,7 @@ class UserController extends BaseController
     }
 
     /**
-     * Xóa hàng loạt tài khoản (Bulk Action).
+     * Xóa chọn tài khoản (Bulk Action).
      * Yêu cầu quyền Admin tối cao.
      */
     public function bulkDelete()
@@ -203,7 +210,7 @@ class UserController extends BaseController
         if ($roleName != \Config\AppConstants::ROLE_ADMIN) {
             return $this->response->setJSON([
                 'code' => 1,
-                'error' => 'Chỉ Quản trị viên hệ thống mới có quyền thực hiện xóa hàng loạt.'
+                'error' => 'Chỉ Quản trị viên hệ thống mới có quyền thực hiện Xóa chọn.'
             ]);
         }
 

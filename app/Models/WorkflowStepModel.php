@@ -11,7 +11,8 @@ class WorkflowStepModel extends BaseModel
     protected $allowedFields    = [
         'template_id', 'step_order', 'step_name', 'duration_days', 
         'is_working_day_only', 'required_documents', 'responsible_role', 
-        'next_step_condition', 'notification_template'
+        'next_step_condition', 'notification_template',
+        'kpi_reward'
     ];
 
     protected $useTimestamps = true;

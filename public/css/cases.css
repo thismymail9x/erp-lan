@@ -33,7 +33,7 @@
     height: 2px;
     background: #e5e5ea;
     z-index: 1;
-    min-width: 600px;
+    /* Remove fixed min-width to prevent mobile overflow */
 }
 
 .h-step-item {
@@ -193,8 +193,8 @@
 /* Info Grid */
 .info-grid-premium {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 25px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
 }
 
 .info-item label {
@@ -274,4 +274,31 @@
     .profile-grid-premium {
         grid-template-columns: 1fr;
     }
+}
+
+/* Smart Tagging System Styles */
+.tags-container-minimal {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.tag-badge-premium {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    cursor: default;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.tag-badge-premium:hover {
+    filter: brightness(0.95);
+    transform: translateY(-1px);
 }

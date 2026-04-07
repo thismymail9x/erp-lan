@@ -158,13 +158,70 @@ class PermissionService extends BaseService
         }
         $db->transComplete();
 
-        // Sau khi cập nhật DB thành công, nạp lại vào Session để có hiệu lực ngay lập tức
+        // Sau khi cập nhật DB thành công, nạp lại vào Session CHỈ NẾU người đang được sửa chính là người đang đăng nhập
         if ($db->transStatus()) {
-             $userModel = model('UserModel');
-             $u = $userModel->find($userId);
-             if ($u) $this->loadUserPermissions($userId, $u['role_id']);
+             if ($userId == session()->get('user_id')) {
+                 $userModel = model('UserModel');
+                 $u = $userModel->find($userId);
+                 if ($u) $this->loadUserPermissions($userId, $u['role_id']);
+             }
         }
 
         return $db->transStatus();
     }
+    /**
+     * Tự động đăng ký quyền của một Module mới vào Database.
+     * Giải quyết bài toán: Không cần viết INSERT SQL thủ công cho mỗi module.
+     * 
+     * @param string $group Tên nhóm module (vd: 'Vụ việc', 'Nhân sự & Tài khoản')
+     * @param array $permissions Mảng [ 'perm.name' => 'Mô tả quyền' ]
+     * @param array $defaultRoles Danh sách các Role ID được gán mặc định (Mặc định: Admin [1] và Manager [3])
+     */
+    public function registerModulePermissions(string $group, array $permissions, array $defaultRoles = [1, 3])
+    {
+        $db = \Config\Database::connect();
+        $results = [];
+
+        foreach ($permissions as $name => $info) {
+            $name = trim($name);
+            
+            // Lấy mô tả và danh sách role mặc định từ metadata (nếu có)
+            $description = is_array($info) ? ($info['desc'] ?? '') : $info;
+            $rolesToAssign = is_array($info) ? ($info['roles'] ?? $defaultRoles) : $defaultRoles;
+
+            // 1. Kiểm tra/Tạo Quyền
+            $existing = $db->table('permissions')->where('name', $name)->get()->getRow();
+            
+            if (!$existing) {
+                $db->table('permissions')->insert([
+                    'name'         => $name,
+                    'module_group' => $group,
+                    'description'  => $description,
+                    'created_at'   => date('Y-m-d H:i:s'),
+                    'updated_at'   => date('Y-m-d H:i:s')
+                ]);
+                $permId = $db->insertID();
+                $results[] = "+ Đã kích hoạt quyền mới: <strong>$name</strong>";
+            } else {
+                $permId = $existing->id;
+            }
+
+            // 2. Kiểm tra/Gán cho các Role
+            foreach ($rolesToAssign as $roleId) {
+                $hasLink = $db->table('roles_permissions')
+                             ->where(['role_id' => $roleId, 'permission_id' => $permId])
+                             ->countAllResults();
+                
+                if ($hasLink == 0) {
+                    $db->table('roles_permissions')->insert([
+                        'role_id'       => $roleId,
+                        'permission_id' => $permId
+                    ]);
+                    $results[] = "<em>- Đã tự động gán '$name' cho Vai trò (Role ID: $roleId)</em>";
+                }
+            }
+        }
+        return array_unique($results);
+    }
 }
+

@@ -40,3 +40,99 @@ if (!function_exists('has_permission')) {
         return in_array($cleanKey, $userPerms);
     }
 }
+if (!function_exists('get_available_tags')) {
+    /**
+     * Lấy toàn bộ danh sách nhãn dán (Tags) có sẵn trong hệ thống.
+     * Thường dùng cho các bộ lọc hoặc ô chọn nhãn đa năng.
+     *
+     * @param string $entityType Loại thực thể (vd: 'cases', 'customers', 'documents')
+     * @return array
+     */
+    function get_available_tags(string $entityType = 'all'): array
+    {
+        $tagService = new \App\Services\TagService();
+        return $tagService->getAvailableTags($entityType);
+    }
+}
+
+if (!function_exists('get_available_employees')) {
+    /**
+     * Truy xuất danh sách nhân sự đang hoạt động.
+     * Hỗ trợ lọc theo phòng ban để thu hẹp phạm vi chọn.
+     *
+     * @param int|null $deptId ID phòng ban cần lọc
+     * @return array
+     */
+    function get_available_employees(?int $deptId = null): array
+    {
+        $model = new \App\Models\EmployeeModel();
+        $query = $model->select('employees.*, roles.name as role_name')
+                       ->join('users', 'users.id = employees.user_id', 'inner')
+                       ->join('roles', 'roles.id = users.role_id', 'inner')
+                       ->where('users.active_status', 1)
+                       ->where('users.deleted_at', null);
+
+        if ($deptId !== null) {
+            $query->where('employees.department_id', $deptId);
+        }
+
+        return $query->orderBy('employees.full_name', 'ASC')->findAll();
+    }
+}
+
+if (!function_exists('get_active_customers')) {
+    /**
+     * Lấy danh sách khách hàng đang hoạt động trong hệ thống.
+     *
+     * @return array
+     */
+    function get_active_customers(): array
+    {
+        $model = new \App\Models\CustomerModel();
+        return $model->where('deleted_at', null)
+                     ->orderBy('name', 'ASC')
+                     ->findAll();
+    }
+}
+
+if (!function_exists('get_active_cases')) {
+    /**
+     * Lấy danh sách các vụ việc/hồ sơ pháp lý đang vận hành.
+     *
+     * @return array
+     */
+    function get_active_cases(): array
+    {
+        $model = new \App\Models\CaseModel();
+        return $model->where('deleted_at', null)
+                     ->select('id, code, title')
+                     ->orderBy('id', 'DESC')
+                     ->findAll();
+    }
+}
+
+if (!function_exists('get_departments')) {
+    /**
+     * Lấy danh sách toàn bộ phòng ban trong công ty.
+     *
+     * @return array
+     */
+    function get_departments(): array
+    {
+        $model = new \App\Models\DepartmentModel();
+        return $model->orderBy('name', 'ASC')->findAll();
+    }
+}
+
+if (!function_exists('get_available_roles')) {
+    /**
+     * Lấy danh sách toàn bộ các vai trò (Roles) trong hệ thống.
+     *
+     * @return array
+     */
+    function get_available_roles(): array
+    {
+        $model = new \App\Models\RoleModel();
+        return $model->orderBy('id', 'ASC')->findAll();
+    }
+}

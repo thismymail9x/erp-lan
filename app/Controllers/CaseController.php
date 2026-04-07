@@ -23,6 +23,30 @@ use CodeIgniter\Controller;
  */
 class CaseController extends BaseController
 {
+    /**
+     * Khai báo metadata cho hệ thống Tự động Đồng bộ (Auto-Sync Permissions).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $modulePermissions = [
+        'group' => 'Vụ việc pháp lý',
+        'permissions' => [
+            'case.view'     => 'Xem danh sách hồ sơ cơ bản (Phòng ban/Cá nhân)',
+            'case.manage'   => 'Sửa đổi, phân công, xoá hồ sơ cơ bản',
+            'case.approve'  => 'Phê duyệt, duyệt chuyển bước công việc',
+            'case.view_all' => 'Đặc quyền: Xem TOÀN BỘ hồ sơ hệ thống (Bypass isolation)',
+            'case.edit_all' => 'Đặc quyền: Chỉnh sửa TOÀN BỘ hồ sơ hệ thống'
+        ]
+    ];
+
+    /**
+     * Khai báo danh mục thuộc thể loại Nhãn dán (Smart Tags).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $taggable = [
+        'type'  => 'cases',
+        'label' => 'Vụ việc pháp lý'
+    ];
+
     protected $stepModel;
     protected $timelineService;
     protected $commentModel;
@@ -43,6 +67,7 @@ class CaseController extends BaseController
         // Service tính toán Deadline và điều hướng Workflow
         $this->timelineService = new \App\Services\CaseTimelineService();
         $this->workflowService = new \App\Services\WorkflowService();
+        $this->tagService = new \App\Services\TagService();
     }
 
     /**
@@ -58,20 +83,47 @@ class CaseController extends BaseController
         $search = $this->request->getGet('search') ?? '';   // Tìm theo Mã/Tên vụ việc/Khách hàng
         $sort   = $this->request->getGet('sort') ?? 'id';   // Cột cần sắp xếp
         $order  = $this->request->getGet('order') ?? 'desc'; // Hướng (Mới nhất lên đầu)
+        $lawyerIds = $this->request->getGet('lawyer_id') ?: $this->request->getGet('lawyer_id[]') ?: [];
+        if (!is_array($lawyerIds)) {
+            $lawyerIds = !empty($lawyerIds) ? [$lawyerIds] : [];
+        }
         $perPage = 10; // Giới hạn bản ghi mỗi trang để tối ưu UI
 
         // 3. Lấy dữ liệu hồ sơ (Chỉ lấy những hồ sơ User được quyền xem - Logic nằm trong Service)
-        $cases = $caseService->getCases($sort, $order, $perPage, $search);
+        $cases = $caseService->getCases($sort, $order, $perPage, $search, $lawyerIds);
         
+        $employeeModel = new \App\Models\EmployeeModel();
+        
+        // PHÂN QUYỀN TRUY XUẤT NHÂN SỰ ĐỂ LỌC:
+        // Admin hoặc người có quyền quản lý/xem tất cả: Xem tất cả. Trưởng phòng: Xem nhân viên thuộc phòng mình.
+        $roleName = session()->get('role_name');
+        $deptId   = session()->get('department_id');
+        
+        $isRestricted = !has_permission('sys.admin') && !has_permission('case.edit_all') && !has_permission('case.view_all');
+        $isManager = strpos(strtolower($roleName), 'trưởng phòng') !== false;
+        
+        $availableLawyers = get_available_employees($isRestricted && $isManager ? $deptId : null);
+        
+        // Nếu là nhân viên thường, chỉ cho lọc chính mình trong danh sách phân công
+        if ($isRestricted && !$isManager) {
+            $myEmpId = session()->get('employee_id');
+            $availableLawyers = array_filter($availableLawyers, function($e) use ($myEmpId) {
+                return $e['id'] == $myEmpId;
+            });
+        }
+
         // 4. Chuẩn bị dữ liệu hiển thị (Data Aggregation)
         $data = [
             'cases'         => $cases,
-            'pager'         => $caseService->getPager(),             // Phân trang
-            'stats'         => $this->getStats(),                   // Các chỉ số KPI (Hoàn thành, Quá hạn,...)
+            'pager'         => $caseService->getPager(),
+            'stats'         => $this->getStats(),
             'search'        => $search,
+            'lawyerIds'     => $lawyerIds,
+            'availableLawyers' => $availableLawyers,
             'currentSort'   => $sort,
             'currentOrder'  => $order,
             'statusLabels'  => \Config\AppConstants::CASE_STATUS_LABELS, // Nhãn trạng thái tiếng Việt
+            'availableTags' => get_available_tags('cases'), // Sử dụng Core Function
             'title'         => 'Quản lý vụ việc & Hồ sơ pháp lý | L.A.N ERP'
         ];
 
@@ -135,24 +187,63 @@ class CaseController extends BaseController
         $employeeId = session()->get('employee_id');
         $role = session()->get('role_name');
         
-        $baseQuery = $this->caseModel;
+        $baseQuery = clone $this->caseModel;
         
-        // PHÂN QUYỀN THỐNG KÊ (Dynamic Scope):
-        // Nếu không có quyền quản trị tối cao, hệ thống chỉ đếm các số liệu trong phạm vi hồ sơ cá nhân.
-        if (!in_array($role, \Config\AppConstants::PRIVILEGED_ROLES)) {
-            $caseIds = model('CaseMemberModel')->where('employee_id', $employeeId)->findColumn('case_id');
-            
-            $baseQuery = clone $this->caseModel; 
-            $baseQuery->groupStart()
-                          ->where('cases.assigned_staff_id', $employeeId)
-                          ->orWhere('cases.assigned_lawyer_id', $employeeId);
-                          
-            if (!empty($caseIds)) {
-                $baseQuery->orWhereIn('cases.id', $caseIds);
+        // --- BỘ LỌC PHÂN QUYỀN THỐNG KÊ (Dynamic Scoping) ---
+        $accessControl = new \App\Services\AccessControlService();
+        if (!$accessControl->canViewAllData($role)) {
+            if ($role === \Config\AppConstants::ROLE_TRUONG_PHONG) {
+                $myDeptId = session()->get('department_id');
+                $isLegalManager = ($myDeptId == \Config\AppConstants::DEPT_PHAP_LY);
+
+                if ($isLegalManager) {
+                    // TRƯỞNG PHÒNG PHÁP LÝ: Thấy vụ việc của phòng mình + Vụ việc CHƯA gán cho ai
+                    $employeeModel = model('EmployeeModel');
+                    $deptEmpIds = $employeeModel->where('department_id', \Config\AppConstants::DEPT_PHAP_LY)->findColumn('id');
+                    
+                    $baseQuery->groupStart();
+                        if (!empty($deptEmpIds)) {
+                            $baseQuery->whereIn('cases.assigned_lawyer_id', $deptEmpIds)
+                                  ->orWhereIn('cases.assigned_staff_id', $deptEmpIds)
+                                  ->orWhereIn('cases.id', function($builder) use ($deptEmpIds) {
+                                      return $builder->select('case_id')->from('case_members')->whereIn('employee_id', $deptEmpIds);
+                                  });
+                        }
+                        $baseQuery->orGroupStart()
+                            ->where('cases.assigned_lawyer_id IS NULL')
+                            ->where('cases.assigned_staff_id IS NULL')
+                        ->groupEnd();
+                    $baseQuery->groupEnd();
+                } else {
+                    // TRƯỞNG PHÒNG khác: Thống kê dựa trên toàn bộ nhân sự cùng phòng
+                    $employeeModel = model('EmployeeModel');
+                    $deptEmpIds = $employeeModel->where('department_id', $myDeptId)->findColumn('id');
+                    
+                    if (!empty($deptEmpIds)) {
+                        $baseQuery->groupStart()
+                            ->whereIn('assigned_lawyer_id', $deptEmpIds)
+                            ->orWhereIn('assigned_staff_id', $deptEmpIds)
+                            ->orWhereIn('cases.id', function($builder) use ($deptEmpIds) {
+                                return $builder->select('case_id')->from('case_members')->whereIn('employee_id', $deptEmpIds);
+                            })
+                        ->groupEnd();
+                    } else {
+                        $baseQuery->where('1=0', null, false);
+                    }
+                }
+            } else {
+                // NHÂN VIÊN: Thống kê dựa trên hồ sơ cá nhân và vai trò tham gia hỗ trợ
+                $myEmpId = session()->get('employee_id');
+                $caseIds = model('CaseMemberModel')->where('employee_id', $myEmpId)->findColumn('case_id');
+                $baseQuery->groupStart()
+                           ->where('cases.assigned_staff_id', $myEmpId)
+                           ->orWhere('cases.assigned_lawyer_id', $myEmpId);
+                if (!empty($caseIds)) {
+                     $baseQuery->orWhereIn('cases.id', $caseIds);
+                }
+                $baseQuery->groupEnd();
             }
-            
-            $baseQuery->groupEnd()
-                      ->groupBy('cases.id');
+            $baseQuery->groupBy('cases.id');
         }
 
         return [
@@ -166,7 +257,7 @@ class CaseController extends BaseController
             
             // CẢNH BÁO QUÁ HẠN (Critical Warning):
             // Thống kê số lượng các bước (Steps) đã vượt quá Deadline mà chưa hoàn tất.
-            'overdue' => (clone $this->stepModel)->join('cases', 'cases.id = case_steps.case_id')
+            'overdue' => (clone $baseQuery)->join('case_steps', 'cases.id = case_steps.case_id')
                                 ->where('case_steps.completed_at', null)
                                 ->where('case_steps.deadline <', date('Y-m-d H:i:s'))
                                 ->countAllResults()
@@ -181,9 +272,9 @@ class CaseController extends BaseController
     {
         $templateModel = new \App\Models\WorkflowTemplateModel();
         $data = [
-            'customers' => $this->customerModel->findAll(),
-            'lawyers'   => $this->employeeModel->where('department_id', 3)->findAll(), // Ưu tiên phòng dịch vụ pháp lý
-            'staffs'    => $this->employeeModel->findAll(),
+            'customers' => get_active_customers(), // Core Function
+            'lawyers'   => get_available_employees(3), // Phòng Pháp lý (ID=3) - Core Function
+            'staffs'    => get_available_employees(), // Tất cả nhân sự - Core Function
             'templates' => $templateModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'title'     => 'Thiết lập hồ sơ vụ việc mới | L.A.N ERP'
         ];
@@ -196,29 +287,39 @@ class CaseController extends BaseController
      */
     public function store()
     {
-        $input = $this->request->getPost();
-        $templateId = $this->request->getPost('workflow_template_id');
-
-        // --- BƯỚC 1: TỰ ĐỘNG HÓA DEADLINE (Workflow Automation) ---
-        // Nếu chọn Template, hệ thống sẽ tự động tính Deadline tổng dựa trên tổng ngày dự kiến của mẫu quy trình.
-        if ($templateId) {
-            $templateModel = new \App\Models\WorkflowTemplateModel();
-            $template = $templateModel->find($templateId);
-            if ($template) {
-                $input['type'] = $template['case_type'];
-                $days = $template['total_estimated_days'] ?: 30; // Mặc định 30 ngày nếu không định nghĩa
-                // Thuật toán calculateDeadline tự động trừ Thứ 7/Chủ nhật
-                $input['deadline'] = $this->timelineService->calculateDeadline(new \DateTime(), $days)->format('Y-m-d H:i:s');
-            }
-        } else {
-            // Trường hợp hồ sơ tự do (Custom Case): Deadline sẽ tính theo loại vụ việc mặc định (Config driven)
-            $input['type'] = $input['type'] ?? 'khac';
-            $input['deadline'] = $this->caseModel->calculateDeadline($input['type']);
+        $postData = $this->request->getPost();
+        
+        // --- BẢO VỆ DỮ LIỆU (Data Validation & Normalization) ---
+        $input = $postData;
+        
+        // 1. QUY TẮC ĐỊNH DANH (Standard ID Coding): Đảm bảo không trùng lặp (VV-YYYY-STT)
+        if (empty($input['code'])) {
+            // Lấy ID tự động hoặc count đã cộng dồn cả bản ghi bị xóa (chống trùng lặp Database Limit)
+            $count = $this->caseModel->withDeleted()->countAllResults() + 1;
+            $input['code'] = 'VV-' . date('Y') . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
         }
 
-        $input['status'] = 'moi_tiep_nhan'; // Trạng thái khởi tạo
+        $input['workflow_template_id'] = !empty($postData['workflow_template_id']) ? $postData['workflow_template_id'] : null;
+        $input['customer_id']          = !empty($postData['customer_id']) ? $postData['customer_id'] : null;
+        $input['assigned_lawyer_id']   = !empty($postData['assigned_lawyer_id']) ? $postData['assigned_lawyer_id'] : null;
+        $input['assigned_staff_id']    = !empty($postData['assigned_staff_id']) ? $postData['assigned_staff_id'] : null;
+
+        // --- BƯỚC 1: TỰ ĐỘNG HÓA DEADLINE (Workflow Automation) ---
+        // Mặc định thời hạn dự kiến là 30 ngày (nếu không chọn quy trình)
+        $daysOfCase = 30;
         
-        // --- BƯỚC 2: GHI DANH VÀO CƠ SỞ DỮ LIỆU ---
+        if ($input['workflow_template_id']) {
+            $templateModel = new \App\Models\WorkflowTemplateModel();
+            $template = $templateModel->find($input['workflow_template_id']);
+            if ($template) {
+                $daysOfCase = $template['total_estimated_days'] ?: 30;
+            }
+        }
+        
+        $input['deadline'] = $this->timelineService->calculateDeadline(new \DateTime(), $daysOfCase)->format('Y-m-d H:i:s');
+
+        $input['status'] = 'moi_tiep_nhan';
+        $templateId = $input['workflow_template_id']; // For use in initializeFlowForCase
         if ($this->caseModel->save($input)) {
             $caseId = $this->caseModel->getInsertID();
             
@@ -279,8 +380,9 @@ class CaseController extends BaseController
      */
     public function show($id)
     {
+        $tagService = new \App\Services\TagService();
         // 1. Thu thập dữ liệu gốc từ nhiều nguồn liên quan
-        $case = $this->caseModel->select('cases.*, customers.name as customer_name, lawyer.full_name as lawyer_name, staff.full_name as staff_name, wt.name as template_name')
+        $case = $this->caseModel->select('cases.*, customers.name as customer_name, customers.phone as customer_phone, lawyer.full_name as lawyer_name, staff.full_name as staff_name, wt.name as template_name')
                     ->join('customers', 'customers.id = cases.customer_id')
                     ->join('employees as lawyer', 'lawyer.id = cases.assigned_lawyer_id', 'left')
                     ->join('employees as staff', 'staff.id = cases.assigned_staff_id', 'left')
@@ -291,13 +393,37 @@ class CaseController extends BaseController
             return redirect()->to(base_url('cases'))->with('error', 'Dữ liệu hồ sơ không còn tồn tại trên hệ thống.');
         }
 
-        // --- BẢO MẬT: KIỂM TRA QUYỀN TRUY CẬP (IDOR Protection) ---
+        // Cho phép truy cập nếu là Admin, có quyền quản lý chung, hoặc có quyền Xem TẤT CẢ (view_all).
+        $roleName = session()->get('role_name');
         $myEmpId = session()->get('employee_id');
-        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+        
+        if (!has_permission('sys.admin') && !has_permission('case.edit_all') && !has_permission('case.view_all')) {
             $isAssigned = ($case['assigned_lawyer_id'] == $myEmpId || $case['assigned_staff_id'] == $myEmpId);
             $isMember = model('CaseMemberModel')->where('case_id', $id)->where('employee_id', $myEmpId)->first();
             
-            if (!$isAssigned && !$isMember) {
+            // QUYỀN TRƯỞNG PHÒNG: Xem được mọi vụ việc mà nhân viên trong phòng tham gia
+            $isMyDeptCase = false;
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG) {
+                $myDeptId = session()->get('department_id');
+                $deptEmpIds = $this->employeeModel->where('department_id', $myDeptId)->select('id')->get()->getResultArray();
+                $deptEmpIds = array_column($deptEmpIds, 'id');
+                
+                if (!empty($deptEmpIds)) {
+                     // Kiểm tra xem Lawyer/Staff chính có thuộc phòng mình ko
+                     if (in_array($case['assigned_lawyer_id'], $deptEmpIds) || in_array($case['assigned_staff_id'], $deptEmpIds)) {
+                         $isMyDeptCase = true;
+                     } else {
+                         // Hoặc có thành viên nào trong phòng mình tham gia ko
+                         $hasMemberInDept = model('CaseMemberModel')
+                             ->where('case_id', $id)
+                             ->whereIn('employee_id', $deptEmpIds)
+                             ->countAllResults();
+                         if ($hasMemberInDept > 0) $isMyDeptCase = true;
+                     }
+                }
+            }
+
+            if (!$isAssigned && !$isMember && !$isMyDeptCase) {
                 return redirect()->to(base_url('cases'))->with('error', 'Cảnh báo bảo mật: Bạn không có quyền truy cập hồ sơ này.');
             }
         }
@@ -333,12 +459,15 @@ class CaseController extends BaseController
             'steps'     => $steps,
             'active_step' => $this->stepModel->getCurrentStep($id),
             'comments'  => $this->commentModel->getCommentsByCase($id),
-            'lawyers'   => $this->employeeModel->where('department_id', 3)->findAll(),
-            'staffs'    => $this->employeeModel->findAll(),
+            'lawyers'   => get_available_employees(3), // Core Function
+            'staffs'    => get_available_employees(), // Core Function
             'members'   => $members,
             'memberGroups' => $memberGroups,
-            'isApprover' => false, // User hiện tại có phải người duyệt (Approver) ko?
-            'isAssignee' => false, // User hiện tại có phải người thực hiện chính ko?
+            'tags'      => $this->tagService->getTagsByEntity($id, 'cases'),
+            'availableTags' => get_available_tags('cases'), // Core Function
+            'templates' => model('WorkflowTemplateModel')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'isApprover' => false, 
+            'isAssignee' => false, 
             'title'     => 'Hồ sơ: ' . $case['code'] . ' | L.A.N ERP'
         ];
 
@@ -408,19 +537,272 @@ class CaseController extends BaseController
     }
 
     /**
+     * Giao diện chỉnh sửa thông tin vụ việc.
+     */
+    public function edit($id)
+    {
+        $case = $this->caseModel->find($id);
+        if (!$case) {
+            return redirect()->to(base_url('cases'))->with('error', 'Hồ sơ không tồn tại.');
+        }
+
+        // --- BẢO MẬT: KIỂM TRA QUYỀN (Chỉ Admin, Quản lý hoặc người phụ trách chính) ---
+        $myEmpId = session()->get('employee_id');
+        $roleName = session()->get('role_name');
+        if (!has_permission('sys.admin') && !has_permission('case.edit_all')) {
+            if ($case['assigned_lawyer_id'] != $myEmpId && $case['assigned_staff_id'] != $myEmpId) {
+                // Kiểm tra xem có phải trưởng phòng của họ không (đối với edit thì trưởng phòng vẫn cần có quyền edit_all hoặc là người tham gia)
+                $canEditByRole = ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG && session()->get('department_id') == \Config\AppConstants::DEPT_PHAP_LY);
+                if (!$canEditByRole) {
+                    return redirect()->back()->with('error', 'Bạn không có quyền chỉnh sửa hồ sơ này.');
+                }
+            }
+        }
+
+        $templateModel = new \App\Models\WorkflowTemplateModel();
+        $caseMemberModel = model('CaseMemberModel');
+        $members = $caseMemberModel->where('case_id', $id)->findAll();
+
+        $data = [
+            'case'      => $case,
+            'customers' => get_active_customers(), // Core Function
+            'lawyers'   => get_available_employees(3), // Core Function
+            'staffs'    => get_available_employees(), // Core Function
+            'templates' => $templateModel->where('is_active', 1)->findAll(),
+            'members'   => $members,
+            'title'     => 'Chỉnh sửa hồ sơ: ' . $case['code'] . ' | L.A.N ERP'
+        ];
+
+        return view('dashboard/cases/edit', $data);
+    }
+
+    /**
+     * Cập nhật thông tin vụ việc.
+     */
+    public function update($id)
+    {
+        $case = $this->caseModel->find($id);
+        if (!$case) return redirect()->to(base_url('cases'));
+
+        $input = $this->request->getPost();
+        
+        // Data Normalization
+        // --- BỘ ĐIỀU HƯỚNG: PHÁT HIỆN & XỬ LÝ ĐỔI QUY TRÌNH KHI SỬA HỒ SƠ ---
+        $isWorkflowChanging = false;
+        if (array_key_exists('workflow_template_id', $input)) {
+            $newTemplateId = $input['workflow_template_id'];
+            $oldTemplateId = $case['workflow_template_id'];
+            
+            if (!empty($newTemplateId) && $newTemplateId != $oldTemplateId) {
+                $isWorkflowChanging = true;
+                $roleName = session()->get('role_name');
+                $deptId   = session()->get('department_id');
+
+                // Phân quyền bảo mật tối đa: Gác cổng
+                $isAuthorized = has_permission('sys.admin') || has_permission('case.edit_all') ||
+                                ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG && $deptId == \Config\AppConstants::DEPT_PHAP_LY);
+
+                if (!$isAuthorized) {
+                    return redirect()->back()->withInput()->with('error', 'Cảnh báo bảo mật: Bạn không có thẩm quyền đổi quy trình cho vụ việc (Chỉ dành cho Trưởng phòng Pháp lý/Admin).');
+                }
+
+                try {
+                    // Tiêm thẳng vào Service để thực thi xoá và sinh lại timeline an toàn trước khi đổi Data hành chính
+                    $this->workflowService->changeWorkflowForCase($id, $newTemplateId);
+                } catch (\Exception $e) {
+                    return redirect()->back()->withInput()->with('error', $e->getMessage());
+                }
+            } else {
+                // Nếu User chọn lại đúng quy trình cũ, hoặc rỗng do lỗi gì đó -> xóa nó khỏi POST để khỏi update dư thừa
+                unset($input['workflow_template_id']);
+            }
+        } else {
+            // Rất QUAN TRỌNG: Nếu form bị disabled, HTML sẽ không mớm giá trị workflow_template_id lên POST.
+            // Phải chặn không cho biến nó thành NULL (vì update của CodeIgniter xử lý array sẽ chọc thẳng vào DB gán bằng NULL).
+            unset($input['workflow_template_id']);
+        }
+        // -------------------------------------------------------------------
+        $input['customer_id']          = !empty($input['customer_id']) ? $input['customer_id'] : null;
+        $input['assigned_lawyer_id']   = !empty($input['assigned_lawyer_id']) ? $input['assigned_lawyer_id'] : null;
+        $input['assigned_staff_id']    = !empty($input['assigned_staff_id']) ? $input['assigned_staff_id'] : null;
+
+        if ($this->caseModel->update($id, $input)) {
+            // Đồng bộ nhân sự tham gia
+            $caseMemberModel = model('CaseMemberModel');
+            $caseMemberModel->syncMembers($id, 'approver', $this->request->getPost('approvers') ?? []);
+            $caseMemberModel->syncMembers($id, 'assignee', $this->request->getPost('assignees') ?? []);
+            $caseMemberModel->syncMembers($id, 'supporter', $this->request->getPost('supporters') ?? []);
+
+            $this->logHistory($id, 'update_info', null, null, 'Cập nhật thông tin hành chính & phân công nhân sự hồ sơ.');
+            return redirect()->to(base_url('cases/show/' . $id))->with('success', 'Hồ sơ đã được cập nhật thành công.');
+        }
+
+        return redirect()->back()->withInput()->with('errors', $this->caseModel->errors());
+    }
+
+    /**
+     * Xóa vụ việc (Soft Delete) có kiểm soát vòng đời dữ liệu.
+     */
+    public function delete($id)
+    {
+        // 1. Phân quyền: Hành động nhạy cảm nhất hệ thống
+        if (!has_permission('sys.admin')) {
+            return redirect()->back()->with('error', 'Cảnh báo bảo mật: Chỉ Quản trị viên tối cao mới được quyền gỡ hồ sơ pháp lý khỏi hệ thống.');
+        }
+
+        $case = $this->caseModel->find($id);
+        if (!$case) {
+            return redirect()->back()->with('error', 'Hồ sơ pháp lý không tồn tại hoặc đã bị xóa trước đó.');
+        }
+
+        // 2. Chốt chặn vĩnh viễn (Integrity Barrier): KHÔNG XÓA NẾU ĐÃ PHÁT SINH TIẾN ĐỘ
+        $stepModel = new \App\Models\CaseStepModel();
+        $completedSteps = $stepModel->where('case_id', $id)->where('status', 'completed')->countAllResults();
+        
+        if ($completedSteps > 0) {
+            return redirect()->back()->with('error', 'Khóa bảo vệ: Không thể xóa vụ việc đã có lịch sử nghiệm thu công đoạn. Vui lòng cập nhật rớt trạng thái (Dừng/Hủy) thay thế.');
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        // 3. Liên đới dữ liệu (Cascading Orphans Fix)
+        // Hủy liên kết toàn bộ tài liệu trực thuộc Vụ việc này thay vì xóa tài sản số của công ty
+        $docModel = new \App\Models\DocumentModel();
+        $docModel->where('case_id', $id)->set(['case_id' => null, 'step_id' => null])->update();
+
+        // Hủy liên kết các bài viết Cẩm nang tri thức (Knowledge Base)
+        $knowledgeModel = new \App\Models\KnowledgeModel();
+        $knowledgeModel->where('case_id', $id)->set(['case_id' => null])->update();
+
+        // Kích hoạt Xóa mềm (Soft Delete) đối với các bảng râu ria thông qua Model chuẩn
+        $stepModel->where('case_id', $id)->delete();
+        
+        $commentModel = new \App\Models\CaseCommentModel();
+        $commentModel->where('case_id', $id)->delete();
+        
+        $memberModel = new \App\Models\CaseMemberModel();
+        $memberModel->where('case_id', $id)->delete();
+
+        // KHÔNG xóa bảng cấu trúc Audit Trail (case_history, system_logs) nhằm bảo toàn chứng cứ vĩnh viễn.
+
+        // 4. Exec Xóa Mềm Vụ việc chính
+        $this->caseModel->delete($id);
+
+        $db->transComplete();
+
+        if ($db->transStatus() === FALSE) {
+            return redirect()->back()->with('error', 'Lỗi Transaction: Xung đột dữ liệu không thể dọn dẹp hệ thống.');
+        }
+
+        // Ghi Log
+        $logService = new \App\Services\SystemLogService();
+        $logService->log('DELETE', 'Cases', $id, ['deleted_case_code' => $case['code']]);
+
+        return redirect()->to(base_url('cases'))->with('success', 'Đã thiết quân luật và xóa trắng vụ việc.');
+    }
+
+    /**
+     * Xóa VĨNH VIỄN vụ việc (Hard Delete) - Dùng khi tạo nhầm.
+     */
+    public function purge($id)
+    {
+        // 1. Chỉ Admin mới có quyền dọn dẹp rác hệ thống
+        if (!has_permission('sys.admin')) {
+            return redirect()->back()->with('error', 'Chỉ Quản trị viên mới được quyền xóa vĩnh viễn dữ liệu.');
+        }
+
+        $case = $this->caseModel->find($id);
+        if (!$case) {
+            return redirect()->back()->with('error', 'Hồ sơ không tồn tại.');
+        }
+
+        // 2. Chốt chặn: Không được xóa nếu đã có công việc HOÀN THÀNH (Tránh xóa nhầm dữ liệu thật)
+        $stepModel = new \App\Models\CaseStepModel();
+        $completedSteps = $stepModel->where('case_id', $id)->where('status', 'completed')->countAllResults();
+        
+        if ($completedSteps > 0) {
+            return redirect()->back()->with('error', 'Bảo mật: Hồ sơ này đã có tiến trình thực tế, không thể xóa vĩnh viễn. Hãy dùng tính năng Xóa mềm (Trash).');
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        // 3. Dọn dẹp sạch sẽ (Hard Delete) các phân hệ liên quan
+        $db->table('case_steps')->where('case_id', $id)->delete();
+        $db->table('case_members')->where('case_id', $id)->delete();
+        $db->table('case_comments')->where('case_id', $id)->delete();
+        $db->table('entity_tags')->where('entity_id', $id)->where('entity_type', 'cases')->delete();
+
+        // Hủy liên kết tài liệu/cẩm nang (như logic delete cũ)
+        $db->table('documents')->where('case_id', $id)->update(['case_id' => null, 'step_id' => null]);
+        $db->table('knowledge_base')->where('case_id', $id)->update(['case_id' => null]);
+
+        // 4. Xóa vĩnh viễn bản ghi gốc
+        $this->caseModel->delete($id, true); // TRUE = Hard Delete
+
+        $db->transComplete();
+
+        if ($db->transStatus() === false) {
+            return redirect()->back()->with('error', 'Lỗi hệ thống khi dọn dẹp dữ liệu rác.');
+        }
+
+        return redirect()->to(base_url('cases'))->with('success', 'Đã xóa vĩnh viễn hồ sơ và dọn dẹp toàn bộ dữ liệu liên quan.');
+    }
+
+    /**
+     * Gửi nhắc nhở/chỉ đạo nghiệp vụ cho nhân sự khác.
+     */
+    public function sendReminder($id)
+    {
+        $recipientUserId = $this->request->getPost('recipient_user_id');
+        $message = $this->request->getPost('message');
+
+        if (!$recipientUserId || !$message) {
+            return redirect()->back()->with('error', 'Vui lòng chọn người nhận và nội dung nhắc nhở.');
+        }
+
+        $case = $this->caseModel->find($id);
+        if (!$case) {
+            return redirect()->back()->with('error', 'Hồ sơ không tồn tại.');
+        }
+
+        // 1. Tạo thông báo (Notification)
+        $notifModel = model('NotificationModel');
+        $notifModel->save([
+            'user_id'   => $recipientUserId,
+            'sender_id' => session()->get('user_id'),
+            'type'      => 'reminder',
+            'title'     => 'Nhắc nhở vụ việc: ' . $case['code'],
+            'message'   => $message,
+            'link'      => base_url('cases/show/' . $id),
+            'is_read'   => 0
+        ]);
+
+        // 2. Ghi nhật ký (History)
+        $this->logHistory($id, 'gui_nhac_nho', null, null, 'Đã gửi nhắc nhở nghiệp vụ cho nhân sự.');
+
+        return redirect()->back()->with('success', 'Đã chuyển thông báo nhắc nhở thành công.');
+    }
+
+    /**
      * Quản lý Phân công nhân sự tham gia (Resource Management).
      * Cho phép Quản trị viên thay đổi cơ cấu nhân sự xử lý hồ sơ.
      */
     public function updateMembers($id)
     {
         // Kiểm tra quyền hạn manage hồ sơ
-        if (!has_permission('case.manage')) {
+        if (!has_permission('sys.admin') && !has_permission('case.edit_all')) {
             return redirect()->back()->with('error', 'Bạn không được phân quyền để thay đổi nhân sự vụ việc này.');
         }
 
         $approvers = $this->request->getPost('approvers') ?? [];
         $assignees = $this->request->getPost('assignees') ?? [];
         $supporters = $this->request->getPost('supporters') ?? [];
+
+        // --- AUDIT LOGGING ---
+        // Ghi lại danh sách nạp vào để đối soát nếu xảy ra lỗi không lưu được dữ liệu.
+        log_message('info', "[CASE_MEMBER] Syncing Case ID: $id | Approvers: " . json_encode($approvers) . " | Assignees: " . json_encode($assignees) . " | Supporters: " . json_encode($supporters));
 
         $caseMemberModel = model('CaseMemberModel');
         $caseMemberModel->syncMembers($id, 'approver', $approvers);
@@ -472,7 +854,7 @@ class CaseController extends BaseController
             $step = $this->stepModel->find($stepId);
 
             // Kiểm tra quyền truy cập hồ sơ chứa bước này
-            if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+            if (!has_permission('sys.admin') && !has_permission('case.edit_all')) {
                 $case = $this->caseModel->find($step['case_id']);
                 $isAssigned = ($case['assigned_lawyer_id'] == $myEmpId || $case['assigned_staff_id'] == $myEmpId);
                 $isMember = model('CaseMemberModel')->where('case_id', $step['case_id'])->where('employee_id', $myEmpId)->first();
@@ -576,8 +958,8 @@ class CaseController extends BaseController
         $case = $this->caseModel->find($id);
         if (!$case) return redirect()->back()->with('error', 'Không tìm thấy hồ sơ vụ việc.');
 
-        // Kiểm tra quyền cập nhật trạng thái
-        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+        // Kiểm tra quyền (Phải là thành viên vụ việc hoặc có quyền edit_all)
+        if (!has_permission('sys.admin') && !has_permission('case.edit_all')) {
             if ($case['assigned_lawyer_id'] != session()->get('employee_id')) {
                  return redirect()->back()->with('error', 'Chỉ Quản lý hoặc Luật sư phụ trách chính mới được quyền đổi trạng thái hồ sơ.');
             }
@@ -591,6 +973,28 @@ class CaseController extends BaseController
         }
 
         return redirect()->back()->with('error', 'Không thể hoàn thành yêu cầu cập nhật.');
+    }
+
+    /**
+     * Quản trị: Đồng bộ lại Thưởng (KPI) từ Quy trình sang Vụ việc.
+     * Cho phép Admin cập nhật lại định mức thưởng mới nhất nếu Template có sự thay đổi.
+     */
+    public function syncRewards($id)
+    {
+        if (!has_permission('sys.admin')) {
+            return redirect()->back()->with('error', 'Cảnh báo: Bạn không có quyền thực hiện thao tác đồng bộ tài chính.');
+        }
+
+        try {
+            if ($this->workflowService->syncRewardsForCase($id)) {
+                $this->logHistory($id, 'sync_rewards', null, null, 'Cập nhật định mức thưởng từ Quy trình mẫu.');
+                return redirect()->back()->with('success', 'Đã đồng bộ lại định mức thưởng từ quy trình gốc thành công.');
+            }
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Lỗi đồng bộ: ' . $e->getMessage());
+        }
+
+        return redirect()->back()->with('error', 'Có lỗi xảy ra trong quá trình cập nhật.');
     }
 
     /**
@@ -685,5 +1089,70 @@ class CaseController extends BaseController
             'note'       => $note,      // Lý do hoặc ghi chú chi tiết
             'created_at' => date('Y-m-d H:i:s')
         ]);
+    }
+
+    /**
+     * Đồng bộ hóa nhãn dán cho các thực thể (Vụ việc, Khách hàng...).
+     * Hỗ trợ cập nhật Real-time thông qua AJAX hoặc Redirect truyền thống.
+     */
+    public function updateTags($id)
+    {
+        $tagService = new \App\Services\TagService();
+        $tagIds = $this->request->getPost('tag_ids') ?? [];
+        $entityType = $this->request->getPost('entity_type') ?: 'cases';
+        
+        $result = $tagService->syncTags($id, $entityType, $tagIds);
+        
+        if ($this->request->isAJAX()) {
+            if ($result['status'] === 'success') {
+                $newTags = $tagService->getTagsByEntity($id, $entityType);
+                return $this->response->setJSON([
+                    'code' => 0,
+                    'message' => 'Cập nhật nhãn thành công',
+                    'tags' => $newTags
+                ]);
+            }
+            return $this->response->setJSON(['code' => 1, 'error' => 'Cập nhật nhãn thất bại']);
+        }
+
+        if ($result['status'] === 'success') {
+            return redirect()->back()->with('success', 'Nhãn dán đã được cập nhật.');
+        }
+
+        return redirect()->back()->with('error', 'Cập nhật nhãn dán thất bại.');
+    }
+
+    /**
+     * Khởi tạo nhãn dán mới và tự động gán vào vụ việc hiện tại.
+     */
+    public function createTag()
+    {
+        $tagService = new \App\Services\TagService();
+        $postData = $this->request->getPost();
+        
+        $employeeId = session()->get('employee_id');
+        $roleName = session()->get('role_name');
+
+        $result = $tagService->createTag([
+            'name' => $postData['name'],
+            'color' => $postData['color'],
+            'type' => $postData['type'] ?? 'private',
+            'module_scope' => $postData['module_scope'] ?? 'all'
+        ], $employeeId, $roleName);
+
+        if ($result['status'] === 'success') {
+            $tagId = $result['data']['id'];
+            $caseId = $postData['ref_case_id'] ?? null;
+            if ($caseId) {
+                // Tự động gán vào case hiện tại
+                $currentTags = $tagService->getTagsByEntity($caseId, 'cases');
+                $tagIds = array_column($currentTags, 'id');
+                $tagIds[] = $tagId;
+                $tagService->syncTags($caseId, 'cases', $tagIds);
+            }
+            return redirect()->back()->with('success', 'Đã tạo và gán nhãn mới hòan hòan hảo.');
+        }
+
+        return redirect()->back()->with('error', $result['message']);
     }
 }

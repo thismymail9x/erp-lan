@@ -19,20 +19,26 @@
             <?= csrf_field() ?>
             
             <div class="form-group-premium m-b-24">
-                <label class="form-label-premium">Tên quy trình</label>
-                <input type="text" name="name" class="form-control-premium" value="<?= esc($template['name']) ?>" required>
+                <label class="form-label-premium">Tên quy trình nghiệp vụ</label>
+                <input type="text" name="name" class="form-control-premium <?= (session('errors') && isset(session('errors')['name'])) ? 'is-invalid' : '' ?>" value="<?= old('name', $template['name']) ?>" required>
+                <?php if (session('errors') && isset(session('errors')['name'])) : ?>
+                    <div class="text-apple-red text-xxs m-t-5"><i class="fas fa-exclamation-circle"></i> <?= session('errors')['name'] ?></div>
+                <?php endif; ?>
             </div>
 
             <div class="form-row m-b-24">
                 <div class="form-group-premium flex-1 m-r-12">
-                    <label class="form-label-premium">Mã định danh (Code)</label>
-                    <input type="text" name="code" class="form-control-premium text-monospace" value="<?= esc($template['code']) ?>" required>
+                    <label class="form-label-premium">Mã định danh hệ thống (Code)</label>
+                    <input type="text" name="code" class="form-control-premium text-monospace <?= (session('errors') && isset(session('errors')['code'])) ? 'is-invalid' : '' ?>" value="<?= old('code', $template['code']) ?>" required>
+                    <?php if (session('errors') && isset(session('errors')['code'])) : ?>
+                        <div class="text-apple-red text-xxs m-t-5"><i class="fas fa-exclamation-circle"></i> <?= session('errors')['code'] ?></div>
+                    <?php endif; ?>
                 </div>
                 <div class="form-group-premium flex-1 m-l-12">
-                    <label class="form-label-premium">Trạng thái</label>
+                    <label class="form-label-premium">Trạng thái vận hành</label>
                     <div class="flex-row align-center p-t-10">
                         <label class="switch-minimal">
-                            <input type="checkbox" name="is_active" value="1" <?= $template['is_active'] ? 'checked' : '' ?>>
+                            <input type="checkbox" name="is_active" value="1" <?= old('is_active', $template['is_active']) ? 'checked' : '' ?>>
                             <span class="slider-round"></span>
                         </label>
                         <span class="m-l-10 text-sm">Đang hoạt động</span>

@@ -33,82 +33,90 @@
         </div>
 
         <!-- Status Banner -->
-        <div id="attendance-status" class="status-indicator-banner" title="Trạng thái điểm danh trong ngày của bạn">
-            Đang tải dữ liệu...
-        </div>
+        <?php if ($role !== \Config\AppConstants::ROLE_ADMIN) { ?>
+            <div id="attendance-status" class="status-indicator-banner" title="Trạng thái điểm danh trong ngày của bạn">
+                Đang tải dữ liệu...
+            </div>
+        <?php } else { ?>
+            <div class="status-indicator-banner status-banner-done" style="background: rgba(0, 122, 255, 0.05); color: var(--apple-blue); border: 1px solid rgba(0, 122, 255, 0.1);">
+                <i class="fas fa-user-shield"></i> Tài khoản Quản trị viên không cần chấm công.
+            </div>
+        <?php } ?>
 
         <!-- Token Logic UI -->
-        <div id="office-pc-status" style="display: none; margin-bottom: 20px;">
+        <div id="office-pc-status" style="<?= ($isAuthorized && !$isMobile) ? 'display: block;' : 'display: none;' ?> margin-bottom: 20px;">
             <div class="lan-status-box lan-status-success" style="background: rgba(52, 199, 89, 0.1); border: 1px solid #34c759;">
                 <i class="fas fa-desktop lan-box-icon" style="color: #34c759;"></i>
-                <h3 class="lan-box-title" style="color: #1a7f37;">Điểm danh bằng máy tính</h3>
+                <h3 class="lan-box-title" style="color: #1a7f37;">Điểm danh bằng máy tính (Đã Ủy Quyền)</h3>
                 <button id="btn-token-submit" class="btn btn-blue-apple">
-                    <i class="fas fa-check-circle"></i> Xác nhận Điểm Danh
+                    <i class="fas fa-check-circle"></i> Xác nhận
                 </button>
             </div>
         </div>
 
-        <?php if ($isMobile) { ?>
-            <!-- Camera Area (Only for Mobile) -->
-            <div id="camera-area" class="capture-viewport" title="Khung nhìn camera để nhận diện khuôn mặt" style="display: none;">
-                <video id="video-preview" class="capture-video" autoplay playsinline></video>
-                <canvas id="photo-canvas" style="display: none;"></canvas>
+        <?php if ($role !== \Config\AppConstants::ROLE_ADMIN) { ?>
+            <?php if ($isMobile) { ?>
+                <!-- Camera Area (Only for Mobile) -->
+                <div id="camera-area" class="capture-viewport" title="Khung nhìn camera để nhận diện khuôn mặt" style="display: none;">
+                    <video id="video-preview" class="capture-video" autoplay playsinline></video>
+                    <canvas id="photo-canvas" style="display: none;"></canvas>
 
-                <div id="photo-placeholder" class="capture-placeholder">
-                    <i class="fas fa-camera"></i>
-                    Nhấn "Bắt đầu" để mở camera
+                    <div id="photo-placeholder" class="capture-placeholder">
+                        <i class="fas fa-camera"></i>
+                        Nhấn "Bắt đầu" để mở camera
+                    </div>
+
+                    <div id="captured-container" class="capture-result-preview" style="display: none;">
+                        <img id="captured-photo" class="capture-img" src="">
+                        <div class="capture-badge" title="Ảnh đã được chụp thành công">Đã chụp</div>
+                    </div>
                 </div>
 
-                <div id="captured-container" class="capture-result-preview" style="display: none;">
-                    <img id="captured-photo" class="capture-img" src="">
-                    <div class="capture-badge" title="Ảnh đã được chụp thành công">Đã chụp</div>
-                </div>
-            </div>
+                <div class="attendance-form-layout">
+                    <div class="attendance-note-form">
+                        <label for="note">Lưu ý</label>
+                        <textarea id="note" rows="3"  title="Nhập lý do nếu đi muộn, về sớm hoặc có lưu ý đặc biệt"></textarea>
+                    </div>
 
-            <div class="attendance-form-layout">
-                <div class="attendance-note-form">
-                    <label for="note">Ghi chú bổ sung</label>
-                    <textarea id="note" rows="3" placeholder="Làm bù giờ, đi công tác tại..." title="Nhập lý do nếu đi muộn, về sớm hoặc có lưu ý đặc biệt"></textarea>
-                </div>
-
-                <div class="btn-step-group">
-                    <button id="btn-init" class="btn btn-secondary-apple" title="Kích hoạt Camera và GPS định vị">
-                        <i class="fas fa-power-off"></i> Bắt đầu
-                    </button>
-                    <button id="btn-snap" class="btn btn-secondary-apple" disabled title="Chụp ảnh khuôn mặt để điểm danh">
-                        <i class="fas fa-camera"></i> Chụp ảnh
-                    </button>
-                    <button id="btn-submit" class="btn btn-blue-apple" disabled title="Gửi dữ liệu điểm danh về hệ thống">
-                        <i class="fas fa-check-circle"></i> Xác nhận
-                    </button>
-                </div>
-            </div>
-        <?php } else { ?>
-            <div id="pc-attendance-area">
-                <?php if ($isLan) { ?>
-                    <!-- LAN Attendance Area (PC in Office) -->
-                    <div class="lan-status-box lan-status-success" title="Kết nối mạng nội bộ hợp lệ">
-                        <i class="fas fa-wifi lan-box-icon"></i>
-                        <h3 class="lan-box-title">Đã kết nối Mạng Nội Bộ</h3>
-                        <p class="lan-box-desc">Hệ thống nhận diện bạn đang ở văn phòng. Bạn có thể điểm danh.</p>
-                        <button id="btn-lan-submit" class="btn btn-blue-apple" title="Gửi xác nhận điểm danh từ PC văn phòng">
-                            <i class="fas fa-check-circle"></i> Xác nhận Điểm Danh
+                    <div class="btn-step-group">
+                        <button id="btn-init" class="btn btn-secondary-apple" title="Kích hoạt Camera và GPS định vị">
+                            <i class="fas fa-power-off"></i> Bắt đầu
+                        </button>
+                        <button id="btn-snap" class="btn btn-secondary-apple" disabled title="Chụp ảnh khuôn mặt để điểm danh">
+                            <i class="fas fa-camera"></i> Chụp ảnh
+                        </button>
+                        <button id="btn-submit" class="btn btn-blue-apple" disabled title="Gửi dữ liệu điểm danh về hệ thống">
+                            <i class="fas fa-check-circle"></i> Xác nhận
                         </button>
                     </div>
-                <?php } else { ?>
-                    <!-- PC Out of Office -->
-                    <div id="out-of-office-box" class="lan-status-box lan-status-error">
-                        <i class="fas fa-exclamation-triangle lan-box-icon" style="color: #e11d48;"></i>
-                        <h3 class="lan-box-title" style="color: #9f1239;">Lỗi kết nối</h3>
-                        <p class="lan-box-desc" style="color: #be123c;">Chỉ được phép điểm danh bằng thiết bị PC/Laptop tại văn phòng.<br>Nếu bạn đang đi công tác, vui lòng dùng <strong>Điện thoại</strong> để điểm danh.</p>
-                    </div>
-                <?php } ?>
-            </div>
+                </div>
+            <?php } else { ?>
+                <div id="pc-attendance-area">
+                    <?php if ($isLan || $isAuthorized) { ?>
+                        <!-- LAN Attendance Area (PC in Office / Authorized) -->
+                        <div class="lan-status-box lan-status-success" title="Kết nối mạng nội bộ hoặc máy tính đã ủy quyền hợp lệ">
+                            <i class="fas <?= $isAuthorized ? 'fa-shield-alt' : 'fa-wifi' ?> lan-box-icon"></i>
+                            <h3 class="lan-box-title"><?= $isAuthorized ? 'Máy tính đã được Ủy Quyền' : 'Đã kết nối Mạng Nội Bộ' ?></h3>
+                            <p class="lan-box-desc">Hệ thống nhận diện thiết bị này an toàn cho việc điểm danh.</p>
+                            <button id="btn-lan-submit" class="btn btn-blue-apple" title="Gửi xác nhận điểm danh từ thiết bị văn phòng">
+                                <i class="fas fa-check-circle"></i> Xác nhận
+                            </button>
+                        </div>
+                    <?php } else { ?>
+                        <!-- PC Out of Office -->
+                        <div id="out-of-office-box" class="lan-status-box lan-status-error">
+                            <i class="fas fa-exclamation-triangle lan-box-icon" style="color: #e11d48;"></i>
+                            <h3 class="lan-box-title" style="color: #9f1239;">Lỗi kết nối</h3>
+                            <p class="lan-box-desc" style="color: #be123c;">Chỉ được phép điểm danh bằng thiết bị PC/Laptop tại văn phòng.<br>Nếu bạn đang đi công tác, vui lòng dùng <strong>Điện thoại</strong> để điểm danh.</p>
+                        </div>
+                    <?php } ?>
+                </div>
 
-            <div class="attendance-note-form" style="margin: 20px 0;">
-                <label for="note">Ghi chú bổ sung</label>
-                <textarea id="note" rows="3" placeholder="Lên CATP, đi tòa A..." title="Ghi chú nội dung làm việc hoặc lý do bất thường"></textarea>
-            </div>
+                <div class="attendance-note-form" style="margin: 20px 0;">
+                    <label for="note">Ghi chú bổ sung</label>
+                    <textarea id="note" rows="3" title="Ghi chú nội dung làm việc hoặc lý do bất thường"></textarea>
+                </div>
+            <?php } ?>
         <?php } ?>
 
         <!-- Admin Authorization Section -->
@@ -128,7 +136,7 @@
     <div style="margin-top: 20px; text-align: center;">
         <a href="<?= base_url('attendance/list?view=monthly') ?>"
            style="color: var(--apple-blue); text-decoration: none; font-weight: 500;" title="Xem bảng công chi tiết của bạn trong tháng">
-            <i class="fas fa-history"></i> Xem lịch sử điểm danh tháng này
+            <i class="fas fa-clock"></i> Lịch sử tháng
         </a>
     </div>
 </div>
@@ -176,9 +184,15 @@
         const note = document.getElementById('note');
         
         // Lấy token thiết bị văn phòng từ LocalStorage (nếu có)
-        const officeToken = localStorage.getItem('office_security_token');
+        let officeToken = localStorage.getItem('office_security_token');
 
-        // Logic hiển thị nút bấm tương ứng với quyền/thiết bị
+        // Dự phòng lấy từ Cookie nếu localStorage bị mất (Dành cho Logic JS)
+        if (!officeToken) {
+            const match = document.cookie.match(new RegExp('(^| )office_security_token=([^;]+)'));
+            if (match) officeToken = match[2];
+        }
+
+        // Logic hiển thị nút bấm tương ứng với quyền/thiết bị (Nếu server chưa xử lý kịp)
         if (officeToken && !'<?= $isMobile ?>') {
             const tokenBox = document.getElementById('office-pc-status');
             const pcArea = document.getElementById('pc-attendance-area');
@@ -247,17 +261,35 @@
                 // Lấy tọa độ GPS người dùng
                 navigator.geolocation.getCurrentPosition(pos => {
                     geoLocation = pos;
-                    // Yêu cầu quyền Camera
-                    navigator.mediaDevices.getUserMedia({video: {facingMode: 'user'}, audio: false})
+                    // Yêu cầu quyền Camera với cấu hình tương thích cao cho Android/Vivo
+                    navigator.mediaDevices.getUserMedia({
+                        video: { 
+                            facingMode: 'user',
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }, 
+                        audio: false 
+                    })
                     .then(s => {
                         stream = s; 
                         video.srcObject = s; 
-                        video.style.display = 'block';
-                        if (cameraArea) cameraArea.style.display = 'flex';
-                        placeholder.style.display = 'none'; 
-                        btnSnap.disabled = false;
-                        statusBanner.textContent = 'Sẵn sàng! Vui lòng chụp ảnh khuôn mặt.';
+                        video.setAttribute('playsinline', true);
+                        video.muted = true; // Bắt buộc cho một số trình duyệt Android để Autoplay
+
+                        // Đảm bảo Video thực sự "Chạy" (Vivo cần lệnh play() tường minh)
+                        video.play().then(() => {
+                            video.style.display = 'block';
+                            if (cameraArea) cameraArea.style.display = 'flex';
+                            placeholder.style.display = 'none'; 
+                            btnSnap.disabled = false;
+                            statusBanner.textContent = 'Sẵn sàng! Vui lòng chụp ảnh khuôn mặt.';
+                        }).catch(e => {
+                            console.error('Lỗi play video:', e);
+                            statusBanner.textContent = 'Lỗi hiển thị: Hãy thử nhấn "Bắt đầu" lại.';
+                        });
+
                     }).catch(e => {
+                        console.error('Lỗi getUserMedia:', e);
                         statusBanner.className = 'status-indicator-banner status-banner-error';
                         statusBanner.textContent = 'Lỗi Camera: Không thể truy cập máy ảnh.';
                         btnInit.disabled = false;
@@ -282,11 +314,27 @@
 
             /**
              * Chụp ảnh từ luồng Video và chuyển đổi sang Blob.
+             * Đã tối ưu để tránh lỗi "đen màn hình" trên một số thiết bị Mobile/Safari.
              */
             btnSnap.onclick = () => {
-                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0);
+                // Kiểm tra xem Video đã sẵn sàng chưa
+                if (video.videoWidth === 0 || video.videoHeight === 0 || video.readyState < 2) {
+                    alert('Camera đang khởi động, vui lòng đợi 1 giây rồi thử lại.');
+                    return;
+                }
+
+                canvas.width = video.videoWidth; 
+                canvas.height = video.videoHeight;
+                
+                const ctx = canvas.getContext('2d');
+                // Chụp khung hình từ Video
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
                 canvas.toBlob(blob => {
+                    if (!blob || blob.size === 0) {
+                        alert('Lỗi: Chụp ảnh không thành công (Ảnh trống). Vui lòng thử lại.');
+                        return;
+                    }
                     photoBlob = blob; 
                     capturedPhoto.src = URL.createObjectURL(blob);
                     capturedContainer.style.display = 'block'; 
@@ -305,7 +353,7 @@
                 const fd = new FormData();
                 fd.append('latitude', geoLocation.coords.latitude);
                 fd.append('longitude', geoLocation.coords.longitude);
-                fd.append('note', note.value);
+                fd.append('note', note ? note.value : '');
                 fd.append('photo', photoBlob, 'att.jpg');
                 submitData(fd, btnSubmit);
             };
@@ -315,7 +363,7 @@
         if (btnLanSubmit) {
             btnLanSubmit.onclick = () => {
                 const fd = new FormData();
-                fd.append('note', note.value);
+                fd.append('note', note ? note.value : '');
                 submitData(fd, btnLanSubmit);
             };
         }
@@ -324,7 +372,7 @@
         if (btnTokenSubmit) {
             btnTokenSubmit.onclick = () => {
                 const fd = new FormData();
-                fd.append('note', note.value);
+                fd.append('note', note ? note.value : '');
                 fd.append('officeToken', officeToken);
                 submitData(fd, btnTokenSubmit);
             };
@@ -334,15 +382,21 @@
         const btnAuth = document.getElementById('btn-authorize-pc');
         if (btnAuth) {
             btnAuth.onclick = async () => {
-                if (!confirm('Xác thực máy tính này là máy văn phòng dùng để chấm công?')) return;
+                if (!confirm('Xác thực máy tính này là máy văn phòng dùng để chấm công? (Lưu ý: Quyền này sẽ được duy trì lâu dài trên máy tính này)')) return;
                 const res = await fetch('<?= base_url('attendance/get-office-token') ?>');
                 const result = await res.json();
                 if (result.code === 0) {
-                    // Lưu định danh máy tính vào LocalStorage của trình duyệt
+                    // 1. Lưu vào LocalStorage
                     localStorage.setItem('office_security_token', result.token);
+                    
+                    // 2. Lưu vào Persistent Cookie (Thời hạn 1 năm - 31536000 giây)
+                    const date = new Date();
+                    date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
+                    document.cookie = `office_security_token=${result.token}; expires=${date.toUTCString()}; path=/; SameSite=Lax`;
+
                     document.getElementById('auth-success-msg').style.display = 'block';
                     btnAuth.style.display = 'none';
-                    setTimeout(() => location.reload(), 2000);
+                    setTimeout(() => location.reload(), 1500);
                 } else {
                     alert('Lỗi xác thực: ' + result.error);
                 }
@@ -386,7 +440,9 @@
             }
         }
 
-        checkStatus();
+        <?php if ($role !== \Config\AppConstants::ROLE_ADMIN) { ?>
+            checkStatus();
+        <?php } ?>
     });
 </script>
 <?= $this->endSection() ?>

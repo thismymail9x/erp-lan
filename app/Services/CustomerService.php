@@ -34,27 +34,34 @@ class CustomerService
      * Kiểm tra chéo trên 3 tiêu chí định danh độc lập để đảm bảo tính duy nhất.
      * 
      * @param array $data Dữ liệu khách hàng mới (từ form tiếp nhận).
+     * @param int|null $excludeId ID cần loại trừ khi kiểm tra (dùng cho trường hợp UPDATE).
      * @return array Danh sách hồ sơ cũ bị trùng khớp.
      */
-    public function findDuplicates(array $data)
+    public function findDuplicates(array $data, ?int $excludeId = null)
     {
         $duplicates = [];
 
         // 1. TIÊU CHÍ 1: Số điện thoại (Phương thức liên lạc chính)
         if (!empty($data['phone'])) {
-            $found = $this->customerModel->where('phone', $data['phone'])->first();
+            $query = $this->customerModel->where('phone', $data['phone']);
+            if ($excludeId) $query->where('id !=', $excludeId);
+            $found = $query->first();
             if ($found) $duplicates['phone'] = $found;
         }
 
         // 2. TIÊU CHÍ 2: Số CCCD/Hộ chiếu/Mã số thuế (Định danh pháp lý)
         if (!empty($data['identity_number'])) {
-            $found = $this->customerModel->where('identity_number', $data['identity_number'])->first();
+            $query = $this->customerModel->where('identity_number', $data['identity_number']);
+            if ($excludeId) $query->where('id !=', $excludeId);
+            $found = $query->first();
             if ($found) $duplicates['identity_number'] = $found;
         }
 
         // 3. TIÊU CHÍ 3: Địa chỉ Email
         if (!empty($data['email'])) {
-            $found = $this->customerModel->where('email', $data['email'])->first();
+            $query = $this->customerModel->where('email', $data['email']);
+            if ($excludeId) $query->where('id !=', $excludeId);
+            $found = $query->first();
             if ($found) $duplicates['email'] = $found;
         }
 
@@ -88,27 +95,81 @@ class CustomerService
     /**
      * Tổng hợp dữ liệu KPI cho CRM Dashboard.
      * Thống kê theo thời gian thực về tăng trưởng và chất lượng khách hàng.
+     * 
+     * @param int|null $employeeId Nếu truyền vào, chỉ thống kê khách hàng thuộc phạm vi nhân sự này.
+     * @param int|null $departmentId Nếu truyền vào, thống kê khách hàng thuộc vụ việc của phòng ban này.
      */
-    public function getDashboardStats()
+    public function getDashboardStats($employeeId = null, $departmentId = null, $managerId = null)
     {
+        // 1. Khai báo hàm helper để áp dụng bộ lọc phân quyền (Data Scoping)
+        $applyScope = function($query) use ($employeeId, $departmentId, $managerId) {
+            $db = \Config\Database::connect();
+
+            if ($managerId) {
+                // TRƯỞNG PHÒNG (TEAM-BASED): Thống kê dựa trên "Quân" của chính sếp đó
+                $myTeamIds = $db->table('employees')->where('manager_id', $managerId)->select('id')->get()->getResultArray();
+                $myTeamIds = array_column($myTeamIds, 'id');
+                $myTeamIds[] = $managerId; // Bao gồm cả sếp
+
+                $query->whereIn('customers.id', function($builder) use ($myTeamIds, $departmentId) {
+                    $builder->select('customer_id')->from('cases')->groupStart();
+                        // A. Hồ sơ của đội
+                        $builder->groupStart()
+                            ->whereIn('assigned_lawyer_id', $myTeamIds)
+                            ->orWhereIn('assigned_staff_id', $myTeamIds)
+                            ->orWhereIn('id', function($sub) use ($myTeamIds) {
+                                return $sub->select('case_id')->from('case_members')->whereIn('employee_id', $myTeamIds);
+                            })
+                        ->groupEnd();
+
+                            // B. NGOẠI LỆ PHÁP LÝ: Thấy khách hàng mồ côi
+                            if ($departmentId == \Config\AppConstants::DEPT_PHAP_LY) {
+                                $builder->orGroupStart()
+                                    ->where('assigned_lawyer_id IS NULL')
+                                    ->where('assigned_staff_id IS NULL')
+                                ->groupEnd();
+                            }
+                        $builder->groupEnd();
+                });
+            } elseif ($employeeId) {
+                // NHÂN VIÊN: Là người phụ trách chính (Lawyer/Staff) hoặc thành viên
+                $query->whereIn('customers.id', function($builder) use ($employeeId) {
+                    $builder->select('customer_id')->from('cases')
+                        ->groupStart()
+                            ->where('assigned_lawyer_id', $employeeId)
+                            ->orWhere('assigned_staff_id', $employeeId)
+                            ->orWhereIn('id', function($sub) use ($employeeId) {
+                                return $sub->select('case_id')->from('case_members')->where('employee_id', $employeeId);
+                            })
+                        ->groupEnd();
+                });
+            }
+            // Trường hợp Admin: Không add where => Thấy hết
+            return $query;
+        };
+
         return [
-            // Tổng quy mô tệp khách hàng
-            'total_customers' => $this->customerModel->countAllResults(),
+            // Tổng quy mô tệp khách hàng thuộc phạm vi quản lý
+            'total_customers' => $applyScope($this->customerModel->builder())->countAllResults(),
             
-            // Số lượng khách hàng mới gia nhập trong tháng (Tốc độ tăng trưởng)
-            'new_this_month'  => $this->customerModel->where('MONTH(created_at)', date('m'))
-                                                     ->where('YEAR(created_at)', date('Y'))
-                                                     ->countAllResults(),
+            // Số lượng khách hàng mới gia nhập trong tháng
+            'new_this_month'  => $applyScope($this->customerModel->builder())
+                                    ->where('MONTH(customers.created_at)', date('m'))
+                                    ->where('YEAR(customers.created_at)', date('Y'))
+                                    ->countAllResults(),
             
-            // Danh sách TOP 10 khách hàng VIP (Dựa trên tổng doanh thu mang lại)
-            'top_revenue'     => $this->customerModel->orderBy('total_revenue', 'DESC')
-                                                     ->limit(10)
-                                                     ->findAll(),
+            // Danh sách TOP 5 khách hàng VIP (Lấy ít hơn cho Dashboard gọn)
+            'top_revenue'     => $applyScope($this->customerModel->builder())
+                                    ->select('customers.*')
+                                    ->orderBy('total_revenue', 'DESC')
+                                    ->limit(5)
+                                    ->get()->getResultArray(),
             
-            // Biểu đồ phân bổ loại hình khách hàng (Group by Category)
-            'type_distribution' => $this->customerModel->select('type, COUNT(*) as count')
-                                                       ->groupBy('type')
-                                                       ->findAll()
+            // Biểu đồ phân bổ loại hình khách hàng
+            'type_distribution' => $applyScope($this->customerModel->builder())
+                                    ->select('type, COUNT(*) as count')
+                                    ->groupBy('type')
+                                    ->get()->getResultArray()
         ];
     }
 

@@ -1,5 +1,5 @@
 
-        <div class="table-container">
+        <div class="table-responsive">
             <table class="premium-table">
                 <thead>
                     <tr>
@@ -75,9 +75,16 @@
                             </td>
                             <td class="hide-mobile"><a href="<?= base_url('employees/edit/' . $user['emp_id']) ?>" class="text-decoration-none" title="Xem nhân viên"><?= esc($user['full_name'] ?? 'Chưa liên kết') ?></a></td>
                             <td class="hide-mobile">
-                                <span class="badge-secondary-minimal text-xs" title="Phân quyền hệ thống">
-                                    <?= esc($user['role_title']) ?>
-                                </span>
+                                <div class="flex-column gap-4">
+                                    <span class="badge-secondary-minimal text-xs" title="Phân quyền hệ thống">
+                                        <i class="fas fa-user-tag m-r-5"></i> <?= esc($user['role_title']) ?>
+                                    </span>
+                                    <?php if (!empty($user['department_name'])) { ?>
+                                        <span class="text-xs text-muted-dark" title="Phòng ban / Bộ phận">
+                                            <i class="fas fa-building m-r-5"></i> <?= esc($user['department_name']) ?>
+                                        </span>
+                                    <?php } ?>
+                                </div>
                             </td>
                             <td>
                                 <?php if($user['active_status']) { ?>

@@ -14,52 +14,26 @@
         </div>
     </div>
 
-    <div class="workflow-grid">
-        <?php if (empty($templates)) { ?>
-            <div class="premium-card p-40 text-center">
-                <div class="empty-state-icon m-b-20">
-                    <i class="fas fa-project-diagram fa-3x text-muted-light"></i>
-                </div>
-                <h3>Chưa có quy trình nào</h3>
-                <p class="text-muted-dark">Hãy tạo quy trình đầu tiên để chuẩn hóa cách làm việc của văn phòng.</p>
-                <a href="<?= base_url('workflows/create') ?>" class="btn-secondary-sm m-t-15">Bắt đầu ngay</a>
-            </div>
-        <?php } else { ?>
-            <div class="grid-layout-premium">
-                <?php foreach ($templates as $t) { ?>
-                    <div class="workflow-card premium-card">
-                        <div class="card-header-flex">
-                            <div class="status-dot-container align-center flex-row">
-                                <div class="status-dot <?= $t['is_active'] ? 'bg-apple-green' : 'bg-apple-gray' ?>" title="<?= $t['is_active'] ? 'Đang hoạt động' : 'Tạm ngưng' ?>"></div>
-                                <span class="m-l-8 text-xs text-muted-dark"><?= $t['is_active'] ? 'Hoạt động' : 'Tạm ngưng' ?></span>
-                            </div>
-                        </div>
-                        <h3 class="workflow-title"><?= esc($t['name']) ?></h3>
-                        <div class="workflow-meta">
-                            <div class="meta-item">
-                                <i class="far fa-clock"></i>
-                                <span>~<?= $t['total_estimated_days'] ?> ngày làm việc</span>
-                            </div>
-                            <div class="meta-item">
-                                <i class="fas fa-code-branch"></i>
-                                <span>Mã: <?= esc($t['code']) ?></span>
-                            </div>
-                        </div>
-                        <div class="card-actions-premium m-t-20">
-                            <a href="<?= base_url('workflows/steps/' . $t['id']) ?>" class="btn-secondary-sm">
-                                <i class="fas fa-list-ol"></i> Thiết lập bước
-                            </a>
-                            <a href="<?= base_url('workflows/edit/' . $t['id']) ?>" class="btn-icon-only-minimal" title="Chỉnh sửa thông tin">
-                                <i class="far fa-edit"></i>
-                            </a>
-                            <a href="<?= base_url('workflows/delete/' . $t['id']) ?>" class="btn-icon-only-minimal text-apple-red" onclick="return confirm('Xóa quy trình này?')" title="Xóa quy trình">
-                                <i class="far fa-trash-alt"></i>
-                            </a>
-                        </div>
-                    </div>
-                <?php } ?>
-            </div>
+    <!-- SEARCH & FILTER BAR -->
+    <form id="workflow-filter-form" action="<?= base_url('workflows') ?>" method="get" class="search-filter-bar m-b-24">
+        <div class="search-input-group">
+            <i class="fas fa-search"></i>
+            <input type="text" name="q" placeholder="Tìm tên quy trình hoặc mã..." value="<?= esc(service('request')->getGet('q')) ?>" class="ajax-filter-search">
+        </div>
+
+        <select name="status" class="filter-select ajax-filter">
+            <option value="">Tất cả trạng thái</option>
+            <option value="1" <?= service('request')->getGet('status') === '1' ? 'selected' : '' ?>>Đang hoạt động</option>
+            <option value="0" <?= service('request')->getGet('status') === '0' ? 'selected' : '' ?>>Tạm ngưng</option>
+        </select>
+
+        <?php if (service('request')->getUri()->getQuery() !== '') { ?>
+            <a href="<?= base_url('workflows') ?>" class="btn-filter-secondary">Xóa lọc</a>
         <?php } ?>
+    </form>
+
+    <div class="workflow-grid" id="workflow-grid-container">
+        <?= view('dashboard/workflows/index_grid') ?>
     </div>
 </div>
 
@@ -126,8 +100,72 @@
 .btn-icon-only-minimal:hover {
     background: rgba(0,0,0,0.08);
 }
+.btn-icon-duplicate {
+    color: var(--apple-blue);
+    background: rgba(0, 122, 255, 0.05);
+}
+.btn-icon-duplicate:hover {
+    background: rgba(0, 122, 255, 0.15);
+}
 .flex-row { display: flex; }
 .align-center { align-items: center; }
 .m-l-8 { margin-left: 8px; }
 </style>
+<?= $this->endSection() ?>
+
+<?= $this->section('scripts') ?>
+<script>
+/**
+ * L.A.N ERP - Quản lý Quy trình mẫu (AJAX Auto-Filter)
+ */
+$(document).ready(function() {
+    const gridContainer = $('#workflow-grid-container');
+    const filterForm = $('#workflow-filter-form');
+    let searchTimeout = null;
+
+    $(document).on('change', '.ajax-filter', function() {
+        triggerFilter();
+    });
+
+    $(document).on('input', '.ajax-filter-search', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            triggerFilter();
+        }, 500);
+    });
+
+    $(document).on('click', '.btn-filter-secondary', function(e) {
+        if ($(this).attr('href') === filterForm.attr('action')) {
+            e.preventDefault();
+            filterForm[0].reset();
+            $('.ajax-filter-search').val('');
+            triggerFilter();
+        }
+    });
+
+    function triggerFilter() {
+        const formData = filterForm.serialize();
+        const baseUrl = filterForm.attr('action');
+        const finalUrl = baseUrl + '?' + formData;
+        
+        fetchUpdate(finalUrl);
+        window.history.pushState({path: finalUrl}, '', finalUrl);
+    }
+
+    async function fetchUpdate(url) {
+        gridContainer.css('opacity', '0.5');
+        try {
+            const response = await fetch(url, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const html = await response.text();
+            gridContainer.html(html);
+        } catch (err) {
+            console.error('Lỗi filter quy trình AJAX:', err);
+        } finally {
+            gridContainer.css('opacity', '1');
+        }
+    }
+});
+</script>
 <?= $this->endSection() ?>

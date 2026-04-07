@@ -21,14 +21,39 @@ use App\Services\CustomerService;
  */
 class CustomerController extends BaseController
 {
+    /**
+     * Khai báo metadata cho hệ thống Tự động Đồng bộ (Auto-Sync Permissions).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $modulePermissions = [
+        'group' => 'Khách hàng',
+        'permissions' => [
+            'customer.view'     => 'Xem danh sách khách hàng (Phòng ban/Cá nhân)',
+            'customer.manage'   => 'Tạo, sửa, xoá thông tin khách hàng cơ bản',
+            'customer.view_all' => 'Đặc quyền: Xem TOÀN BỘ khách hàng hệ thống (Bypass isolation)',
+            'customer.edit_all' => 'Đặc quyền: Chỉnh sửa TOÀN BỘ khách hàng hệ thống'
+        ]
+    ];
+
+    /**
+     * Khai báo danh mục thuộc thể loại Nhãn dán (Smart Tags).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $taggable = [
+        'type'  => 'customers',
+        'label' => 'Khách hàng (CRM)'
+    ];
+
     protected $customerModel;
     protected $customerService;
+    protected $tagService;
 
     public function __construct()
     {
         // Khởi tạo model và service phục vụ cho controller CRM
         $this->customerModel = new CustomerModel();
         $this->customerService = new CustomerService();
+        $this->tagService = new \App\Services\TagService();
     }
 
     /**
@@ -40,6 +65,7 @@ class CustomerController extends BaseController
         // 1. Phân tích các tham số lọc từ GET Request
         $search = $this->request->getGet('q');         // Từ khóa tìm kiếm
         $type = $this->request->getGet('type');       // Phân loại: Cá nhân / Doanh nghiệp
+        $tagId = $this->request->getGet('tag_id');     // Lọc theo tag
         
         $query = $this->customerModel;
 
@@ -59,35 +85,93 @@ class CustomerController extends BaseController
             $query->where('type', $type);
         }
 
-        // --- BẢO MẬT: LỌC DỮ LIỆU DANH SÁCH (Data Isolation) ---
-        // Nhân viên thường chỉ thấy khách hàng mà họ đang/đã từng phụ trách vụ việc.
-        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
-            $myEmpId = session()->get('employee_id');
-            $db = \Config\Database::connect();
-            
-            // 1. Phụ trách chính (Lawyer/Staff)
-            $subQuery1 = $db->table('cases')
-                ->select('customer_id')
-                ->where('assigned_lawyer_id', $myEmpId)
-                ->orWhere('assigned_staff_id', $myEmpId)
-                ->getCompiledSelect();
-
-            // 2. Là thành viên (CaseMember)
-            $subQuery2 = $db->table('cases')
-                ->select('customer_id')
-                ->join('case_members', 'case_members.case_id = cases.id')
-                ->where('case_members.employee_id', $myEmpId)
-                ->getCompiledSelect();
-
-            $query->where("id IN ($subQuery1) OR id IN ($subQuery2)", null, false);
+        // 4. Lọc theo Tag (Sử dụng bảng trung gian entity_tags)
+        if ($tagId) {
+            $query->whereIn('customers.id', function($builder) use ($tagId) {
+                $builder->select('entity_id')->from('entity_tags')
+                        ->where('entity_type', 'customers')
+                        ->where('tag_id', $tagId);
+            });
         }
 
-        // 4. Tổng hợp dữ liệu hiển thị
+        // --- BẢO MẬT: LỌC DỮ LIỆU DANH SÁCH (Data Isolation) ---
+        // Nếu không có quyền quản lý toàn cục hoặc quyền xem TẤT CẢ khách hàng thì áp dụng lọc phạm vi
+        if (!has_permission('sys.admin') && !has_permission('customer.manage') && !has_permission('customer.view_all')) {
+            $myEmpId = session()->get('employee_id');
+            $myDeptId = session()->get('department_id');
+            $roleName = session()->get('role_name');
+            $db = \Config\Database::connect();
+
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG) {
+                // QUẢN LÝ (TEAM-BASED MANAGEMENT): Lấy ID các nhân viên báo cáo cho mình
+                $myTeamIds = $db->table('employees')->where('manager_id', $myEmpId)->select('id')->get()->getResultArray();
+                $myTeamIds = array_column($myTeamIds, 'id');
+                $myTeamIds[] = $myEmpId; // Bao gồm sếp
+
+                $query->whereIn('customers.id', function($builder) use ($myTeamIds, $myDeptId) {
+                    $builder->select('customer_id')->from('cases')->groupStart();
+                        // A. Khách hàng của TEAM (Sếp + Quân)
+                        $builder->groupStart()
+                            ->whereIn('assigned_lawyer_id', $myTeamIds)
+                            ->orWhereIn('assigned_staff_id', $myTeamIds)
+                            ->orWhereIn('id', function($sub) use ($myTeamIds) {
+                                return $sub->select('case_id')->from('case_members')->whereIn('employee_id', $myTeamIds);
+                            })
+                        ->groupEnd();
+
+                            // B. NGOẠI LỆ PHÁP LÝ: Thấy khách hàng của vụ việc mồ côi
+                            if ($myDeptId == \Config\AppConstants::DEPT_PHAP_LY) {
+                                $builder->orGroupStart()
+                                    ->where('assigned_lawyer_id IS NULL')
+                                    ->where('assigned_staff_id IS NULL')
+                                ->groupEnd();
+                            }
+                        $builder->groupEnd();
+                });
+            } else {
+                // NHÂN VIÊN bình thường: Phụ trách chính hoặc là thành viên
+                $query->whereIn('customers.id', function($builder) use ($myEmpId) {
+                    $builder->select('customer_id')->from('cases')
+                        ->groupStart()
+                            ->where('assigned_lawyer_id', $myEmpId)
+                            ->orWhere('assigned_staff_id', $myEmpId)
+                            ->orWhereIn('id', function($sub) use ($myEmpId) {
+                                return $sub->select('case_id')->from('case_members')->where('employee_id', $myEmpId);
+                            })
+                        ->groupEnd();
+                });
+            }
+        }
+
+        // 4. Tổng hợp dữ liệu hiển thị (Aggregated Data Scoping)
+        $myEmpId = session()->get('employee_id');
+        $myDeptId = session()->get('department_id');
+        $roleName = session()->get('role_name');
+        
+        $statsEmpId = null;
+        $statsDeptId = null;
+        $statsManagerId = null;
+
+        // Chỉ lọc thống kê nếu không có quyền quản trị toàn cục hoặc xem tất cả (view_all)
+        if (!has_permission('sys.admin') && !has_permission('customer.manage') && !has_permission('customer.view_all')) {
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG) {
+                $statsDeptId = $myDeptId;
+                $statsManagerId = $myEmpId; // Filter theo TEAM
+            } else {
+                $statsEmpId = $myEmpId;
+            }
+        }
+
         $data = [
-            'customers' => $query->orderBy('created_at', 'DESC')->findAll(), // Sắp xếp khách hàng mới nhất lên đầu
-            'stats'     => $this->customerService->getDashboardStats(),     // Lấy các chỉ số KPI doanh thu/số lượng từ Service
-            'title'     => 'Quản lý khách hàng (CRM) | L.A.N ERP'
+            'customers'     => $query->orderBy('created_at', 'DESC')->findAll(),
+            'stats'         => $this->customerService->getDashboardStats($statsEmpId, $statsDeptId, $statsManagerId), 
+            'availableTags' => get_available_tags('customers'), // Core Function
+            'title'         => 'Quản lý khách hàng | L.A.N ERP'
         ];
+
+        if ($this->request->isAJAX()) {
+            return view('dashboard/customers/index_table', $data);
+        }
 
         return view('dashboard/customers/index', $data);
     }
@@ -99,6 +183,7 @@ class CustomerController extends BaseController
     public function create()
     {
         $data = [
+            'availableTags' => get_available_tags('customers'), // Core Function
             'title' => 'Tiếp nhận khách hàng mới | L.A.N ERP'
         ];
 
@@ -114,7 +199,8 @@ class CustomerController extends BaseController
     public function checkDuplicate()
     {
         $data = $this->request->getGet();
-        $duplicates = $this->customerService->findDuplicates($data);
+        $excludeId = $this->request->getGet('exclude_id');
+        $duplicates = $this->customerService->findDuplicates($data, $excludeId);
 
         if (!empty($duplicates)) {
             return $this->response->setJSON([
@@ -141,26 +227,49 @@ class CustomerController extends BaseController
         }
 
         // --- BẢO MẬT: KIỂM TRA QUYỀN TRUY CẬP TRỰC TIẾP (IDOR Protection) ---
-        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+        // Cho xem nếu là Admin, có quyền quản lý chung, hoặc có quyền Xem TẤT CẢ được sếp cấp riêng.
+        if (!has_permission('sys.admin') && !has_permission('customer.manage') && !has_permission('customer.view_all')) {
             $myEmpId = session()->get('employee_id');
+            $myDeptId = session()->get('department_id');
+            $roleName = session()->get('role_name');
             $db = \Config\Database::connect();
-            $hasAccess = $db->table('cases')
-                ->groupStart()
-                    ->where('customer_id', $id)
-                    ->groupStart()
+            
+            $isLegalManager = ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG && $myDeptId == \Config\AppConstants::DEPT_PHAP_LY);
+
+            if (!$isLegalManager) {
+                // XÂY DỰNG QUERY KIỂM TRA (Check if this customer has any case assigned to current user OR department)
+                $checkQuery = $db->table('cases')->where('customer_id', $id);
+
+                if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG) {
+                    // TRƯỞNG PHÒNG khác: Thấy KH nếu vụ việc có bất kỳ nhân sự nào thuộc phòng mình tham gia
+                    $deptEmpIds = $db->table('employees')->where('department_id', $myDeptId)->select('id')->get()->getResultArray();
+                    $deptEmpIds = array_column($deptEmpIds, 'id');
+                    
+                    if (!empty($deptEmpIds)) {
+                        $checkQuery->groupStart()
+                            ->whereIn('assigned_lawyer_id', $deptEmpIds)
+                            ->orWhereIn('assigned_staff_id', $deptEmpIds)
+                            ->orWhereIn('id', function($builder) use ($deptEmpIds) {
+                                return $builder->select('case_id')->from('case_members')->whereIn('employee_id', $deptEmpIds);
+                            })
+                        ->groupEnd();
+                    } else {
+                        $checkQuery->where('1=0', null, false);
+                    }
+                } else {
+                    // NHÂN VIÊN: Họ phải là member hoặc nhân sự chính
+                    $checkQuery->groupStart()
                         ->where('assigned_lawyer_id', $myEmpId)
                         ->orWhere('assigned_staff_id', $myEmpId)
-                    ->groupEnd()
-                ->groupEnd()
-                ->orGroupStart()
-                    ->where('cases.customer_id', $id)
-                    ->join('case_members', 'case_members.case_id = cases.id')
-                    ->where('case_members.employee_id', $myEmpId)
-                ->groupEnd()
-                ->countAllResults() > 0;
+                        ->orWhereIn('cases.id', function($builder) use ($myEmpId) {
+                            return $builder->select('case_id')->from('case_members')->where('employee_id', $myEmpId);
+                        })
+                        ->groupEnd();
+                }
 
-            if (!$hasAccess) {
-                return redirect()->to(base_url('customers'))->with('error', 'Bạn không có quyền truy cập hồ sơ khách hàng này.');
+                if ($checkQuery->countAllResults() === 0) {
+                    return redirect()->to(base_url('customers'))->with('error', 'Cảnh báo bảo mật: Bạn không có quyền truy cập hồ sơ khách hàng này.');
+                }
             }
         }
 
@@ -171,6 +280,19 @@ class CustomerController extends BaseController
             'action' => 'VIEW_FULL_PROFILE',
             'sensitive_fields' => ['identity_number', 'phone', 'address']
         ]);
+
+        // --- PHÂN QUYỀN CHỈNH SỬA (Edit Permission) ---
+        // Bổ sung: Nếu được cấp quyền 'customer.view_all' (hoặc dùng customer.manage) thì xem/sửa được hết.
+        $canEdit = false;
+        if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.view_all')) {
+            $canEdit = true;
+        } else {
+            $roleName = session()->get('role_name');
+            $myEmpId = session()->get('employee_id');
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG || $customer['created_by'] == $myEmpId) {
+                $canEdit = true;
+            }
+        }
 
         // 3. Kết nối dữ liệu đa tầng từ các Model liên quan
         $caseModel = new CaseModel();                       // Quản lý vụ việc/hồ sơ pháp lý
@@ -185,6 +307,7 @@ class CustomerController extends BaseController
             'interactions' => $interactionModel->getByCustomer($id),
             'payments'     => $paymentModel->where('customer_id', $id)->findAll(),
             'documents'    => $documentModel->where('customer_id', $id)->findAll(),
+            'tags'         => $this->tagService->getTagsByEntity($id, 'customers'),
             'title'        => 'Hồ sơ khách hàng: ' . $customer['name'] . ' | L.A.N ERP'
         ];
 
@@ -218,7 +341,7 @@ class CustomerController extends BaseController
         if (!$file) return redirect()->back()->with('error', 'Chưa chọn tệp tin.');
         
         // --- BẢO MẬT: KIỂM TRA QUYỀN (IDOR Protection) ---
-        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
+        if (!has_permission('sys.admin') && !has_permission('customer.manage') && !has_permission('customer.edit_all')) {
              return redirect()->back()->with('error', 'Cảnh báo bảo mật: Bạn không được quyền tải tài liệu vào hồ sơ khách hàng.');
         }
 
@@ -272,16 +395,112 @@ class CustomerController extends BaseController
         // 1. QUY TẮC ĐỊNH DANH (Standard ID Coding):
         // Nếu không nhập mã thủ công, hệ thống tự động sinh theo mẫu: KH-YYYY-STT (VD: KH-2024-001)
         if (empty($data['code'])) {
-            $count = $this->customerModel->countAllResults() + 1;
+            $count = $this->customerModel->withDeleted()->countAllResults() + 1;
             $data['code'] = 'KH-' . date('Y') . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
         }
 
-        // 2. Lưu dữ liệu (Hệ thống Validation trong Model sẽ tự động kiểm tra định dạng Email/SĐT)
+        // 2. Tiền xử lý TAG (Nếu là mảng từ POST, chuyển về CSV để lưu vào metadata khách hàng nếu cần)
+        $tags = $this->request->getPost('tags');
+        if (is_array($tags)) {
+            $data['tags'] = implode(',', $tags);
+        }
+
+        // 3. Lưu dữ liệu
+        $data['created_by'] = session()->get('employee_id');
         if ($this->customerModel->save($data)) {
+            $customerId = $this->customerModel->getInsertID();
+
+            // ĐỒNG BỘ NHÃN DÁN (Multi-modal relations)
+            if (is_array($tags) && !empty($tags)) {
+                $this->tagService->syncTags($customerId, 'customers', $tags);
+            }
+
             return redirect()->to(base_url('customers'))->with('success', 'Hồ sơ khách hàng mới đã được thiết lập thành công.');
         }
 
         // 3. Trả về thông báo lỗi chi tiết nếu vi phạm các ràng buộc dữ liệu
+        return redirect()->back()->withInput()->with('errors', $this->customerModel->errors());
+    }
+
+    /**
+     * Giao diện chỉnh sửa hồ sơ khách hàng.
+     */
+    public function edit($id)
+    {
+        $customer = $this->customerModel->find($id);
+        if (!$customer) {
+            return redirect()->to(base_url('customers'))->with('error', 'Hồ sơ không tồn tại.');
+        }
+
+        // --- BẢO MẬT TRUY CẬP: CHỈ NGƯỜI CÓ THẨM QUYỀN MỚI ĐƯỢC LOAD FORM ---
+        $canEdit = false;
+        if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
+            $canEdit = true;
+        } else {
+            $roleName = session()->get('role_name');
+            $myEmpId = session()->get('employee_id');
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG || $customer['created_by'] == $myEmpId) {
+                $canEdit = true;
+            }
+        }
+
+        if (!$canEdit) {
+            return redirect()->to(base_url('customers/show/' . $id))->with('error', 'Khóa bảo mật: Bạn không có quyền chỉnh sửa hồ sơ khách hàng này. Chỉ Quản lý hoặc người trực tiếp tạo mới được phép đổi.');
+        }
+
+        $data = [
+            'customer'      => $customer,
+            'availableTags' => get_available_tags('customers'), // Core Function
+            'selectedTags'  => array_column($this->tagService->getTagsByEntity($id, 'customers'), 'id'),
+            'title'         => 'Chỉnh sửa hồ sơ: ' . $customer['name'] . ' | L.A.N ERP'
+        ];
+
+        return view('dashboard/customers/edit', $data);
+    }
+
+    /**
+     * Cập nhật thông tin khách hàng.
+     */
+    public function update($id)
+    {
+        $customer = $this->customerModel->find($id);
+        if (!$customer) {
+            return redirect()->to(base_url('customers'))->with('error', 'Hồ sơ không tồn tại.');
+        }
+
+        // --- BẢO MẬT API: CHẶN CẬP NHẬT TRÁI PHÉP ---
+        $canEdit = false;
+        if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
+            $canEdit = true;
+        } else {
+            $roleName = session()->get('role_name');
+            $myEmpId = session()->get('employee_id');
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG || $customer['created_by'] == $myEmpId) {
+                $canEdit = true;
+            }
+        }
+
+        if (!$canEdit) {
+            return redirect()->to(base_url('customers/show/' . $id))->with('error', 'Thao tác bị từ chối do vi phạm quy chế bảo mật phân quyền.');
+        }
+
+        $data = $this->request->getPost();
+        
+        // Tiền xử lý TAGS cho bảng customers (metadata)
+        $tags = $this->request->getPost('tags');
+        if (is_array($tags)) {
+            $data['tags'] = implode(',', $tags);
+        }
+
+        if ($this->customerModel->update($id, $data)) {
+            // ĐỒNG BỘ NHÃN DÁN (Bridge Table relations)
+            if (is_array($tags)) {
+                $this->tagService->syncTags($id, 'customers', $tags);
+            }
+
+            return redirect()->to(base_url('customers/show/' . $id))->with('success', 'Hồ sơ khách hàng đã được cập nhật.');
+        }
+
         return redirect()->back()->withInput()->with('errors', $this->customerModel->errors());
     }
 
@@ -316,5 +535,52 @@ class CustomerController extends BaseController
         }
 
         return redirect()->back()->with('error', 'Không thể lưu nhật ký. Vui lòng kiểm tra lại nội dung nhập.');
+    }
+
+    /**
+     * Xóa hồ sơ khách hàng (Soft Delete) với kiểm tra bảo toàn dữ liệu (Data Integrity).
+     */
+    public function delete($id)
+    {
+        // 1. Phân quyền: Cấp thao tác cao nhất
+        if (!has_permission('sys.admin')) {
+            return redirect()->back()->with('error', 'Cảnh báo bảo mật: Chỉ Quản trị viên hệ thống mới được phép xóa hồ sơ khách hàng.');
+        }
+
+        // 2. Bảo vệ Giao dịch (Integrity Check)
+        // Tuyệt đối không cho phép xóa khách hàng đã và đang có Vụ việc pháp lý
+        $caseModel = new \App\Models\CaseModel();
+        $casesCount = $caseModel->where('customer_id', $id)->countAllResults();
+        
+        if ($casesCount > 0) {
+             return redirect()->back()->with('error', "Vi phạm toàn vẹn dữ liệu: Khách hàng này đang sở hữu {$casesCount} vụ việc pháp lý. Yêu cầu xử lý các vụ việc trước khi gỡ khách hàng.");
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        // 3. Liên đới dữ liệu (Orphaned Data Management)
+        // Xóa mềm nhật ký tương tác
+        $interactionModel = new \App\Models\CustomerInteractionModel();
+        $interactionModel->where('customer_id', $id)->delete();
+
+        // Hủy liên kết (Unlink) tài liệu thay vì xóa vật lý tài liệu
+        $docModel = new \App\Models\DocumentModel();
+        $docModel->where('customer_id', $id)->set(['customer_id' => null])->update();
+
+        // 4. Thực thi Xóa Khách Hàng
+        $this->customerModel->delete($id);
+
+        $db->transComplete();
+
+        if ($db->transStatus() === FALSE) {
+            return redirect()->back()->with('error', 'Phát sinh lỗi toàn vẹn CSDL. Đã hủy bỏ thao tác xóa.');
+        }
+
+        // Ghi Log truy vết
+        $logService = new \App\Services\SystemLogService();
+        $logService->log('DELETE', 'Customers', $id, ['action' => 'HARD_REVOKE_CUSTOMER']);
+
+        return redirect()->to(base_url('customers'))->with('success', 'Đã gỡ bỏ an toàn kho lưu trữ số của khách hàng này.');
     }
 }

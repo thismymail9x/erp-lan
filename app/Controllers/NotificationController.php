@@ -24,19 +24,146 @@ class NotificationController extends BaseController
     }
 
     /**
-     * Hiển thị trang trung tâm thông báo.
-     * Hỗ trợ phân trang để tối ưu tốc độ tải khi User có hàng ngàn thông báo.
+     * Hiển thị trung tâm thông báo tập trung.
+     * Hỗ trợ 3 luồng dữ liệu: Đến (Inbox), Đi (Sent) và Quản trị (All - Admin Only).
      */
     public function index()
     {
         $userId = session()->get('user_id');
+        $tab = $this->request->getGet('tab') ?: 'inbox';
+        $search = (string) $this->request->getGet('q');
+        $type = (string) $this->request->getGet('type');
+        
         $data = [
-            // Lấy 20 thông báo gần nhất kèm theo phân trang (Pager)
-            'notifications' => $this->notificationModel->getNotifications($userId, 20),
-            'pager'         => $this->notificationModel->pager,
-            'title'         => 'Trung tâm thông báo | L.A.N ERP'
+            'title' => 'Thông báo & Chỉ đạo nội bộ | L.A.N ERP',
+            'tab'   => $tab
         ];
+
+        // LOGIC PHÂN LUỒNG TAB KÈM BỘ LỌC
+        if ($tab === 'sent') {
+            $data['notifications'] = $this->notificationModel->getSent($userId, 20, $search, $type);
+        } elseif ($tab === 'all' && has_permission('sys.admin')) {
+            $data['notifications'] = $this->notificationModel->getAllLogs(30, $search, $type);
+        } else {
+            $data['notifications'] = $this->notificationModel->getNotifications($userId, 20, $search, $type);
+        }
+        
+        $data['pager'] = $this->notificationModel->pager;
+
+        // PHẢN HỒI AJAX (PARTIAL VIEW UPDATE)
+        if ($this->request->isAJAX()) {
+            return view('dashboard/notifications/index_list', $data);
+        }
+
         return view('dashboard/notifications/index', $data);
+    }
+
+    /**
+     * Giao diện soạn thông báo/ý kiến mới.
+     */
+    public function create()
+    {
+        $data = [
+            'staffs'      => get_available_employees(),
+            'departments' => get_departments(),
+            'title'       => 'Soạn thông báo & Ý kiến mới | L.A.N ERP'
+        ];
+        return view('dashboard/notifications/create', $data);
+    }
+
+    /**
+     * Lưu và phát tán thông báo.
+     */
+    public function store()
+    {
+        $targetType = $this->request->getPost('target_type') ?: 'individual';
+        $message = $this->request->getPost('message');
+        $title = $this->request->getPost('title') ?: 'Trao đổi nội bộ mới';
+        
+        if (!$message) {
+            return redirect()->back()->with('error', 'Vui lòng nhập nội dung trao đổi.');
+        }
+
+        $recipientUserIds = [];
+
+        // XÁC ĐỊNH DANH SÁCH NGƯỜI NHẬN
+        if ($targetType === 'individual') {
+            $recipientUserIds = $this->request->getPost('user_ids'); // Dạng mảng
+        } elseif ($targetType === 'department') {
+            $deptId = $this->request->getPost('department_id');
+            $roleName = session()->get('role_name');
+            $myDeptId = session()->get('department_id');
+
+            // Bảo mật: Chỉ cho phép Admin gửi đi bất kỳ phòng nào, 
+            // HOẶC Trưởng phòng gửi cho chính phòng mình.
+            if (has_permission('sys.admin') || ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG && $deptId == $myDeptId)) {
+                if ($deptId) {
+                    $recipientUserIds = model('EmployeeModel')->where('department_id', $deptId)->findColumn('user_id');
+                }
+            } else {
+                return redirect()->back()->with('error', 'Bạn không có quyền gửi thông báo cho phòng ban này.');
+            }
+        } elseif ($targetType === 'all' && has_permission('sys.admin')) {
+            $recipientUserIds = model('UserModel')->findColumn('id');
+        }
+
+        if (empty($recipientUserIds)) {
+            return redirect()->back()->with('error', 'Không tìm thấy người nhận hợp lệ.');
+        }
+
+        // PHÁT TÁN THÔNG BÁO CHO TỪNG NGƯỜI (Batch insert if possible, but safe loop is fine here)
+        $batchData = [];
+        $senderId = session()->get('user_id');
+
+        foreach ($recipientUserIds as $rid) {
+            // Không tự gửi cho chính mình trong chế độ gửi hàng loạt/công ty
+            if ($rid == $senderId && count($recipientUserIds) > 1) continue;
+
+            $batchData[] = [
+                'user_id'   => $rid,
+                'sender_id' => $senderId,
+                'type'      => 'message',
+                'title'     => $title,
+                'message'   => $message,
+                'is_read'   => 0
+            ];
+        }
+
+        if (!empty($batchData)) {
+            $this->notificationModel->insertBatch($batchData);
+        }
+
+        return redirect()->to(base_url('notifications?tab=sent'))->with('success', 'Đã chuyển ' . count($batchData) . ' thông báo đi thành công.');
+    }
+
+    /**
+     * Xem chi tiết nội dung thông báo.
+     */
+    public function show($id)
+    {
+        $userId = session()->get('user_id');
+        $notif = $this->notificationModel->getFullDetail($id);
+
+        if (!$notif) {
+            return redirect()->to(base_url('notifications'))->with('error', 'Không tìm thấy thông báo.');
+        }
+
+        // BẢO MẬT: Chỉ người gửi, người nhận hoặc Admin mới được xem chi tiết
+        if ($notif['user_id'] != $userId && $notif['sender_id'] != $userId && !has_permission('sys.admin')) {
+             return redirect()->to(base_url('notifications'))->with('error', 'Bạn không có quyền xem thông báo này.');
+        }
+
+        // Đánh dấu đã đọc nếu là người nhận
+        if ($notif['user_id'] == $userId) {
+            $this->notificationModel->markAsRead($id, $userId);
+        }
+
+        $data = [
+            'notif' => $notif,
+            'title' => 'Chi tiết thông báo: ' . $notif['title']
+        ];
+
+        return view('dashboard/notifications/show', $data);
     }
 
     /**

@@ -73,12 +73,25 @@ class EmployeeService extends BaseService
         $query->orderBy($orderField, $direction);
 
         // 2. LOGIC PHÂN TÁCH DỮ LIỆU (Contextual Data Fetching):
-        if ($roleName === \Config\AppConstants::ROLE_ADMIN || 
+        if (has_permission('sys.admin') || 
+            $roleName === \Config\AppConstants::ROLE_ADMIN || 
             $roleName === \Config\AppConstants::ROLE_MOD || 
             $departmentName === \Config\AppConstants::DEPT_NAME_HANH_CHINH) {
             
             // Nhóm Đặc quyền: Xem được hồ sơ của toàn bộ nhân viên công ty
             return $query->paginate($perPage);
+        }
+
+        if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG) {
+            // TRƯỞNG PHÒNG (TEAM-BASED): Chỉ xem được hồ sơ nhân viên trong tổ đội của mình
+            $myEmpId = session()->get('employee_id');
+            if ($myEmpId) {
+                $query->groupStart()
+                        ->where('employees.manager_id', $myEmpId) // Quân của mình
+                        ->orWhere('employees.id', $myEmpId)      // Chính mình
+                      ->groupEnd();
+                return $query->paginate($perPage);
+            }
         }
 
         // Nhóm Thành viên: Tuyệt đối chỉ xem được duy nhất hồ sơ cá nhân của mình thông qua liên kết Session
@@ -190,7 +203,26 @@ class EmployeeService extends BaseService
      */
     public function getDepartments()
     {
-        $departmentModel = new DepartmentModel();
+        $departmentModel = new \App\Models\DepartmentModel();
         return $departmentModel->findAll();
+    }
+
+    /**
+     * Lấy danh sách toàn bộ người có quyền cấp Quản lý (Managerial staff).
+     * Dùng để gán sếp trực tiếp cho nhân viên cấp dưới.
+     */
+    public function getManagers()
+    {
+        // MANAGER: Gồm Admin, Mod và Trưởng phòng đang hoạt động (active_status = 1)
+        return $this->employeeModel->select('employees.*, roles.name as role_name')
+            ->join('users', 'users.id = employees.user_id')
+            ->join('roles', 'roles.id = users.role_id')
+            ->where('users.active_status', 1)
+            ->whereIn('roles.name', [
+                \Config\AppConstants::ROLE_ADMIN,
+                \Config\AppConstants::ROLE_MOD,
+                \Config\AppConstants::ROLE_TRUONG_PHONG
+            ])
+            ->findAll();
     }
 }

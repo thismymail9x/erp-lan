@@ -12,6 +12,17 @@ use App\Services\AuthService;
  */
 class AuthController extends BaseController
 {
+    /**
+     * Khai báo metadata cho hệ thống Tự động Đồng bộ (Auto-Sync Permissions).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $modulePermissions = [
+        'group' => 'Hệ thống',
+        'permissions' => [
+            'sys.admin' => 'Đặc quyền TỐI CAO: Toàn quyền truy cập và điều cấu hình hệ thống'
+        ]
+    ];
+
     protected $authService;
     protected $utilityService;
 

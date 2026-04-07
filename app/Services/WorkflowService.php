@@ -105,7 +105,8 @@ class WorkflowService extends BaseService
                 'responsible_role'      => $tStep['responsible_role'],
                 'required_documents'    => $tStep['required_documents'], // Danh sách giấy tờ cần quét upload
                 'next_step_condition'   => $tStep['next_step_condition'],
-                'notification_template' => $tStep['notification_template']
+                'notification_template' => $tStep['notification_template'],
+                'kpi_reward'            => $tStep['kpi_reward'] ?? 0
             ]);
 
             // Cập nhật mốc 'startDate' cho vòng lặp kế tiếp
@@ -210,8 +211,10 @@ class WorkflowService extends BaseService
         if (!$step) throw new Exception("Không tìm thấy dữ liệu bước.");
 
         // 1. Chốt thời gian hoàn thành thực tế
+        $completedAt = date('Y-m-d H:i:s');
+        
         $this->stepModel->update($stepId, [
-            'completed_at' => date('Y-m-d H:i:s'),
+            'completed_at' => $completedAt,
             'status'       => 'completed'
         ]);
 
@@ -296,11 +299,34 @@ class WorkflowService extends BaseService
     }
 
     /**
-     * Lấy toàn bộ danh mục Quy trình mẫu.
+     * Lấy toàn bộ danh mục Quy trình mẫu với bộ lọc nâng cao & Phân trang.
      */
-    public function getAllTemplates()
+    public function getAllTemplates(string $search = '', string $status = '', int $perPage = 10)
     {
-        return $this->templateModel->orderBy('created_at', 'DESC')->findAll();
+        $query = $this->templateModel->orderBy('created_at', 'DESC');
+
+        // BỘ LỌC TÌM KIẾM (Mã hoặc Tên)
+        if (!empty($search)) {
+            $query->groupStart()
+                  ->like('workflow_templates.name', $search)
+                  ->orLike('workflow_templates.code', $search)
+                  ->groupEnd();
+        }
+
+        // BỘ LỌC TRẠNG THÁI
+        if ($status !== '') {
+            $query->where('workflow_templates.is_active', (int)$status);
+        }
+
+        return $query->paginate($perPage);
+    }
+
+    /**
+     * Lấy công cụ phân trang (Pager) cho View.
+     */
+    public function getPager()
+    {
+        return $this->templateModel->pager;
     }
 
     /**
@@ -406,6 +432,9 @@ class WorkflowService extends BaseService
      */
     public function updateTemplate(int $id, array $data)
     {
+        // RÀO CẢN LOGIC: Ép kiểu ID vào quy tắc Validate để bỏ qua bản ghi hiện tại khi check mã Code trùng lặp
+        $this->templateModel->setValidationRule('code', "required|is_unique[workflow_templates.code,id,$id]");
+        
         return $this->templateModel->update($id, $data);
     }
 
@@ -415,5 +444,226 @@ class WorkflowService extends BaseService
     public function deleteTemplate($id)
     {
         return $this->templateModel->delete($id);
+    }
+
+    /**
+     * TÍNH NĂNG CLONE (NHÂN BẢN): 
+     * Sao chép toàn bộ cấu trúc quy trình bao gồm cả Template và các Step chi tiết.
+     */
+    public function duplicateTemplate($id)
+    {
+        $oldTemplate = $this->templateModel->find($id);
+        if (!$oldTemplate) {
+            return false;
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        // 1. Chắt lọc dữ liệu Template mẹ
+        $allowed = $this->templateModel->allowedFields;
+        $newTemplateData = [];
+        foreach ($allowed as $field) {
+            if (isset($oldTemplate[$field])) {
+                $newTemplateData[$field] = $oldTemplate[$field];
+            }
+        }
+
+        $newTemplateData['name'] = $oldTemplate['name'] . ' (Bản sao)';
+        $newTemplateData['code'] = substr($oldTemplate['code'], 0, 30) . '_CLON_' . time();
+        $newTemplateData['created_at'] = date('Y-m-d H:i:s');
+        
+        try {
+            $newTemplateId = $this->templateModel->insert($newTemplateData);
+            
+            if (!$newTemplateId) {
+                return false; 
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'Lỗi DB khi nhân bản: ' . $e->getMessage());
+            return false;
+        }
+
+        // 2. Nhân bản toàn bộ các bước con (Steps) hòan hảo
+        $oldSteps = $this->templateStepModel->where('template_id', $id)->findAll();
+        foreach ($oldSteps as $step) {
+            $newStepData = $step;
+            unset($newStepData['id']); 
+            $newStepData['template_id'] = $newTemplateId; 
+            
+            try {
+                if (!$this->templateStepModel->insert($newStepData)) {
+                    log_message('error', 'Lỗi Validation Step: ' . json_encode($this->templateStepModel->errors()));
+                    return false;
+                }
+            } catch (\Exception $e) {
+                log_message('error', 'Lỗi SQL Step: ' . $e->getMessage());
+                return false;
+            }
+        }
+
+        $db->transComplete();
+        return $db->transStatus() ? $newTemplateId : false;
+    }
+    /**
+     * Truy xuất các sai sót phát sinh trong quá trình tương tác Model (vd: Validation errors).
+     */
+    public function getErrors()
+    {
+        return $this->templateModel->errors();
+    }
+
+    /**
+     * Tự động kiểm tra hạn chót toàn hệ thống (Daily Task logic).
+     * Bắn thông báo nhắc nhở sắp đến hạn hoặc báo cáo quá hạn cho quản lý.
+     */
+    public function checkStepDeadlines()
+    {
+        // 1. Tìm các bước chưa hoàn thành (active)
+        $activeSteps = $this->stepModel->where('status', 'active')
+                                       ->where('completed_at', null)
+                                       ->findAll();
+
+        $now = new DateTime('now');
+        
+        foreach ($activeSteps as $step) {
+            $deadline = new DateTime($step['deadline']);
+            $diff = $now->diff($deadline);
+            $hoursLeft = ($deadline->getTimestamp() - $now->getTimestamp()) / 3600;
+
+            // Trường hợp 1: Sắp đến hạn (còn dưới 24h)
+            if ($hoursLeft > 0 && $hoursLeft <= 24) {
+                $this->notifyUpcomingDeadline($step);
+            }
+            // Trường hợp 2: Đã quá hạn
+            elseif ($hoursLeft <= 0 && $step['overdue_notified'] == 0) {
+                $this->handleOverdueStep($step);
+            }
+        }
+    }
+
+    /**
+     * Gửi nhắc nhở cho nhân viên phụ trách khi bước sắp đến hạn.
+     */
+    private function notifyUpcomingDeadline($step)
+    {
+        $case = $this->caseModel->find($step['case_id']);
+        $title = "Cảnh báo: Sắp đến hạn bước";
+        $msg = "Bước [{$step['step_name']}] của hồ sơ '{$case['code']}' chỉ còn chưa đầy 24h để hoàn thành. Hãy kiểm tra ngay!";
+        $link = base_url('cases/show/' . $step['case_id']);
+        
+        $this->notifyCaseMembers($step['case_id'], $title, $msg, 'warning', $link);
+    }
+
+    /**
+     * Thông báo cho quản lý khi bước bị quá hạn (Escalation).
+     * Đồng thời đánh dấu đã thông báo để không bắn liên tục.
+     */
+    private function handleOverdueStep($step)
+    {
+        $case = $this->caseModel->find($step['case_id']);
+        $title = "Báo Cáo: QUÁ HẠN tiến độ";
+        $msg = "CẢNH BÁO: Bước [{$step['step_name']}] của hồ sơ '{$case['code']}' đã QUÁ HẠN. KPI và Thưởng của bước này sẽ bị hủy.";
+        $link = base_url('cases/show/' . $step['case_id']);
+        
+        // 1. Đánh dấu đã báo quá hạn và hủy KPI/Thưởng tạm thời (tính toán thực tế ở lúc hoàn thành)
+        $this->stepModel->update($step['id'], ['overdue_notified' => 1]);
+
+        // 2. Tìm người phụ trách để trừ điểm tiềm năng
+        // 3. Thông báo cho Ban Giám đốc / Trưởng phòng
+        $this->notificationService->notifyManagement($title, $msg, 'danger', $link);
+        
+        // Cũng thông báo cho Team đang làm vụ việc
+        $this->notifyCaseMembers($step['case_id'], $title, $msg, 'danger', $link);
+    }
+
+    /**
+     * Đồng bộ lại mức thưởng KPI từ Quy trình mẫu vào Vụ việc thực tế.
+     * Chỉ thực hiện khi có yêu cầu từ Quản trị viên (Admin).
+     */
+    public function syncRewardsForCase(int $caseId)
+    {
+        $steps = $this->stepModel->where('case_id', $caseId)->findAll();
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        foreach ($steps as $step) {
+            if (!empty($step['template_step_id'])) {
+                // Lấy giá trị mới nhất từ bảng Template gốc
+                $tStep = $this->templateStepModel->find($step['template_step_id']);
+                if ($tStep) {
+                    $this->stepModel->update($step['id'], [
+                        'kpi_reward' => $tStep['kpi_reward']
+                    ]);
+                }
+            }
+        }
+
+        $db->transComplete();
+        return $db->transStatus();
+    }
+
+    /**
+     * Đổi Quy trình (Workflow) cho một Vụ việc.
+     * Áp dụng nguyên tắc ngặt nghèo: Chỉ đổi khi chưa có bước nào hoàn thành.
+     * 
+     * @param int $caseId ID Vụ việc
+     * @param int $newTemplateId ID Quy trình mẫu mới
+     * @throws Exception
+     */
+    public function changeWorkflowForCase(int $caseId, int $newTemplateId)
+    {
+        $case = $this->caseModel->find($caseId);
+        if (!$case) throw new Exception("Không tìm thấy vụ việc.");
+
+        $newTemplate = $this->templateModel->find($newTemplateId);
+        if (!$newTemplate) throw new Exception("Không tìm thấy quy trình mẫu mục tiêu.");
+
+        // Kiểm tra điều kiện tiên quyết: Không có bất kỳ bước nào đã hoàn thành
+        $completedSteps = $this->stepModel->where('case_id', $caseId)
+                                          ->where('status', 'completed')
+                                          ->countAllResults();
+        if ($completedSteps > 0) {
+            throw new Exception("Không thể thay đổi quy trình: Vụ việc này đã có bước hoàn thành. Đổi quy trình trực tiếp sẽ gây sai lệch dữ liệu tiến độ và KPI.");
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        try {
+            // Bước 1.1: Gỡ liên kết của các tài liệu đính kèm với những bước công việc cũ (chuyển thành tài liệu chung của vụ việc)
+            $documentModel = model('DocumentModel');
+            $documentModel->where('case_id', $caseId)->set(['step_id' => null])->update();
+
+            // Bước 1.2: Xóa trắng toàn bộ lịch trình cũ (do nó chưa được thực hiện hoàn tất)
+            $this->stepModel->where('case_id', $caseId)->delete(null, true);
+
+            // Bước 2: Khởi tạo lại tiến trình từ template mới
+            $this->initializeFlowForCase($caseId, $newTemplateId);
+
+            // Bước 3: Lưu lại lịch sử theo dõi
+            $historyModel = model('CaseHistoryModel');
+            $historyModel->insert([
+                'case_id'   => $caseId,
+                'user_id'   => session()->get('user_id') ?: 0,
+                'action'    => 'doi_quy_trinh',
+                'old_value' => $case['workflow_template_id'],
+                'new_value' => $newTemplateId,
+                'note'      => 'Quản trị viên đã đổi từ quy trình cơ bản sang quy trình: ' . $newTemplate['name'],
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+
+            $db->transComplete();
+        } catch (\Exception $e) {
+            $db->transRollback();
+            throw $e;
+        }
+
+        if ($db->transStatus() === false) {
+            throw new Exception("Lỗi hệ thống khi cập nhật đổi quy trình.");
+        }
+
+        return true;
     }
 }

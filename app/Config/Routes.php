@@ -7,6 +7,9 @@ use CodeIgniter\Router\RouteCollection;
  */
 $routes->get('/', 'AuthController::login');
 $routes->get('fix', 'FixController::index');
+$routes->get('perm-fix', 'PermFixController::index');
+$routes->get('perm-fix/sync', 'PermFixController::sync');
+$routes->get('dump-perms', 'PermFixController::dumpPerms');
 
 // Auth Routes
 $routes->get('login', 'AuthController::login');
@@ -77,13 +80,24 @@ $routes->group('cases', function($routes) {
     $routes->post('complete-step/(:num)', 'CaseController::completeStep/$1');
     $routes->post('approve-step/(:num)', 'CaseController::approveStep/$1');
     $routes->post('reject-step/(:num)', 'CaseController::rejectStep/$1');
-    $routes->get('my-cases', 'CaseController::myCases');
     $routes->post('add-comment/(:num)', 'CaseController::addComment/$1');
+    $routes->get('sync-rewards/(:num)', 'CaseController::syncRewards/$1');
+    $routes->post('send-reminder/(:num)', 'CaseController::sendReminder/$1');
+    $routes->post('update-tags/(:num)', 'CaseController::updateTags/$1');
+    $routes->post('create-tag', 'CaseController::createTag');
+    $routes->get('my-cases', 'CaseController::myCases');
+    $routes->get('edit/(:num)', 'CaseController::edit/$1');
+    $routes->post('update/(:num)', 'CaseController::update/$1');
+    $routes->get('delete/(:num)', 'CaseController::delete/$1');
+    $routes->get('purge/(:num)', 'CaseController::purge/$1');
 });
 
 // Notification Routes
 $routes->group('notifications', function($routes) {
     $routes->get('/', 'NotificationController::index');
+    $routes->get('create', 'NotificationController::create');
+    $routes->post('store', 'NotificationController::store');
+    $routes->get('show/(:num)', 'NotificationController::show/$1');
     $routes->get('unread-count', 'NotificationController::getUnreadCount');
     $routes->get('unread', 'NotificationController::getUnread');
     $routes->post('read/(:num)', 'NotificationController::markAsRead/$1');
@@ -93,15 +107,20 @@ $routes->group('notifications', function($routes) {
 // Customer CRM Routes
 $routes->group('customers', function($routes) {
     $routes->get('/', 'CustomerController::index');
+    $routes->get('edit/(:num)', 'CustomerController::edit/$1');
     $routes->get('show/(:num)', 'CustomerController::show/$1');
     $routes->get('create', 'CustomerController::create');
     $routes->post('store', 'CustomerController::store');
+    
     // API actions
     $routes->get('check-duplicate', 'CustomerController::checkDuplicate');
     $routes->post('add-interaction/(:num)', 'CustomerController::addInteraction/$1');
     $routes->post('upload-doc/(:num)', 'CustomerController::uploadDocument/$1');
     $routes->post('import-doc/(:num)', 'CustomerController::importDocument/$1');
     $routes->get('stale', 'CustomerController::stale');
+    
+    $routes->post('update/(:num)', 'CustomerController::update/$1');
+    $routes->get('delete/(:num)', 'CustomerController::delete/$1');
 });
 
 // Workflow Management Routes
@@ -111,9 +130,36 @@ $routes->group('workflows', function($routes) {
     $routes->post('store', 'WorkflowController::store');
     $routes->get('edit/(:num)', 'WorkflowController::edit/$1');
     $routes->post('update/(:num)', 'WorkflowController::update/$1');
+    $routes->get('duplicate/(:num)', 'WorkflowController::duplicate/$1');
     $routes->get('delete/(:num)', 'WorkflowController::delete/$1');
     $routes->get('steps/(:num)', 'WorkflowController::steps/$1');
     $routes->post('update-steps/(:num)', 'WorkflowController::updateSteps/$1');
+});
+
+// Knowledge Base Routes
+$routes->group('knowledge', function($routes) {
+    $routes->get('/', 'KnowledgeController::index');
+    $routes->get('create', 'KnowledgeController::create');
+    $routes->post('store', 'KnowledgeController::store');
+    $routes->get('show/(:num)', 'KnowledgeController::show/$1');
+    $routes->get('edit/(:num)', 'KnowledgeController::edit/$1');
+    $routes->post('update/(:num)', 'KnowledgeController::update/$1');
+    $routes->get('delete/(:num)', 'KnowledgeController::delete/$1');
+    $routes->post('vote/(:num)', 'KnowledgeController::vote/$1');
+    
+    // Legacy setup route
+    $routes->get('migrate-db', 'KnowledgeController::migrateDb');
+});
+
+// Tag Management Routes
+$routes->group('tags', function($routes) {
+    $routes->get('/', 'TagController::index');
+    $routes->post('store', 'TagController::store');
+    $routes->post('update/(:num)', 'TagController::update/$1');
+    $routes->get('delete/(:num)', 'TagController::delete/$1');
+    $routes->post('update-entity-tags', 'TagController::updateEntityTags');
+    $routes->get('get-entity-tags', 'TagController::getEntityTags');
+    $routes->get('show/(:num)', 'TagController::show/$1');
 });
 
 // DMS (Document Management System) Routes
@@ -123,6 +169,16 @@ $routes->group('documents', function($routes) {
     $routes->get('view/(:num)', 'DocumentController::view/$1');
     $routes->get('delete/(:num)', 'DocumentController::delete/$1');
     $routes->get('vault-list', 'DocumentController::getVaultDocuments');
+    $routes->post('bulk-delete', 'DocumentController::bulkDelete');
+});
+
+// Leave Request Management Routes
+$routes->group('leave-requests', function($routes) {
+    $routes->get('/', 'LeaveRequestController::index');
+    $routes->get('create', 'LeaveRequestController::create');
+    $routes->post('store', 'LeaveRequestController::store');
+    $routes->post('approve/(:num)', 'LeaveRequestController::approve/$1');
+    $routes->get('cancel/(:num)', 'LeaveRequestController::cancel/$1');
 });
 
 // Utility Routes (For Browser-based DB Setup)

@@ -21,7 +21,6 @@ class WorkflowSeeder extends BaseController
             $templateId = $templateModel->insert([
                 'code' => 'XOA_AN_TICH_2026',
                 'name' => 'Quy trình Xóa án tích (Tiêu chuẩn)',
-                'case_type' => 'xoa_an_tich',
                 'version' => 1,
                 'is_active' => 1,
                 'total_estimated_days' => 48,

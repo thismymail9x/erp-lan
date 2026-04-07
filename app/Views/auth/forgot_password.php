@@ -26,7 +26,7 @@
             <form action="<?= base_url('forgot-password') ?>" method="POST">
                 <?= csrf_field() ?>
                 <div class="input-group">
-                    <input type="email" name="email" id="email" placeholder=" " required>
+                    <input type="email" name="email" id="email"  required>
                     <label for="email">Địa chỉ Email</label>
                 </div>
 

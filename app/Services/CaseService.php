@@ -35,7 +35,7 @@ class CaseService extends BaseService
      * @param string $search Từ khóa tìm kiếm đa năng.
      * @return array Danh sách vụ việc đã được lọc và làm sạch dữ liệu.
      */
-    public function getCases(string $sort = 'id', string $order = 'desc', int $perPage = 10, string $search = '')
+    public function getCases(string $sort = 'id', string $order = 'desc', int $perPage = 10, string $search = '', array $lawyerIds = [])
     {
         // 1. Phân tích bối cảnh người dùng (Authentication Context)
         $roleName = session()->get('role_name');
@@ -57,46 +57,78 @@ class CaseService extends BaseService
         $direction  = (strtolower($order) === 'asc') ? 'asc' : 'desc';
 
         // 3. Xây dựng Query Builder cốt lõi
-        $query = $this->caseModel->select('cases.*, customers.name as customer_name, current_step.step_name as current_step_name, current_step.deadline as step_deadline')
-                        ->join('customers', 'customers.id = cases.customer_id') // Join lấy thông tin chủ sở hữu (Khách hàng)
-                        // Join lấy Bước (Step) hiện tại đang ở trạng thái Cần xử lý hoặc Chờ duyệt
-                        ->join('case_steps as current_step', "current_step.case_id = cases.id AND current_step.status IN ('active', 'pending_approval')", 'left')
-                        ->groupBy('cases.id'); // Đảm bảo tính duy nhất của bản ghi sau các phép Join
+        $query = $this->caseModel->select('cases.*, customers.name as customer_name, employees.full_name as lawyer_name, current_step.step_name as current_step_name, current_step.deadline as step_deadline')
+            ->join('customers', 'customers.id = cases.customer_id', 'left')
+            ->join('employees', 'employees.id = cases.assigned_lawyer_id', 'left')
+            ->join('case_steps as current_step', "current_step.case_id = cases.id AND current_step.status IN ('active', 'pending_approval')", 'left')
+            ->groupBy('cases.id');
 
-        // --- BỘ LỌC TÌM KIẾM (Search Engine) ---
+        // 4. Lọc theo nhân viên phụ trách nếu có yêu cầu (Hỗ trợ lọc nhiều người cùng lúc)
+        if (!empty($lawyerIds)) {
+            $query->groupStart()
+                ->whereIn('cases.assigned_lawyer_id', $lawyerIds)
+                ->orWhereIn('cases.assigned_staff_id', $lawyerIds)
+                ->orWhereIn('cases.id', function($builder) use ($lawyerIds) {
+                    return $builder->select('case_id')->from('case_members')->whereIn('employee_id', $lawyerIds);
+                })
+            ->groupEnd();
+        }
+
+        // 5. Tìm kiếm đa năng (Mã, Tên, Khách hàng, Luật sư)
         if (!empty($search)) {
             $query->groupStart()
-                  ->like('cases.title', $search)   // Tiêu đề vụ việc
-                  ->orLike('cases.code', $search)  // Mã hồ sơ nội bộ
-                  ->orLike('customers.name', $search) // Tên đối tác/khách hàng
-                  ->groupEnd();
+                ->like('cases.code', $search)
+                ->orLike('cases.title', $search)
+                ->orLike('customers.name', $search)
+                ->orLike('employees.full_name', $search)
+            ->groupEnd();
         }
 
         // --- CƠ CHẾ PHÂN QUYỀN DỮ LIỆU (Security Scoping) ---
-        // Nếu User không thuộc nhóm quyền Quản trị tối cao
+        // Nếu User không thuộc nhóm quyền Quản trị tối cao (Admin/Mod)
         if (!$this->accessControl->canViewAllData($roleName)) {
             $employeeModel = model('EmployeeModel');
             $employee = $employeeModel->where('user_id', $userId)->first();
             
             if ($employee) {
-                // Xác định danh sách ID các vụ việc mà nhân viên này tham gia với tư cách thành viên nhóm
-                $caseIds = model('CaseMemberModel')->where('employee_id', $employee['id'])->findColumn('case_id');
+                if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG) {
+                    $myEmpId = $employee['id'];
+                    $myDeptId = $employee['department_id'];
 
-                // Chỉ hiển thị:
-                // 1. Là nhân viên/trợ ký được giao chính.
-                // 2. Là luật sư phụ trách trực tiếp.
-                // 3. Có tên trong danh sách thành viên tham gia (Case Member).
-                $query->groupStart()
-                      ->where('cases.assigned_staff_id', $employee['id'])
-                      ->orWhere('cases.assigned_lawyer_id', $employee['id']);
-                
-                if (!empty($caseIds)) {
-                    $query->orWhereIn('cases.id', $caseIds);
+                    // 1. Phân định quân số: Lấy danh sách nhân viên báo cáo trực tiếp
+                    $myTeamIds = $employeeModel->where('manager_id', $myEmpId)->findColumn('id') ?? [];
+                    $myTeamIds[] = $myEmpId; // Bao gồm cả sếp
+
+                    $query->groupStart();
+                        // A. Dữ liệu của TEAM mình
+                        $query->groupStart()
+                            ->whereIn('cases.assigned_lawyer_id', $myTeamIds)
+                            ->orWhereIn('cases.assigned_staff_id', $myTeamIds)
+                            ->orWhereIn('cases.id', function($builder) use ($myTeamIds) {
+                                return $builder->select('case_id')->from('case_members')->whereIn('employee_id', $myTeamIds);
+                            })
+                        ->groupEnd();
+
+                        // B. NGOẠI LỆ: Sếp Pháp lý xem thêm hồ sơ mồ côi để quản trị
+                        if ($myDeptId == \Config\AppConstants::DEPT_PHAP_LY) {
+                            $query->orGroupStart()
+                                ->where('cases.assigned_lawyer_id', null)
+                                ->where('cases.assigned_staff_id', null)
+                            ->groupEnd();
+                        }
+                    $query->groupEnd();
+                } else {
+                    /**
+                     * NHÂN VIÊN: Chỉ thấy hồ sơ cá nhân (Chính thức hoặc tham gia hỗ trợ).
+                     */
+                    $caseIds = model('CaseMemberModel')->where('employee_id', $employee['id'])->findColumn('case_id');
+                    $query->groupStart()
+                          ->where('cases.assigned_staff_id', $employee['id'])
+                          ->orWhere('cases.assigned_lawyer_id', $employee['id']);
+                    if (!empty($caseIds)) $query->orWhereIn('cases.id', $caseIds);
+                    $query->groupEnd();
                 }
-                
-                $query->groupEnd();
             } else {
-                // TRƯỜNG HỢP AN TOÀN: Nếu không tìm thấy hồ sơ nhân sự liên kết -> Chặn mọi dữ liệu.
                 return [];
             }
         }
@@ -104,29 +136,38 @@ class CaseService extends BaseService
         // 4. Thực thi truy vấn kèm theo Phân trang
         $cases = $query->orderBy($orderField, $direction)->paginate($perPage);
 
-        // --- BỔ TÚC THÔNG TIN NHÂN SỰ (Data Enrichment) ---
-        // Chuyển đổi Lawyer ID thành Danh sách tên các nhân sự đang thực hiện (Assignees) để hiển thị đầy đủ trên UI.
+        // --- BỔ TÚC THÔNG TIN NHÂN SỰ & NHÃN DÁN (Data Enrichment) ---
         if (!empty($cases)) {
             $caseIds = array_column($cases, 'id');
-            // Lấy toàn bộ danh sách nhân sự tham gia xử lý cho tất cả vụ việc trong trang hiện tại
+            
+            // 1. Lấy danh sách nhân sự tham gia (Assignees)
             $assignees = $this->caseModel->db->table('case_members')
                 ->select('case_id, employees.full_name')
                 ->join('employees', 'employees.id = case_members.employee_id')
                 ->whereIn('case_id', $caseIds)
-                ->where('role_in_case', 'assignee')
                 ->get()->getResultArray();
-            
-            $assigneeMap = [];
-            foreach ($assignees as $a) {
-                $assigneeMap[$a['case_id']][] = $a['full_name'];
-            }
-            
-            // Ghi đè thông tin hiển thị Lawyer cho đẹp trên giao diện danh sách
+
+            // 2. Lấy danh sách Nhãn dán (Tags)
+            $tags = $this->caseModel->db->table('entity_tags')
+                ->select('entity_tags.entity_id, tags.name, tags.color')
+                ->join('tags', 'tags.id = entity_tags.tag_id')
+                ->where('entity_type', 'cases')
+                ->whereIn('entity_tags.entity_id', $caseIds)
+                ->get()->getResultArray();
+
+            // Ánh xạ dữ liệu vào từng vụ việc
             foreach ($cases as &$case) {
-                if (isset($assigneeMap[$case['id']])) {
-                    $case['lawyer_name'] = implode(', ', $assigneeMap[$case['id']]);
+                $case['assignees'] = array_column(
+                    array_filter($assignees, fn($a) => $a['case_id'] == $case['id']),
+                    'full_name'
+                );
+                $case['tags'] = array_filter($tags, fn($t) => $t['entity_id'] == $case['id']);
+                
+                // Ghi đè thông tin hiển thị Lawyer cho đẹp trên giao diện danh sách
+                if (!empty($case['assignees'])) {
+                    $case['lawyer_name'] = implode(', ', $case['assignees']);
                 } else {
-                    $case['lawyer_name'] = 'Chưa có người xử lý';
+                    $case['lawyer_name'] = 'Trống';
                 }
             }
         }
@@ -167,12 +208,21 @@ class CaseService extends BaseService
                 return $this->fail('Tài khoản của bạn chưa được liên kết với hồ sơ nhân sự để xem dữ liệu này.');
             }
 
-            // Kiểm tra Logic: Phải là Người giao, Người nhận, hoặc Thành viên trong ban vụ việc
-            if ($case['assigned_lawyer_id'] != $employee['id'] && $case['assigned_staff_id'] != $employee['id']) {
-                $isMember = model('CaseMemberModel')->where('case_id', $id)->where('employee_id', $employee['id'])->first();
-                if (!$isMember) {
-                    return $this->fail('Bạn không nằm trong đội ngũ tham gia xử lý vụ việc này (Access Denied).');
-                }
+            // KIỂM TRA QUYỀN TRUY CẬP TỔ ĐỘI (Team Isolation Check)
+            // 1. Phân định: Tôi có phải là sếp của những người phụ trách vụ này không?
+            $myTeamIds = model('EmployeeModel')->where('manager_id', $employee['id'])->findColumn('id') ?? [];
+            $myTeamIds[] = $employee['id']; // Tôi cũng là một thành viên
+
+            $isAssignedToMyTeam = (in_array($case['assigned_lawyer_id'], $myTeamIds) || in_array($case['assigned_staff_id'], $myTeamIds));
+            
+            // 2. Kiểm tra tư cách thành viên ban vụ việc
+            $isMember = model('CaseMemberModel')->where('case_id', $id)->whereIn('employee_id', $myTeamIds)->first();
+            
+            // 3. Ngoại lệ cho hồ sơ mồ côi (Legal Manager only)
+            $isUnassignedLegal = ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG && $employee['department_id'] == \Config\AppConstants::DEPT_PHAP_LY && $case['assigned_lawyer_id'] == null && $case['assigned_staff_id'] == null);
+
+            if (!$isAssignedToMyTeam && !$isMember && !$isUnassignedLegal) {
+                return $this->fail('Bạn không có quyền truy cập hồ sơ này (Access Denied - Team Isolation).');
             }
         }
 

@@ -22,7 +22,8 @@ class CaseStepModel extends BaseModel
         'case_id', 'template_id', 'template_step_id', 'step_name', 
         'duration_days', 'is_working_day_only', 'deadline', 
         'completed_at', 'status', 'sort_order', 'required_documents',
-        'responsible_role', 'next_step_condition', 'notification_template'
+        'responsible_role', 'next_step_condition', 'notification_template',
+        'kpi_reward', 'overdue_notified'
     ];
 
     // 3. Quản lý thời gian

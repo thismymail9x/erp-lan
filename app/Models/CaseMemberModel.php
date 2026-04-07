@@ -32,8 +32,9 @@ class CaseMemberModel extends BaseModel
     // Cơ chế quản lý thời gian hồ sơ
     protected $useTimestamps = true;
     protected $createdField  = 'created_at';
-    protected $updatedField  = ''; // Bảng này không dùng updated_at vì mỗi lần đổi là sync lại (xóa đi nạp lại)
-    
+    protected $updatedField  = 'updated_at';
+    protected $deletedField  = 'deleted_at';
+    protected $useSoftDeletes = false; // TẮT XÓA MỀM: Để tránh xung đột với UNIQUE KEY khi sync lại nhân sự
     /**
      * Truy xuất toàn bộ thành viên đang tham gia một vụ việc.
      * Kết hợp (Join) với bảng Nhân sự và Tài khoản để lấy đầy đủ hồ sơ hiển thị trên Front-end.
@@ -68,7 +69,8 @@ class CaseMemberModel extends BaseModel
         $db->transStart(); // Mở giao dịch CSDL (Transaction)
         
         // Bước 1: Thu hồi toàn bộ quyền hạn cũ của nhóm vai trò này trong hồ sơ
-        $this->where('case_id', $caseId)->where('role_in_case', $role)->delete();
+        // Sử dụng ignore để bỏ qua check soft-delete (nếu có) và xóa thật khỏi DB
+        $this->builder()->where('case_id', $caseId)->where('role_in_case', $role)->delete();
         
         // Bước 2: Tái khởi tạo quyền hạn cho danh sách nhân viên mới
         foreach ($employeeIds as $empId) {

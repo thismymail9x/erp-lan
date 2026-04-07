@@ -15,6 +15,8 @@ class AppConstants
     public const ROLE_TRUONG_PHONG      = 'Trưởng phòng';
     public const ROLE_NHAN_VIEN_CHINH   = 'Nhân viên chính thức';
     public const ROLE_THUC_TAP_SINH     = 'Thực tập sinh';
+    public const ROLE_THU_VIEC          = 'Thử việc';
+    public const ROLE_HOC_VIEC          = 'Học việc';
 
     // === PHÒNG BAN (DEPARTMENTS) - INT ID ===
     public const DEPT_MARKETING        = 1;
@@ -77,15 +79,7 @@ class AppConstants
     public const ATT_STATUS_LEAVE         = 'LEAVE'; // Nghỉ phép
     
     // IP mạng LAN nội bộ được phép điểm danh không cần camera
-    public const ATT_LAN_IPS = ['1.55.89.247', '::1', ' 255.255.255.0', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.2', '172.3'];
+    public const ATT_LAN_IPS = ['1.55.89.247', '::1', '255.255.255.0', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.2', '172.3'];
 
     // === PHÂN LOẠI VỤ VIỆC (CASE TYPES CATEGORIES) ===
-    public const CASE_TYPES = [
-        'to_tung_dan_su'    => 'Tố tụng Dân sự',
-        'thu_tuc_hanh_chinh' => 'Thủ tục Hành chính',
-        'xoa_an_tich'       => 'Xóa án tích',
-        'ly_hon_thuan_tinh'  => 'Ly hôn thuận tình',
-        'tu_van'            => 'Tư vấn pháp lý',
-        'khac'              => 'Khác'
-    ];
 }

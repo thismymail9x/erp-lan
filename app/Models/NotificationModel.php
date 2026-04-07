@@ -43,15 +43,22 @@ class NotificationModel extends BaseModel
     }
     
     /**
-     * Lấy toàn bộ thông báo của user (có phân trang)
+     * Hộp thư đến: Lấy toàn bộ thông báo của user (có phân trang & bộ lọc)
      */
-    public function getNotifications($userId, $perPage = 10)
+    public function getNotifications($userId, $perPage = 10, $search = '', $type = '')
     {
-        return $this->where('user_id', $userId)
-                    ->orderBy('created_at', 'DESC')
-                    ->paginate($perPage);
+        $query = $this->where('user_id', $userId);
+
+        if (!empty($search)) {
+            $query->groupStart()->like('title', $search)->orLike('message', $search)->groupEnd();
+        }
+        if (!empty($type)) {
+            $query->where('type', $type);
+        }
+
+        return $query->orderBy('created_at', 'DESC')->paginate($perPage);
     }
-    
+
     /**
      * Đánh dấu 1 thông báo là đã đọc
      */
@@ -71,5 +78,55 @@ class NotificationModel extends BaseModel
         return $this->where('user_id', $userId)
                     ->set(['is_read' => 1])
                     ->update();
+    }
+
+    /**
+     * HỘP THƯ ĐI: Lấy danh sách các thông báo/nhắc nhở mà user đã gửi.
+     */
+    public function getSent($userId, $perPage = 10, $search = '', $type = '')
+    {
+        $query = $this->select('notifications.*, recipients.full_name as recipient_name')
+                    ->join('employees as recipients', 'recipients.user_id = notifications.user_id', 'left')
+                    ->where('sender_id', $userId);
+
+        if (!empty($search)) {
+            $query->groupStart()->like('title', $search)->orLike('message', $search)->groupEnd();
+        }
+        if (!empty($type)) {
+            $query->where('type', $type);
+        }
+
+        return $query->orderBy('created_at', 'DESC')->paginate($perPage);
+    }
+
+    /**
+     * GIÁM SÁT HỆ THỐNG (ADMIN ONLY): Lấy toàn bộ luồng trao đổi trong công ty.
+     */
+    public function getAllLogs($perPage = 20, $search = '', $type = '')
+    {
+        $query = $this->select('notifications.*, senders.full_name as sender_name, recipients.full_name as recipient_name')
+                    ->join('employees as senders', 'senders.user_id = notifications.sender_id', 'left')
+                    ->join('employees as recipients', 'recipients.user_id = notifications.user_id', 'left');
+
+        if (!empty($search)) {
+            $query->groupStart()->like('title', $search)->orLike('message', $search)->groupEnd();
+        }
+        if (!empty($type)) {
+            $query->where('type', $type);
+        }
+
+        return $query->orderBy('created_at', 'DESC')->paginate($perPage);
+    }
+
+    /**
+     * Lấy chi tiết một thông báo kèm thông tin người gửi/nhận.
+     */
+    public function getFullDetail($id)
+    {
+        return $this->select('notifications.*, senders.full_name as sender_name, recipients.full_name as recipient_name')
+                    ->join('employees as senders', 'senders.user_id = notifications.sender_id', 'left')
+                    ->join('employees as recipients', 'recipients.user_id = notifications.user_id', 'left')
+                    ->where('notifications.id', $id)
+                    ->first();
     }
 }

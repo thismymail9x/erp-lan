@@ -137,10 +137,11 @@ class AttendanceService extends BaseService
 
         // --- CHIỀU VÀO (CHECK-IN) ---
         if (!$record) {
-            $status = AppConstants::ATT_STATUS_REGULAR; // Mặc định là Đúng giờ
+            $status = AppConstants::ATT_STATUS_REGULAR;
+            $nowTimeStr = $nowTime->format('H:i:s');
             
-            // Nếu đến muộn quá 8h30 thì tính là Đi muộn luôn
-            if ($nowTime->format('H:i:s') > AppConstants::ATT_LATE_THRESHOLD && empty($data['note'])) {
+            // RULE: Nếu vào sau 8:30 sáng thì mặc định là VI PHẠM (LATE).
+            if ($nowTimeStr > AppConstants::ATT_LATE_THRESHOLD) {
                 $status = AppConstants::ATT_STATUS_LATE;
             }
 
@@ -175,24 +176,29 @@ class AttendanceService extends BaseService
             // 5. Tính toán tổng thời gian làm việc (Đã trừ giờ nghỉ)
             $workedHours = $this->calculateWorkedHours($record['check_in_time'], $now);
 
-            // 6. LOGIC "HOÀN THÀNH BÙ" (FLEX-TIME):
-            // Lấy các mốc giờ cấu hình
+            // 6. LOGIC XÁC ĐỊNH TRẠNG THÁI CUỐI NGÀY:
             $checkInTimeStr = date('H:i:s', strtotime($record['check_in_time']));
             $standardInTime = AppConstants::ATT_STANDARD_IN;
+            $lateThreshold = AppConstants::ATT_LATE_THRESHOLD;
             $standardOutTime = AppConstants::ATT_STANDARD_OUT;
+            $nowTimeStr = $nowTime->format('H:i:s');
 
-            // Tính toán thời gian đi muộn so với 8h00 để cộng dồn vào giờ về
-            $lateSeconds = max(0, strtotime($checkInTimeStr) - strtotime($standardInTime));
-            // Giờ bắt buộc phải ở lại để đủ công (Ví dụ: 8h15 đến -> 17h45 mới được về)
-            $requiredCheckOutStr = date('H:i:s', strtotime($standardOutTime) + $lateSeconds);
+            $finalStatus = $record['status'];
 
-            // Giữ nguyên trạng thái từ bản Check-in (nếu là LATE thì vẫn là LATE)
-            $status = $record['status'];
-            
-            // Kiểm tra vi phạm giờ về:
-            // Nếu chưa thỏa mãn giờ về tối thiểu đã bù thời gian
-            if ($nowTime->format('H:i:s') < $requiredCheckOutStr && empty($data['note'])) {
-                $status = AppConstants::ATT_STATUS_EARLY_LEAVE;
+            // Nếu đã vi phạm ngay từ lúc vào (sau 8:30) thì không xét bù
+            if ($checkInTimeStr > $lateThreshold) {
+                $finalStatus = AppConstants::ATT_STATUS_LATE;
+            } else {
+                // Nếu vào sớm hoặc vào trong khoảng 8:00 - 8:30 (được phép bù)
+                $lateSeconds = max(0, strtotime($checkInTimeStr) - strtotime($standardInTime));
+                // Mốc giờ về cần thiết để xóa "vết" đi muộn
+                $requiredOutTime = date('H:i:s', strtotime($standardOutTime) + $lateSeconds);
+                
+                if ($nowTimeStr >= $requiredOutTime) {
+                    $finalStatus = AppConstants::ATT_STATUS_REGULAR; // Đủ bù -> Đúng giờ
+                } else {
+                    $finalStatus = AppConstants::ATT_STATUS_EARLY_LEAVE; // Thiếu giờ -> Vi phạm (Sớm)
+                }
             }
 
             $updateData = [
@@ -202,7 +208,7 @@ class AttendanceService extends BaseService
                 'check_out_photo'     => $photoPath,
                 'check_out_note'      => $data['note'] ?? null,
                 'worked_hours'        => $workedHours,
-                'status'              => $status,
+                'status'              => $finalStatus,
                 // Hợp nhất kết quả GPS (Chỉ hợp lệ nếu cả In và Out đều đúng vị trí)
                 'is_valid_location'   => ($isValidLocation && $record['is_valid_location']) ? 1 : 0
             ];

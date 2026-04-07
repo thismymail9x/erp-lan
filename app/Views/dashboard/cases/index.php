@@ -68,11 +68,22 @@
     </div>
 
     <!-- Search and Filter Bar -->
-    <div class="search-filter-wrapper m-b-16">
-        <div class="search-input-container">
+    <div class="search-filter-wrapper m-b-16" style="display: flex; gap: 15px; align-items: center;">
+        <div class="search-input-container" style="flex: 1;">
             <i class="fas fa-search search-icon"></i>
             <input type="text" id="case-search" class="input-premium" placeholder="Tìm theo tên vụ việc, mã hồ sơ hoặc khách hàng..." value="<?= esc($search) ?>" autocomplete="off">
         </div>
+        <?php if (has_permission('sys.admin') || strpos(strtolower(session()->get('role_name')), 'trưởng phòng') !== false) { ?>
+        <div class="filter-select-container" style="width: 350px;">
+            <select id="lawyer-filter" name="lawyer_id[]" class="form-control-premium" multiple="multiple">
+                <?php foreach ($availableLawyers as $lawyer) { ?>
+                    <option value="<?= $lawyer['id'] ?>" <?= in_array($lawyer['id'], $lawyerIds) ? 'selected' : '' ?>>
+                        <?= esc($lawyer['full_name']) ?>
+                    </option>
+                <?php } ?>
+            </select>
+        </div>
+        <?php } ?>
     </div>
 
     <!-- 
@@ -88,80 +99,36 @@
             'statusLabels'  => $statusLabels
         ]) ?>
     </div>
+    <div id="quickTagModal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1100; align-items:center; justify-content:center;">
+        <div class="premium-card p-24" style="width:400px;">
+            <div class="flex-row justify-between align-center m-b-20">
+                <h3 class="section-header-title">Gắn nhãn nhanh</h3>
+                <span class="close-btn-minimal" onclick="document.getElementById('quickTagModal').style.display='none'">&times;</span>
+            </div>
+            <p class="text-sm m-b-15">Vụ việc: <strong id="quickTagName">--</strong></p>
+            <form id="quickTagForm" class="flex-column gap-15">
+                <input type="hidden" name="entity_id" id="quickTagEntityId">
+                <input type="hidden" name="entity_type" value="cases">
+                <div class="form-group-premium">
+                    <label class="label-premium">Lựa chọn nhãn dán</label>
+                    <select name="tag_ids[]" id="quickTagSelect" class="form-control-premium" multiple="multiple" style="width: 100%;">
+                        <?php if (isset($availableTags)) { 
+                            foreach ($availableTags as $tag) { ?>
+                                <option value="<?= $tag['id'] ?>"><?= esc($tag['name']) ?></option>
+                            <?php } 
+                        } ?>
+                    </select>
+                </div>
+                <div class="form-actions-row m-t-15" style="justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('quickTagModal').style.display='none'">Hủy</button>
+                    <button type="submit" class="btn-premium">Cập nhật ngay</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
+<?= $this->endSection() ?>
 
-<script>
-    /**
-     * L.A.N ERP - Quản lý Danh sách Vụ việc
-     * Điều khiển các thao tác tìm kiếm Real-time, Phân trang và Sắp xếp AJAX.
-     */
-
-    // 1. Khởi tạo các tham chiếu DOM
-    const searchInput = document.getElementById('case-search');
-    const tableContainer = document.getElementById('cases-table-container');
-    let searchTimeout; // Biến dùng cho kỹ thuật Debounce (trì hoãn gửi request khi gõ phím)
-
-    /**
-     * 2. Tìm kiếm Real-time (Thời gian thực).
-     * Sử dụng Debounce 300ms để tránh gửi quá nhiều yêu cầu lên server khi người dùng đang gõ.
-     */
-    searchInput.addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            const url = new URL(window.location.href);
-            url.searchParams.set('search', this.value);
-            url.searchParams.set('page', 1); // Reset về trang 1 khi bắt đầu tìm kiếm mới
-            fetchByUrl(url);
-        }, 300);
-    });
-
-    /**
-     * 3. Phân trang và Sắp xếp qua AJAX.
-     * Lắng nghe sự kiện click trên các link phân trang hoặc sắp xếp (Event Delegation).
-     */
-    tableContainer.addEventListener('click', function(e) {
-        // Tìm kiếm xem click có nằm trong link phân trang hoặc link sắp xếp không
-        const link = e.target.closest('.pagination a, .sort-link');
-        if (link) {
-            e.preventDefault();
-            const url = new URL(link.href);
-            fetchByUrl(url);
-        }
-    });
-
-    /**
-     * 4. Hàm thực thi Tải dữ liệu bằng AJAX.
-     * Cập nhật nội dung bảng mà không làm tải lại toàn bộ trang.
-     * @param {URL} url - Địa chỉ API chứa các tham số lọc/sắp xếp/phân trang.
-     */
-    async function fetchByUrl(url) {
-        try {
-            // Hiệu ứng mờ dần để báo hiệu đang tải dữ liệu
-            tableContainer.style.opacity = '0.5';
-            
-            // Đảm bảo truy vấn luôn kèm theo giá trị search hiện tại của ô input
-            if (!url.searchParams.has('search')) {
-                url.searchParams.set('search', searchInput.value);
-            }
-
-            // Gửi yêu cầu với header XMLHttpRequest để Controller nhận diện AJAX
-            const response = await fetch(url, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-
-            // Lấy nội dung HTML (Index_table view) từ server trả về
-            const html = await response.text();
-            
-            // Cập nhật DOM
-            tableContainer.innerHTML = html;
-            tableContainer.style.opacity = '1';
-            
-            // Cập nhật URL trên thanh địa chỉ trình duyệt mà không cần reload
-            window.history.pushState(null, '', url);
-        } catch (err) {
-            console.error('Lỗi khi tải dữ liệu vụ việc:', err);
-            tableContainer.style.opacity = '1';
-        }
-    }
-</script>
+<?= $this->section('scripts') ?>
+<script src="<?= base_url('js/cases_index.js') ?>"></script>
 <?= $this->endSection() ?>

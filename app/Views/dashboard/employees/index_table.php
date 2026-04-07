@@ -1,41 +1,14 @@
 
-        <div class="table-container">
+        <div class="table-responsive">
             <table class="premium-table">
                 <thead>
                     <tr>
-                        <th>
-                            <a href="<?= base_url('employees') ?>?sort=name&order=<?= ($currentSort == 'name' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" class="sort-link" title="Sắp xếp theo họ tên">
-                                Họ tên
-                                <?php if ($currentSort == 'name') { ?>
-                                    <i class="fas fa-sort-<?= $currentOrder == 'asc' ? 'up' : 'down' ?>"></i>
-                                <?php } else { ?>
-                                    <i class="fas fa-sort sort-icon-inactive"></i>
-                                <?php } ?>
-                            </a>
-                        </th>
-                        <th class="hide-mobile">Ngày sinh</th>
-                        <th class="hide-mobile">Số CCCD</th>
-                        <th>
-                            <a href="<?= base_url('employees') ?>?sort=position&order=<?= ($currentSort == 'position' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" class="sort-link" title="Sắp xếp theo chức vụ">
-                                Chức vụ
-                                <?php if ($currentSort == 'position') { ?>
-                                    <i class="fas fa-sort-<?= $currentOrder == 'asc' ? 'up' : 'down' ?>"></i>
-                                <?php } else { ?>
-                                    <i class="fas fa-sort sort-icon-inactive"></i>
-                                <?php } ?>
-                            </a>
-                        </th>
-                        <th>
-                            <a href="<?= base_url('employees') ?>?sort=dept&order=<?= ($currentSort == 'dept' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" class="sort-link" title="Sắp xếp theo bộ phận">
-                                Bộ phận
-                                <?php if ($currentSort == 'dept') { ?>
-                                    <i class="fas fa-sort-<?= $currentOrder == 'asc' ? 'up' : 'down' ?>"></i>
-                                <?php } else { ?>
-                                    <i class="fas fa-sort sort-icon-inactive"></i>
-                                <?php } ?>
-                            </a>
-                        </th>
-                        <th class="table-cell-right">Thao tác</th>
+                        <th>Nhân viên</th>
+                        <th class="hide-mobile">NS</th>
+                        <th class="hide-mobile">CCCD</th>
+                        <th>Chức vụ</th>
+                        <th>Bộ phận</th>
+                        <th class="table-cell-right">#</th>
                     </tr>
                 </thead>
                 <tbody>

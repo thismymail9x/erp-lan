@@ -9,18 +9,18 @@
     <div class="dashboard-header-wrapper">
         <div class="header-title-container">
             <h2 class="content-title">Nhân sự</h2>
-            <p class="content-subtitle hide-mobile">Quản lý hồ sơ nhân viên.</p>
+            <p class="content-subtitle hide-mobile">Người lao động.</p>
         </div>
         <div class="header-controls">
             <a href="<?= base_url('employees/create') ?>" class="btn-premium" title="Thêm hồ sơ nhân sự mới vào hệ thống">
-                <i class="fas fa-plus"></i> <span class="hide-mobile">Thêm nhân viên</span><span class="show-mobile-only">Thêm</span>
+                <i class="fas fa-plus"></i> <span class="hide-mobile">Thêm</span><span class="show-mobile-only">Thêm</span>
             </a>
         </div>
     </div>
 
     <!-- Search and Filter Bar -->
     <div class="search-filter-bar">
-        <div class="search-input-group">
+        <div class="search-input-group search-input-container">
             <i class="fas fa-search"></i>
             <input type="text" id="employee-search" placeholder="Tìm theo tên, chức vụ hoặc bộ phận..." value="<?= esc($search) ?>" autocomplete="off">
         </div>

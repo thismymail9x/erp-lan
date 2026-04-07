@@ -10,7 +10,7 @@
     </div>
 
     <div class="premium-card premium-card-full">
-        <div class="table-container">
+        <div class="table-responsive">
             <table class="premium-table">
                 <thead>
                     <tr>

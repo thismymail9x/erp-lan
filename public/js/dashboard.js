@@ -66,12 +66,24 @@ document.addEventListener('DOMContentLoaded', function() {
  */
 $(document).ready(function() {
     if ($.fn.select2) {
-        $('select:not(.no-select2)').select2({
-            width: '100%',
-            minimumResultsForSearch: 10,
-            language: {
-                noResults: function() { return "Không tìm thấy kết quả"; }
+        $('select:not(.no-select2)').each(function() {
+            var $el = $(this);
+            var $modal = $el.closest('.modal, .modal-overlay, .modal-overlay-cust');
+            var customMin = $el.data('search') === true ? 0 : 5; // Ngưỡng mặc định 5, hoặc 0 nếu ép buộc
+            
+            var options = {
+                width: '100%',
+                minimumResultsForSearch: customMin,
+                language: {
+                    noResults: function() { return "Không tìm thấy kết quả"; }
+                }
+            };
+            
+            if ($modal.length) {
+                options.dropdownParent = $modal;
             }
+            
+            $el.select2(options);
         });
     }
 });

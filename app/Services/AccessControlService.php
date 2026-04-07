@@ -18,8 +18,8 @@ class AccessControlService extends BaseService
      */
     public function canViewAllData($roleName = null)
     {
-        // Trả về true nếu sở hữu quyền Admin tối cao hoặc quyền quản lý vụ việc tổng thể
-        return has_permission('sys.admin') || has_permission('case.manage');
+        // Trả về true nếu sở hữu quyền Admin tối cao hoặc quyền quản lý vụ việc tổng thể HOẶC được gán quyền xem TẤT CẢ (view_all) cụ thể
+        return has_permission('sys.admin') || has_permission('case.edit_all') || has_permission('case.view_all') || has_permission('customer.view_all');
     }
 
     /**
@@ -37,38 +37,60 @@ class AccessControlService extends BaseService
             ['title' => 'Dashboard', 'url' => 'dashboard', 'icon' => 'fas fa-th-large'],
         ];
 
-        // 1. MODULE CHẤM CÔNG (Attendance):
-        if (session()->get('employee_id')) {
-            if (has_permission('attendance.view') || has_permission('sys.admin')) {
+        // 1. MODULE CHẤM CÔNG & NGHỈ PHÉP (Attendance & Leave):
+        if (has_permission('attendance.view') || session()->get('employee_id')) {
+            $roleName = session()->get('role_name');
+            if ($roleName == \Config\AppConstants::ROLE_ADMIN || $roleName == \Config\AppConstants::ROLE_MOD || $roleName == \Config\AppConstants::ROLE_TRUONG_PHONG || has_permission('sys.admin')) {
                 // Dành cho Quản lý/Admin: Xem bảng tổng quát hàng ngày
                 $menu[] = ['title' => 'Quản lý chấm công', 'url' => 'attendance/list', 'icon' => 'fas fa-clock'];
             } else {
-                // Dành cho Nhân viên: Xem lịch sử cá nhân theo tháng
+                // Dành cho Nhân viên: Xem lịch sử cá nhân theo tháng mặc định
                 $menu[] = ['title' => 'Lịch sử chấm công', 'url' => 'attendance/list?view=monthly', 'icon' => 'fas fa-history'];
             }
-            // Mục điểm danh trực tiếp cho tất cả nhân viên
-//            $menu[] = ['title' => 'Điểm danh Camera', 'url' => 'attendance', 'icon' => 'fas fa-camera'];
+        }
+
+        // 1.2 ĐƠN NGHỈ PHÉP (Leave Requests):
+        if (has_permission('leave.view') || session()->get('employee_id')) {
+            $menu[] = ['title' => 'Đơn nghỉ phép', 'url' => 'leave-requests', 'icon' => 'fas fa-calendar-minus'];
         }
 
         // 2. MODULE VỤ VIỆC PHÁP LÝ (Legal Cases):
-        // Chỉ hiện nếu là người có quyền quản lý hoặc được phép xem vụ việc
-        if (has_permission('case.view') || has_permission('case.manage')) {
+        // Mặc định bộ phận Pháp lý sẽ được thấy menu này, hoặc các vai trò có quyền view/manage
+        if (has_permission('case.view') || has_permission('case.view_all') || has_permission('case.edit_all') || session()->get('department_id') == \Config\AppConstants::DEPT_PHAP_LY) {
             $menu[] = ['title' => 'Vụ việc pháp lý', 'url' => 'cases', 'icon' => 'fas fa-briefcase'];
         }
         
         // 3. MODULE KHÁCH HÀNG (Customers):
-        if (has_permission('customer.view')) {
+        if (has_permission('customer.view') || has_permission('customer.view_all')) {
             $menu[] = ['title' => 'Khách hàng', 'url' => 'customers', 'icon' => 'fas fa-id-card'];
+        }
+
+        // 3.3 CẨM NANG / TRI THỨC (Knowledge Base):
+        // Tất cả nhân viên hệ thống đều xem được không giới hạn
+        if (session()->get('employee_id')) {
+            $menu[] = ['title' => 'Cẩm nang nội bộ', 'url' => 'knowledge', 'icon' => 'fas fa-book-open'];
+        }
+
+        // 3.4 QUẢN LÝ NHÃN DÁN (Tags System):
+        // Hiển thị nếu có quyền xem vụ việc HOẶC khách hàng HOẶC thuộc bộ phận Pháp lý
+        if (has_permission('case.view') || has_permission('case.edit_all') || has_permission('customer.view') || session()->get('department_id') == \Config\AppConstants::DEPT_PHAP_LY) {
+            $menu[] = ['title' => 'Danh mục nhãn dán', 'url' => 'tags', 'icon' => 'fas fa-tags'];
         }
 
         // 3.5 MODULE QUẢN LÝ TÀI LIỆU (DMS):
         // Mọi thành viên đều được vào kho tài liệu (DMS), quyền xem chi tiết sẽ check bên trong Service
         if (session()->get('employee_id')) {
-            $menu[] = ['title' => 'Tài liệu (DMS)', 'url' => 'documents', 'icon' => 'fas fa-folder-open'];
+            $menu[] = ['title' => 'Tài liệu', 'url' => 'documents', 'icon' => 'fas fa-folder-open'];
+        }
+
+        // 3.6 MODULE THÔNG BÁO & TRAO ĐỔI (Messages):
+        // Mọi nhân viên đều có quyền truy cập hòm thư nội bộ
+        if (session()->get('employee_id')) {
+            $menu[] = ['title' => 'Trao đổi', 'url' => 'notifications', 'icon' => 'fas fa-comments'];
         }
 
         // 4. MODULE QUẢN TRỊ NHÂN SỰ & TÀI KHOẢN:
-        if (has_permission('user.view')) {
+        if (has_permission('user.view') || has_permission('user.manage')) {
             $menu[] = ['title' => 'Tài khoản', 'url' => 'users', 'icon' => 'fas fa-users-cog'];
             $menu[] = ['title' => 'Nhân sự', 'url' => 'employees', 'icon' => 'fas fa-user-tie'];
         } else {
@@ -83,9 +105,13 @@ class AccessControlService extends BaseService
         }
 
         // 5. CÀI ĐẶT HỆ THỐNG (System Settings):
-        // Chỉ dành riêng cho Admin tối cao (Sys Admin)
-        if (has_permission('sys.admin')) {
+        // Dành cho Admin tối cao HOẶC người được cấp quyền Quản lý quy trình riêng biệt
+        if (has_permission('sys.admin') || has_permission('workflow.manage')) {
             $menu[] = ['title' => 'Quy trình mẫu', 'url' => 'workflows', 'icon' => 'fas fa-project-diagram'];
+        }
+
+        // Chỉ Admin tối cao mới thấy Log hệ thống
+        if (has_permission('sys.admin')) {
             $menu[] = ['title' => 'Log hệ thống', 'url' => 'system-logs', 'icon' => 'fas fa-history'];
         }
 

@@ -60,11 +60,14 @@ class UserService extends BaseService
         $orderField = $sortMap[$sort] ?? 'users.id';
         $direction  = (strtolower($order) === 'asc') ? 'asc' : 'desc';
 
-        // 3. Xây dựng câu lệnh Query: Kết nối 4 bảng để lấy thông tin đầy đủ nhất
         $query = $this->userModel->select('users.*, roles.name as role_title, employees.full_name, employees.id as emp_id, employees.department_id, departments.name as department_name')
                         ->join('roles', 'roles.id = users.role_id', 'left')
                         ->join('employees', 'employees.user_id = users.id', 'left')
-                        ->join('departments', 'departments.id = employees.department_id', 'left');
+                        ->join('departments', 'departments.id = employees.department_id', 'left')
+                        ->groupStart()
+                            ->where('employees.deleted_at', null)
+                            ->orWhere('employees.id', null) // Giữ lại những tài khoản Admin chưa liên kết hồ sơ nhân sự
+                        ->groupEnd();
 
         // 4. Áp dụng bộ lọc tìm kiếm (Like Query trên nhiều cột)
         if (!empty($search)) {
@@ -80,7 +83,7 @@ class UserService extends BaseService
         $query->orderBy($orderField, $direction);
 
         // 6. LOGIC PHÂN TÁCH DỮ LIỆU (DATA ISOLATION):
-        if ($roleName == \Config\AppConstants::ROLE_ADMIN || $roleName == \Config\AppConstants::ROLE_MOD) {
+        if (has_permission('sys.admin') || $roleName == \Config\AppConstants::ROLE_ADMIN || $roleName == \Config\AppConstants::ROLE_MOD) {
             // Cấp lãnh đạo/Quản trị: Xem được mọi tài khoản trong hệ thống
             return $query->paginate($perPage);
         } elseif ($roleName == \Config\AppConstants::ROLE_TRUONG_PHONG) {
@@ -136,7 +139,7 @@ class UserService extends BaseService
             if ($user['department_id'] != $departmentId) {
                 return $this->fail('Bạn không thể truy cập hồ sơ của nhân sự ngoài bộ phận.');
             }
-        } elseif ($roleName != \Config\AppConstants::ROLE_ADMIN && $roleName != \Config\AppConstants::ROLE_MOD) {
+        } elseif (!has_permission('sys.admin') && $roleName != \Config\AppConstants::ROLE_ADMIN && $roleName != \Config\AppConstants::ROLE_MOD) {
              // Các cấp dưới bị từ chối truy cập API này hoàn toàn
              return $this->fail('Quyền truy cập bị giới hạn.');
         }
@@ -153,8 +156,8 @@ class UserService extends BaseService
     public function createUser(array $data)
     {
         $roleName = session()->get('role_name');
-        // Chỉ Admin mới có quyền gieo (seed) tài khoản mới vào hệ thống
-        if ($roleName != \Config\AppConstants::ROLE_ADMIN) {
+        // Chỉ Admin thực danh hoặc người có quyền sys.admin mới được phép gieo tài khoản mới
+        if (!has_permission('sys.admin') && $roleName != \Config\AppConstants::ROLE_ADMIN) {
             return $this->fail('Thao tác trái thẩm quyền: Chỉ Quản trị viên mới được phép tạo tài khoản.');
         }
 

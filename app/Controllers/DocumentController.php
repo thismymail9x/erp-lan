@@ -15,6 +15,27 @@ use App\Services\DocumentService;
  */
 class DocumentController extends BaseController
 {
+    /**
+     * Khai báo metadata cho hệ thống Tự động Đồng bộ (Auto-Sync Permissions).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $modulePermissions = [
+        'group' => 'Hệ thống',
+        'permissions' => [
+            'document.view'   => 'Xem và truy xuất kho tài liệu số (DMS)',
+            'document.manage' => 'Quản trị hồ sơ: Upload, chỉnh sửa và gỡ bỏ tài liệu'
+        ]
+    ];
+
+    /**
+     * Khai báo danh mục thuộc thể loại Nhãn dán (Smart Tags).
+     * Dùng cho cỗ máy quét tại: /perm-fix/sync
+     */
+    public static $taggable = [
+        'type'  => 'documents',
+        'label' => 'Tài liệu (DMS)'
+    ];
+
     protected $docModel;
     protected $customerModel;
     protected $caseModel;
@@ -39,22 +60,49 @@ class DocumentController extends BaseController
             'category'    => $this->request->getGet('category'),
             'customer_id' => $this->request->getGet('customer_id'),
             'case_id'     => $this->request->getGet('case_id'),
+            'sort'        => $this->request->getGet('sort') ?: 'created_at',
+            'order'       => $this->request->getGet('order') ?: 'DESC',
         ];
 
-        // 2. Thực hiện truy vấn (Phân quyền logic nằm ngay trong Model search hoặc Service)
-        $documents = $this->docModel->searchDocuments($filters);
+        // 2. PHÂN QUYỀN DỮ LIỆU (Security Data Filtering)
+        $myEmpId = null;
+        $customers = [];
+        $cases = [];
 
-        // 3. Dữ liệu bổ trợ cho form lọc
-        $customers = $this->customerModel->findAll();
-        $cases = $this->caseModel->findAll();
+        if (!has_permission('sys.admin') && !has_permission('case.edit_all')) {
+            $myEmpId = session()->get('employee_id');
+            
+            // Chỉ lấy các vụ việc nhân viên này tham gia
+            $cases = $this->caseModel->groupStart()
+                ->where('assigned_lawyer_id', $myEmpId)
+                ->orWhere('assigned_staff_id', $myEmpId)
+                ->orWhereIn('id', model('CaseMemberModel')->where('employee_id', $myEmpId)->findColumn('case_id') ?: [-1])
+                ->groupEnd()
+                ->findAll();
+                
+            $customerIds = array_column($cases, 'customer_id') ?: [-1];
+            $customers = $this->customerModel->whereIn('id', array_unique($customerIds))->findAll();
+        } else {
+            // Admin/Quản lý: Xem toàn bộ - Thay bằng hàm Core để đồng nhất dữ liệu
+            $customers = get_active_customers();
+            $cases = get_active_cases();
+        }
+
+        // 3. Thực hiện truy vấn danh sách tài liệu (Scoped search)
+        $documents = $this->docModel->searchDocuments($filters, $myEmpId);
 
         $data = [
-            'documents' => $documents,
-            'customers' => $customers,
-            'cases'     => $cases,
-            'filters'   => $filters,
-            'title'     => 'Quản lý Tài liệu Số (DMS) | L.A.N ERP'
+            'documents'     => $documents,
+            'customers'     => $customers,
+            'cases'         => $cases,
+            'availableTags' => get_available_tags('documents'), // Nạp danh mục tag từ Core Function
+            'filters'       => $filters,
+            'title'         => 'Quản lý Tài liệu Số | L.A.N ERP'
         ];
+
+        if ($this->request->isAJAX()) {
+            return view('dashboard/documents/index_table', $data);
+        }
 
         return view('dashboard/documents/index', $data);
     }
@@ -80,14 +128,31 @@ class DocumentController extends BaseController
         // Ghi Log Audit
         $this->docService->logAccess($id, 'view');
 
-        // Phục vụ file từ WritePath (Cần cấu hình Storage hợp lý)
+        // Phục vụ file từ WritePath
         $fullPath = $doc['file_path'];
-        if (strpos($fullPath, 'uploads/') === 0) {
-            // Trường hợp file nằm trong public/uploads hoặc bên ngoài writepath
-            $realPath = WRITEPATH . $fullPath; 
-            if (file_exists($realPath)) {
-                return $this->response->download($realPath, null)->setFileName($doc['file_name']);
+        $realPath = WRITEPATH . $fullPath;
+
+        if (file_exists($realPath)) {
+            $isPreview = ($this->request->getGet('preview') == 1);
+            
+            // Tự động bổ sung đuôi file nếu tên người dùng đặt chưa có (Tránh file không định dạng)
+            $downloadName = $doc['file_name'];
+            $extension = pathinfo($realPath, PATHINFO_EXTENSION);
+            if (!empty($extension) && !str_ends_with(strtolower($downloadName), '.' . strtolower($extension))) {
+                $downloadName .= '.' . $extension;
             }
+
+            if ($isPreview) {
+                // Ép hiển thị trực tiếp bằng Header thủ công (Cực mạnh cho PDF/Ảnh)
+                // Đảm bảo không bị trình duyệt hiểu nhầm là lệnh Download
+                return $this->response
+                    ->setHeader('Content-Type', $doc['mime_type'])
+                    ->setHeader('Content-Disposition', 'inline; filename="' . $downloadName . '"')
+                    ->setBody(file_get_contents($realPath));
+            }
+
+            // Tải xuống (Download) với tên file đầy đủ định dạng
+            return $this->response->download($realPath, null)->setFileName($downloadName);
         }
         
         return redirect()->back()->with('error', 'Không tìm thấy tệp tin trên hệ thống lưu trữ.');
@@ -101,9 +166,10 @@ class DocumentController extends BaseController
         $file = $this->request->getFile('document');
         $data = $this->request->getPost();
         
-        // Mở rộng tags từ chuỗi comma-separated qua array
+        // Tags đã được xử lý thành array từ View (Multi-select)
+        // Tuy nhiên vẫn hỗ trợ fallback nếu có dữ liệu text lẻ
         if (!empty($data['tags_raw'])) {
-            $data['tags'] = explode(',', $data['tags_raw']);
+            $data['tags'] = is_array($data['tags_raw']) ? $data['tags_raw'] : explode(',', $data['tags_raw']);
         }
 
         $result = $this->docService->upload($file, $data);
@@ -147,5 +213,30 @@ class DocumentController extends BaseController
         $documents = $this->docModel->searchDocuments($filters);
 
         return $this->response->setJSON($documents);
+    }
+
+    /**
+     * Xóa chọn (Bulk Action).
+     */
+    public function bulkDelete()
+    {
+        if (!has_permission('sys.admin')) {
+            return redirect()->back()->with('error', 'Chỉ Quản trị viên mới được thực hiện Xóa chọn.');
+        }
+
+        $ids = $this->request->getPost('ids');
+        if (empty($ids) || !is_array($ids)) {
+            return redirect()->back()->with('error', 'Cảnh báo: Bạn chưa chọn tài liệu nào để xử lý.');
+        }
+
+        $successCount = 0;
+        foreach ($ids as $id) {
+            if ($this->docModel->delete($id)) {
+                $this->docService->logAccess($id, 'bulk_delete');
+                $successCount++;
+            }
+        }
+
+        return redirect()->back()->with('success', "Đã dọn dẹp thành công {$successCount} tài liệu khỏi danh sách.");
     }
 }

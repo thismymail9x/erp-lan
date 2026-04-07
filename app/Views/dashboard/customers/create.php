@@ -1,20 +1,20 @@
 <?= $this->extend('layouts/dashboard') ?>
 
 <?= $this->section('content') ?>
-<div class="customer-create-container" style="max-width: 900px; margin: 0 auto;">
-    <div class="dashboard-header-wrapper" style="margin-bottom: 40px;">
-        <div class="header-title-container" style="text-align: center; width: 100%;">
-            <h2 class="content-title">Thêm khách hàng mới</h2>
-            <p class="content-subtitle">Hệ thống sẽ tự động kiểm tra trùng lặp để đảm bảo dữ liệu tinh gọn.</p>
+<div class="create-container">
+    <div class="dashboard-header-wrapper">
+        <div class="header-title-container">
+            <h2 class="content-title text-center">Thêm khách hàng mới</h2>
+            <p class="content-subtitle text-center">Hệ thống sẽ tự động kiểm tra trùng lặp để đảm bảo dữ liệu tinh gọn.</p>
         </div>
-        <div style="position: absolute; left: 0; top: 0;">
+        <div class="header-back-btn">
             <a href="<?= base_url('customers') ?>" class="btn-secondary-sm" title="Quay lại danh sách khách hàng">
-                <i class="fas fa-chevron-left"></i> Quay lại
+                <i class="fas fa-arrow-left"></i>&nbsp; Quay lại
             </a>
         </div>
     </div>
 
-    <div class="premium-card" style="padding: 40px;">
+    <div class="premium-card premium-card-lg">
         <!-- Wizard Progress Bar -->
         <div class="wizard-progress" style="display: flex; justify-content: space-between; margin-bottom: 40px; position: relative;">
             <div style="position: absolute; top: 15px; left: 0; width: 100%; height: 2px; background: #f2f2f2; z-index: 1;"></div>
@@ -133,8 +133,12 @@
                         </select>
                     </div>
                     <div class="form-group-premium">
-                        <label class="label-premium">Tags (Phân loại, cách nhau dấu phẩy)</label>
-                        <input type="text" name="tags" class="form-control-premium" placeholder="đất đai, ly hôn, khách VIP..." title="Ghi chú phân loại nhanh để lọc dữ liệu">
+                        <label class="label-premium">Tags (Phân loại dữ liệu)</label>
+                        <select name="tags[]" class="form-control-premium select2-tags" multiple="multiple" style="width: 100%;" title="Chọn một hoặc nhiều nhãn dán để phân loại khách hàng">
+                            <?php foreach ($availableTags as $tag): ?>
+                                <option value="<?= $tag['id'] ?>"><?= esc($tag['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                 </div>
                 <div class="form-group-premium" style="margin-top: 20px;">
@@ -148,162 +152,13 @@
                 <button type="button" id="prevBtn" class="btn-secondary" style="display: none;">Quay lại</button>
                 <div style="flex: 1;"></div>
                 <button type="button" id="nextBtn" class="btn-premium">Tiếp theo</button>
-                <button type="submit" id="submitBtn" class="btn-premium" style="display: none;">Hoàn tất & Lưu</button>
+                <button type="submit" id="submitBtn" class="btn-premium btn-submit-premium" style="display: none;">Hoàn tất & Lưu</button>
             </div>
         </form>
     </div>
 </div>
+<?= $this->endSection() ?>
 
-<script>
-/**
- * Logic điều khiển Wizard (Form nhiều bước) và Kiểm tra trùng lặp thời gian thực.
- */
-document.addEventListener('DOMContentLoaded', function() {
-    let currentStep = 1;      // Bước hiện tại
-    const totalSteps = 3;    // Tổng số bước của Wizard
-    
-    // Khởi tạo các phần tử DOM quan trọng
-    const form = document.getElementById('customerWizardForm');
-    const steps = document.querySelectorAll('.wizard-step');
-    const indicators = document.querySelectorAll('.step-indicator');
-    const progressLine = document.getElementById('progress-line'); // Thanh tiến trình
-    
-    const nextBtn = document.getElementById('nextBtn');
-    const prevBtn = document.getElementById('prevBtn');
-    const submitBtn = document.getElementById('submitBtn');
-
-    /**
-     * Chuyển đổi hiển thị trường thông tin giữa Cá nhân và Doanh nghiệp.
-     * Tự động ẩn/hiện các ô nhập liệu đặc thù như CCCD hoặc Mã số thuế.
-     */
-    const typeRadios = document.querySelectorAll('input[name="type"]');
-    typeRadios.forEach(radio => {
-        radio.addEventListener('change', () => {
-            if (radio.value === 'doanh_nghiep') {
-                document.getElementById('individual_fields').style.display = 'none';
-                document.getElementById('corporate_fields').style.display = 'block';
-            } else {
-                document.getElementById('individual_fields').style.display = 'block';
-                document.getElementById('corporate_fields').style.display = 'none';
-            }
-        });
-    });
-
-    /**
-     * Xử lý khi nhấn nút "Tiếp theo".
-     */
-    nextBtn.addEventListener('click', () => {
-        if(currentStep < totalSteps) {
-            steps[currentStep-1].style.display = 'none'; // Ẩn bước cũ
-            currentStep++;
-            steps[currentStep-1].style.display = 'block'; // Hiện bước mới
-            updateWizard(); // Cập nhật giao diện thanh tiến trình
-        }
-    });
-
-    /**
-     * Xử lý khi nhấn nút "Quay lại".
-     */
-    prevBtn.addEventListener('click', () => {
-        if(currentStep > 1) {
-            steps[currentStep-1].style.display = 'none';
-            currentStep--;
-            steps[currentStep-1].style.display = 'block';
-            updateWizard();
-        }
-    });
-
-    /**
-     * Cập nhật trạng thái hiển thị của các nút bấm và thanh tiến trình.
-     */
-    function updateWizard() {
-        // 1. Cập nhật các vòng tròn chỉ số (Indicators)
-        indicators.forEach(ind => {
-            const step = parseInt(ind.dataset.step);
-            if(step <= currentStep) ind.classList.add('active');
-            else ind.classList.remove('active');
-            
-            const dot = ind.querySelector('.step-dot');
-            if(step < currentStep) {
-                // Bước đã hoàn thành: Hiện dấu tích xanh
-                dot.style.background = '#0071e3';
-                dot.style.color = '#fff';
-                dot.innerHTML = '<i class="fas fa-check"></i>';
-            } else if(step === currentStep) {
-                // Bước hiện tại: Highlight màu xanh dương
-                dot.style.background = '#fff';
-                dot.style.color = '#0071e3';
-                dot.style.borderColor = '#0071e3';
-                dot.innerHTML = step;
-            } else {
-                // Bước chưa tới: Hiện màu xám mờ
-                dot.style.background = '#fff';
-                dot.style.color = '#d2d2d7';
-                dot.style.borderColor = '#d2d2d7';
-                dot.innerHTML = step;
-            }
-        });
-
-        // 2. Cập nhật độ dài thanh tiến trình (Progress Line)
-        progressLine.style.width = ((currentStep - 1) / (totalSteps - 1) * 100) + '%';
-
-        // 3. Điều khiển hiển thị các nút điều hướng (Prev/Next/Submit)
-        prevBtn.style.display = (currentStep === 1) ? 'none' : 'block';
-        if(currentStep === totalSteps) {
-            nextBtn.style.display = 'none';
-            submitBtn.style.display = 'block';
-        } else {
-            nextBtn.style.display = 'block';
-            submitBtn.style.display = 'none';
-        }
-    }
-
-    /**
-     * Logic kiểm tra trùng lặp thông qua API (Asynchronous).
-     * Khi người dùng nhập xong và rời khỏi ô (blur), hệ thống sẽ gọi lên máy chủ để kiểm tra.
-     * 
-     * @param string field Tên trường cần kiểm tra (phone, identity_number, email)
-     * @param string value Giá trị người dùng đã nhập
-     * @param string alertId ID của phần tử hiển thị cảnh báo
-     */
-    async function checkDuplicate(field, value, alertId) {
-        if(!value) return;
-        const alertDiv = document.getElementById(alertId);
-        try {
-            // Gọi API kiểm tra trùng lặp
-            const response = await fetch(`<?= base_url('customers/check-duplicate') ?>?${field}=${value}`);
-            const result = await response.json();
-            
-            if(result.exists) {
-                // Nếu tồn tại: Hiển thị cảnh báo kèm link dẫn đến hồ sơ cũ để nhân viên đối soát
-                const dup = result.duplicates[field];
-                alertDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Trùng lặp: <a href="<?= base_url('customers/show') ?>/${dup.id}" target="_blank" style="color: inherit; text-decoration: underline;">${dup.code} - ${dup.name}</a>`;
-                alertDiv.style.display = 'block';
-            } else {
-                alertDiv.style.display = 'none';
-            }
-        } catch(e) {
-            console.error("Lỗi khi kiểm tra trùng lặp:", e);
-        }
-    }
-
-    // Gán sự kiện cho các ô nhập liệu quan trọng
-    document.getElementById('phone_check').addEventListener('blur', function() {
-        checkDuplicate('phone', this.value, 'phone_alert');
-    });
-    document.getElementById('id_check').addEventListener('blur', function() {
-        checkDuplicate('identity_number', this.value, 'id_alert');
-    });
-    document.getElementById('email_check').addEventListener('blur', function() {
-        checkDuplicate('email', this.value, 'email_alert');
-    });
-});
-</script>
-
-<style>
-.step-indicator { text-align: center; transition: all 0.3s ease; }
-.step-indicator.active .step-dot { border-color: #0071e3; }
-.wizard-step { animation: fadeIn 0.4s ease; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-</style>
+<?= $this->section('scripts') ?>
+<script src="<?= base_url('js/customer_wizard.js') ?>"></script>
 <?= $this->endSection() ?>
