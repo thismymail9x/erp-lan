@@ -26,9 +26,11 @@ class NotificationModel extends BaseModel
      */
     public function getUnread($userId, $limit = 5)
     {
-        return $this->where('user_id', $userId)
+        return $this->select('notifications.*, senders.full_name as sender_name')
+                    ->join('employees as senders', 'senders.user_id = notifications.sender_id', 'left')
+                    ->where('notifications.user_id', $userId)
                     ->where('is_read', 0)
-                    ->orderBy('created_at', 'DESC')
+                    ->orderBy('notifications.created_at', 'DESC')
                     ->findAll($limit);
     }
     
@@ -45,18 +47,23 @@ class NotificationModel extends BaseModel
     /**
      * Hộp thư đến: Lấy toàn bộ thông báo của user (có phân trang & bộ lọc)
      */
-    public function getNotifications($userId, $perPage = 10, $search = '', $type = '')
+    public function getNotifications($userId, $perPage = 20, $search = '', $type = '')
     {
-        $query = $this->where('user_id', $userId);
+        $query = $this->select('notifications.*, senders.full_name as sender_name')
+                    ->join('employees as senders', 'senders.user_id = notifications.sender_id', 'left')
+                    ->where('notifications.user_id', $userId);
 
         if (!empty($search)) {
-            $query->groupStart()->like('title', $search)->orLike('message', $search)->groupEnd();
+            $query->groupStart()
+                  ->like('notifications.title', $search)
+                  ->orLike('notifications.message', $search)
+                  ->groupEnd();
         }
         if (!empty($type)) {
-            $query->where('type', $type);
+            $query->where('notifications.type', $type);
         }
 
-        return $query->orderBy('created_at', 'DESC')->paginate($perPage);
+        return $query->orderBy('notifications.created_at', 'DESC')->paginate($perPage);
     }
 
     /**
@@ -83,7 +90,7 @@ class NotificationModel extends BaseModel
     /**
      * HỘP THƯ ĐI: Lấy danh sách các thông báo/nhắc nhở mà user đã gửi.
      */
-    public function getSent($userId, $perPage = 10, $search = '', $type = '')
+    public function getSent($userId, $perPage = 20, $search = '', $type = '')
     {
         $query = $this->select('notifications.*, recipients.full_name as recipient_name')
                     ->join('employees as recipients', 'recipients.user_id = notifications.user_id', 'left')

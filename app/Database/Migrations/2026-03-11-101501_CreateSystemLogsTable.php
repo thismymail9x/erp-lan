@@ -52,7 +52,7 @@ class CreateSystemLogsTable extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('user_id', 'users', 'id', 'SET NULL', 'CASCADE');
-        $this->forge->createTable('system_logs');
+        $this->forge->createTable('system_logs', true);
     }
 
     public function down()

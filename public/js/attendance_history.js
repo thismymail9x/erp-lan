@@ -34,6 +34,73 @@ $(document).ready(function() {
         }
     }
 
+    // --- XỬ LÝ CHỌN HÀNG LOẠT (BULK LOGIC) ---
+    const bulkBar = $('#att-bulk-bar');
+    const selectedCountLabel = $('#selected-count');
+
+    // Chọn tất cả
+    $(document).on('change', '#check-all', function() {
+        $('.record-check').prop('checked', $(this).prop('checked'));
+        updateBulkBar();
+    });
+
+    // Chọn lẻ
+    $(document).on('change', '.record-check', function() {
+        updateBulkBar();
+    });
+
+    function updateBulkBar() {
+        const selected = $('.record-check:checked');
+        const count = selected.length;
+        
+        if (count > 0) {
+            selectedCountLabel.text(count + ' mục đã chọn');
+            bulkBar.fadeIn(200).css('display', 'flex');
+        } else {
+            bulkBar.fadeOut(200);
+            $('#check-all').prop('checked', false);
+        }
+    }
+
+    // Thực thi cập nhật hàng loạt
+    window.bulkUpdateAttendance = async function() {
+        const selected = $('.record-check:checked');
+        const ids = [];
+        selected.each(function() { ids.push($(this).val()); });
+        
+        const status = $('#bulk-status').val();
+        if (!status) {
+            alert('Vui lòng chọn trạng thái mới!');
+            return;
+        }
+
+        if (!confirm('Bạn có chắc chắn muốn cập nhật trạng thái cho ' + ids.length + ' bản ghi này?')) return;
+
+        try {
+            const formData = new FormData();
+            ids.forEach(id => formData.append('ids[]', id));
+            formData.append('status', status);
+
+            const response = await fetch(baseUrl + '/attendance/bulk-update', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            
+            const result = await response.json();
+            if (result.code === 0) {
+                // Thành công: Refresh lại bảng
+                triggerAjax();
+                alert(result.message);
+            } else {
+                alert('Lỗi: ' + result.error);
+            }
+        } catch (err) {
+            console.error('Bulk Update error:', err);
+            alert('Lỗi kết nối khi cập nhật hàng loạt.');
+        }
+    }
+
     // Tiện ích xem ảnh minh chứng
     window.previewImage = function(src) {
         if (src) window.open(src, '_blank', 'noopener,noreferrer');

@@ -64,16 +64,16 @@ class AuthController extends BaseController
         $email    = $this->request->getPost('email');
         $password = $this->request->getPost('password');
 
-        // Gọi AuthService thực hiện kiểm tra thông tin trong CSDL và tạo Session
+        // Gọi AuthService thực hiện nghiệp vụ kiểm tra và thiết lập phiên làm việc
         $result = $this->authService->login($email, $password);
 
-        // Kiểm tra kết quả trả về từ nghiệp vụ đăng nhập
+        // Nếu xác thực thành công
         if ($result['status'] === 'success') {
-            // Đăng nhập thành công -> Chuyển hướng tới trang chính kèm thông báo chào mừng
+            // Đưa người dùng vào trang chủ quản trị (Dashboard)
             return redirect()->to('/dashboard')->with('message', 'Chào mừng trở lại!');
         }
 
-        // Đăng nhập thất bại -> Quay lại trang login, giữ lại Input và ném thông báo lỗi
+        // Đăng nhập thất bại -> Quay lại trang login kèm thông báo lỗi
         return redirect()->back()->withInput()->with('error', $result['message']);
     }
 

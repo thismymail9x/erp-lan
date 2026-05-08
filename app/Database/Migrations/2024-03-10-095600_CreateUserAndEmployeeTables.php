@@ -50,7 +50,7 @@ class CreateUserAndEmployeeTables extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('role_id', 'roles', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('users');
+        $this->forge->createTable('users', true);
 
         // 2. Employees Table
         $this->forge->addField([
@@ -112,7 +112,7 @@ class CreateUserAndEmployeeTables extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('user_id', 'users', 'id', 'SET NULL', 'CASCADE');
-        $this->forge->createTable('employees');
+        $this->forge->createTable('employees', true);
     }
 
     public function down()

@@ -63,7 +63,7 @@ class CreateCustomerAndCaseTables extends Migration
             ],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->createTable('customers');
+        $this->forge->createTable('customers', true);
 
         // 2. Cases Table
         $this->forge->addField([
@@ -131,7 +131,7 @@ class CreateCustomerAndCaseTables extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('customer_id', 'customers', 'id', 'CASCADE', 'CASCADE');
         $this->forge->addForeignKey('assigned_lawyer_id', 'employees', 'id', 'SET NULL', 'CASCADE');
-        $this->forge->createTable('cases');
+        $this->forge->createTable('cases', true);
     }
 
     public function down()

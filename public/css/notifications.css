@@ -3,7 +3,7 @@
    ========================================================================== */
 
 .top-navbar {
-    padding: 24px;
+    padding: 12px 24px;
     display: flex;
     justify-content: flex-end; /* Keeps items pushed to the right */
     align-items: center;
@@ -251,4 +251,38 @@
     .notif-item-page { flex-direction: column; gap: 12px; }
     .notif-actions { margin-left: 0; margin-top: 10px; width: 100%; justify-content: flex-end; }
     .tabs-premium { overflow-x: auto; white-space: nowrap; }
+}
+
+/* Summary Header for Lists */
+.notif-summary-header {
+    padding: 16px 24px;
+    background: #fbfbfd;
+    border-bottom: 1px solid #f2f2f7;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--apple-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Timeline/Discussion Styles (Global Fallback) */
+.timeline-item-premium {
+    padding-left: 25px; 
+    border-left: 2px solid var(--apple-blue); 
+    position: relative; 
+    margin-bottom: 25px;
+    padding-bottom: 5px;
+}
+
+.timeline-dot {
+    position: absolute; 
+    left: -7px; 
+    top: 0; 
+    width: 12px; 
+    height: 12px; 
+    border-radius: 50%; 
+    background: var(--apple-blue);
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.1);
 }

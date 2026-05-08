@@ -19,106 +19,46 @@ class DashboardController extends BaseController
         $employeeId = session()->get('employee_id');
         $role = session()->get('role_name');
         $myDeptId = session()->get('department_id');
-        $isAdmin = in_array($role, [\Config\AppConstants::ROLE_ADMIN, \Config\AppConstants::ROLE_MOD]);
+        $isAdmin = (has_permission('sys.admin') || in_array($role, [\Config\AppConstants::ROLE_ADMIN, \Config\AppConstants::ROLE_MOD]));
         $isManager = ($role === \Config\AppConstants::ROLE_TRUONG_PHONG);
         $isLegalManager = ($isManager && $myDeptId == \Config\AppConstants::DEPT_PHAP_LY);
 
         // 2. KHỞI TẠO DỊCH VỤ & MODEL
         $attendanceService = new \App\Services\AttendanceService();
+        $kpiService = new \App\Services\KpiService();
         $db = \Config\Database::connect();
         
-        // 3. TÍNH TOÁN CÁC CHỈ SỐ (Statistics)
+        $kpiYear = $this->request->getGet('year') ?? date('Y');
+        // Đối với Admin, ta lấy tổng công ty để hiển thị ở Dashboard chính
+        $kpiStats = $kpiService->getMotivationStats($isAdmin ? null : $employeeId, ['year' => $kpiYear]);
         $stats = [];
-        
-        // --- A. Vụ việc đang xử lý ---
-        $caseBuilder = $db->table('cases');
-        $caseBuilder->whereIn('status', ['moi_tiep_nhan', 'dang_xu_ly', 'cho_tham_tam', 'open', 'in_progress']);
-        $caseBuilder->where('deleted_at', null);
-        
-        if ($isAdmin) {
-            // ADMIN: Xem toàn cục công ty
-        } elseif ($isManager) {
-            // QUẢN LÝ (TEAM-BASED): Thấy dữ liệu của đội mình (Sếp + Quân)
-            $myTeamIds = $db->table('employees')->where('manager_id', $employeeId)->select('id')->get()->getResultArray();
-            $myTeamIds = array_column($myTeamIds, 'id');
-            $myTeamIds[] = $employeeId; // Bao gồm sếp
+        // --- A. Vụ việc & Khách hàng (Sử dụng Service chuyên trách) ---
+        $caseService     = new \App\Services\CaseService();
+        $customerService = new \App\Services\CustomerService();
 
-            $caseBuilder->groupStart()
-                // A. Hồ sơ của ĐỘI
-                ->groupStart()
-                    ->whereIn('assigned_lawyer_id', $myTeamIds)
-                    ->orWhereIn('assigned_staff_id', $myTeamIds)
-                    ->orWhereIn('id', function($builder) use ($myTeamIds) {
-                        return $builder->select('case_id')->from('case_members')->whereIn('employee_id', $myTeamIds);
-                    })
-                ->groupEnd();
-
-                // B. NGOẠI LỆ PHÁP LÝ: Thấy hồ sơ mồ kôi để quản trị
-                if ($isLegalManager) {
-                    $caseBuilder->orGroupStart()
-                        ->where('assigned_lawyer_id IS NULL')
-                        ->where('assigned_staff_id IS NULL')
-                    ->groupEnd();
-                }
-            $caseBuilder->groupEnd();
-        } else {
-            // NHÂN VIÊN bình thường: Chỉ thấy vụ việc mình tham gia
-            $caseBuilder->groupStart()
-                ->where('assigned_lawyer_id', $employeeId)
-                ->orWhere('assigned_staff_id', $employeeId)
-                ->orWhereIn('id', function($builder) use ($employeeId) {
-                    $builder->select('case_id')->from('case_members')->where('employee_id', $employeeId);
-                })
-            ->groupEnd();
+        // Tính toán params cho Customer Service dựa trên vai trò
+        $custEmpId = $custDeptId = $custMgrId = null;
+        if (!$isAdmin) {
+            $custDeptId = $myDeptId;
+            if ($isManager) {
+                $custMgrId = $employeeId;
+            } else {
+                $custEmpId = $employeeId;
+            }
         }
-        $stats['cases'] = $caseBuilder->countAllResults();
 
-        // --- B. Tổng Khách hàng ---
-        $customerBuilder = $db->table('customers');
-        $customerBuilder->where('deleted_at', null);
-        
-        if ($isAdmin) {
-            // ADMIN: Xem toàn bộ công ty
-        } elseif ($isManager) {
-            // QUẢN LÝ (TEAM-BASED): Thấy khách hàng của đội mình
-            $myTeamIds = $db->table('employees')->where('manager_id', $employeeId)->select('id')->get()->getResultArray();
-            $myTeamIds = array_column($myTeamIds, 'id');
-            $myTeamIds[] = $employeeId;
+        $caseStats = $caseService->getStats();
+        $customerStats = $customerService->getDashboardStats($custEmpId, $custDeptId, $custMgrId);
 
-            $customerBuilder->whereIn('id', function($builder) use ($myTeamIds, $isLegalManager) {
-                $builder->select('customer_id')->from('cases')->groupStart();
-                    // A. Nhúng trong hồ sơ của ĐỘI (Sếp + Quân)
-                    $builder->groupStart()
-                        ->whereIn('assigned_lawyer_id', $myTeamIds)
-                        ->orWhereIn('assigned_staff_id', $myTeamIds)
-                        ->orWhereIn('id', function($sub) use ($myTeamIds) {
-                            return $sub->select('case_id')->from('case_members')->whereIn('employee_id', $myTeamIds);
-                        })
-                    ->groupEnd();
-
-                    // B. NGOẠI LỆ PHÁP LÝ: Thấy khách của hồ sơ mồ kôi
-                    if ($isLegalManager) {
-                        $builder->orGroupStart()
-                            ->where('assigned_lawyer_id IS NULL')
-                            ->where('assigned_staff_id IS NULL')
-                        ->groupEnd();
-                    }
-                $builder->groupEnd();
-            });
-        } else {
-            // NHÂN VIÊN bình thường
-            $customerBuilder->whereIn('id', function($builder) use ($employeeId) {
-                $builder->select('customer_id')->from('cases')
-                    ->groupStart()
-                        ->where('assigned_lawyer_id', $employeeId)
-                        ->orWhere('assigned_staff_id', $employeeId)
-                        ->orWhereIn('id', function($sub) use ($employeeId) {
-                            $sub->select('case_id')->from('case_members')->where('employee_id', $employeeId);
-                        })
-                    ->groupEnd();
-            });
-        }
-        $stats['customers'] = $customerBuilder->countAllResults();
+        $stats = [
+            'total_cases'      => $caseStats['total'],
+            'waiting_cases'    => $caseStats['waiting'],
+            'processing_cases' => $caseStats['processing'],
+            'completed_cases'  => $caseStats['completed'],
+            'overdue_cases'    => $caseStats['overdue'],
+            'customers'        => $customerStats['total_customers'],
+            'revenue'          => 0
+        ];
 
         // --- C. Doanh thu ---
         $stats['revenue'] = 0;
@@ -255,6 +195,7 @@ class DashboardController extends BaseController
             'title'            => 'Bảng điều khiển | L.A.N ERP',
             'attendanceStatus' => $attendanceStatus,
             'stats'            => $stats,
+            'kpiStats'         => $kpiStats,
             'deptStats'        => $deptStats,
             'isAdmin'          => $isAdmin,
             'isManager'        => $isManager,
@@ -263,6 +204,7 @@ class DashboardController extends BaseController
             'isSaleDept'       => $isSaleDept,
             'absentCalendar'   => $absentCalendar,
             'currentMonthDisplay' => date('m/Y'),
+            'kpiYear'          => $kpiYear,
             'daysInMonth'      => (int)date('t'),
             'firstDayOfWeek'   => (int)date('w', strtotime($currentMonthStart)),
             'user'  => [

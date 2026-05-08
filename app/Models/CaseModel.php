@@ -27,7 +27,7 @@ class CaseModel extends BaseModel
         'customer_id', 'title', 'code', 'description', 
         'status', 'deadline', 'current_step', 'priority', 
         'assigned_lawyer_id', 'assigned_staff_id', 'start_date', 'end_date',
-        'workflow_template_id'
+        'workflow_template_id', 'contract_value', 'payment_progress'
     ];
 
     // 3. Quản lý thời gian tự động

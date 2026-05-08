@@ -49,7 +49,7 @@ class CreateCaseCommentsTable extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('case_id', 'cases', 'id', 'CASCADE', 'CASCADE');
         $this->forge->addForeignKey('user_id', 'users', 'id', 'SET NULL', 'CASCADE');
-        $this->forge->createTable('case_comments');
+        $this->forge->createTable('case_comments', true);
     }
 
     public function down()

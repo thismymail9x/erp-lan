@@ -22,8 +22,8 @@
     <div class="premium-card p-40" style="max-width: 900px; margin: 0 auto;">
         <div class="notif-detail-meta m-b-30 p-b-20 border-bottom-light flex-item-center space-between">
             <div class="flex-item-center gap-15">
-                <div class="user-avatar-large" style="width: 50px; height: 50px; background: var(--apple-blue); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700;">
-                    <?= strtoupper(substr($notif['sender_name'] ?: 'H', 0, 1)) ?>
+                <div class="user-avatar-large" style="width: 75px; height: 50px; background: var(--apple-blue); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700;">
+                    <?= mb_strtoupper(mb_substr($notif['sender_name'] ?: 'H', 0, 1)) ?>
                 </div>
                 <div>
                     <h4 class="m-0 font-weight-700"><?= esc($notif['sender_name'] ?: 'Hệ thống') ?></h4>

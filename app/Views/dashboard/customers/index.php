@@ -100,6 +100,11 @@
     <div class="premium-card premium-card-full" id="customer-table-container">
         <?= view('dashboard/customers/index_table') ?>
     </div>
+
+    <!-- Phân trang hệ thống -->
+    <div class="pagination-wrapper p-20 m-t-16">
+        <?= $pager->links() ?>
+    </div>
 </div>
 </div>
 

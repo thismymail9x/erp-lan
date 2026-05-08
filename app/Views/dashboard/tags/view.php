@@ -23,24 +23,26 @@
             <table class="premium-table">
                 <thead>
                     <tr>
-                        <th style="width: 150px;">Phân loại</th>
+                        <th class="table-cell-center" style="width: 50px;">STT</th>
+                        <th style="width: 130px;">Phân loại</th>
                         <th style="width: 120px;">Mã số</th>
                         <th>Tên / Nội dung</th>
-                        <th style="width: 180px;">Ngày gắn nhãn</th>
-                        <th class="table-cell-center" style="width: 120px;">Thao tác</th>
+                        <th>Khách hàng</th>
+                        <th class="table-cell-center" style="width: 100px;">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($entities)) { ?>
                         <tr>
-                            <td colspan="5" class="empty-state-container p-40" style="text-align: center;">
+                            <td colspan="6" class="empty-state-container p-40" style="text-align: center;">
                                 <i class="fas fa-search-minus m-b-15" style="font-size: 3rem; opacity: 0.2;"></i>
                                 <p>Chưa có dữ liệu nào được gắn nhãn dán này.</p>
                             </td>
                         </tr>
                     <?php } else { ?>
-                        <?php foreach ($entities as $item) { ?>
+                        <?php $stt = 0; foreach ($entities as $item) { $stt++; ?>
                             <tr>
+                                <td class="table-cell-center text-muted-dark"><?= $stt ?></td>
                                 <td>
                                     <span class="badge-log badge-secondary-minimal"><?= esc($item['type']) ?></span>
                                 </td>
@@ -48,10 +50,18 @@
                                     <span class="text-monospace font-weight-600 text-xs"><?= esc($item['code']) ?></span>
                                 </td>
                                 <td>
-                                    <div class="font-weight-600 text-apple-main"><?= esc($item['name']) ?></div>
+                                    <div class="font-weight-600">
+                                        <a href="<?= $item['url'] ?>" class="text-apple-main text-decoration-none hover-underline"><?= esc($item['name']) ?></a>
+                                    </div>
                                 </td>
                                 <td>
-                                    <div class="text-xs text-muted-dark"><?= date('d/m/Y H:i', strtotime($item['date'])) ?></div>
+                                    <?php if (!empty($item['customer_name'])) { ?>
+                                        <a href="<?= $item['customer_url'] ?>" class="link-premium text-sm">
+                                            <i class="fas fa-user-circle m-r-5 text-muted-dark"></i> <?= esc($item['customer_name']) ?>
+                                        </a>
+                                    <?php } else { ?>
+                                        <span class="text-muted-dark italic">--</span>
+                                    <?php } ?>
                                 </td>
                                 <td class="table-cell-center">
                                     <a href="<?= $item['url'] ?>" class="btn-secondary-sm" title="Xem chi tiết">

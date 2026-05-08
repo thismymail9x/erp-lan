@@ -4,8 +4,21 @@
                 <p>Không tìm thấy kết quả nào khớp với yêu cầu.</p>
             </div>
         <?php } else { ?>
+            <div class="notif-summary-header">
+                <i class="fas fa-list-ol"></i> Danh sách thông báo (Tổng số: <?= $pager->getDetails()['total'] ?> mục)
+            </div>
+            <?php if (has_permission('sys.admin')) { ?>
+            <!-- Floating Bulk Actions Bar -->
+            <div class="bulk-actions-bar">
+                <span id="selected-count">0 mục đã chọn</span>
+                <button type="button" class="bulk-btn-delete" onclick="bulkDelete()" title="Xóa hàng loạt">
+                    <i class="fas fa-trash-alt"></i> Xóa vĩnh viễn
+                </button>
+            </div>
+            <?php } ?>
             <div class="notification-list">
-                <?php foreach ($notifications as $n) { ?>
+                <?php $stt = isset($pager) ? ($pager->getCurrentPage() - 1) * $pager->getPerPage() : 0; ?>
+                <?php foreach ($notifications as $n) { $stt++; ?>
                     <?php 
                         $iconClass = 'fa-info-circle';
                         $typeClass = 'info';
@@ -17,19 +30,27 @@
                         $readClass = ($n['is_read'] ?? 0) ? 'read' : 'unread';
                     ?>
                     <div class="notif-item-page <?= $readClass ?>">
+                        <?php if (has_permission('sys.admin')) { ?>
+                        <input type="checkbox" class="record-check" value="<?= $n['id'] ?>" style="width: 16px; height: 16px; cursor: pointer; margin-top: 4px; flex-shrink: 0;">
+                        <?php } ?>
+                        <span class="text-muted-dark text-xs font-weight-600" style="min-width: 28px; flex-shrink: 0;"><?= $stt ?>.</span>
                         <div class="notif-icon-wrapper <?= $typeClass ?>">
                             <i class="fas <?= $iconClass ?>"></i>
                         </div>
                         <div class="notif-content-wrapper">
                             <div class="notif-title <?= $readClass ?>">
+
                                 <?= esc($n['title']) ?>
+                                <?php if ($tab === 'inbox') { ?>
+                                    <span class="text-xs text-muted-dark font-weight-600 m-r-5"> <?= esc($n['sender_name'] ?: 'Hệ thống') ?></span>
+                                <?php } ?>
                                 <?php if ($tab === 'all') { ?>
                                     <span class="text-xs text-muted-dark font-weight-400">
-                                        (Gửi từ: <strong><?= esc($n['sender_name'] ?: 'Hệ thống') ?></strong> → Đến: <strong><?= esc($n['recipient_name'] ?: 'N/A') ?></strong>)
+                                         <strong><?= esc($n['sender_name'] ?: 'Hệ thống') ?></strong>  <strong><?= esc($n['recipient_name'] ?: 'N/A') ?></strong>)
                                     </span>
                                 <?php } elseif ($tab === 'sent') { ?>
                                     <span class="text-xs text-muted-dark font-weight-400 m-l-10">
-                                        Đến: <strong><?= esc($n['recipient_name'] ?: 'N/A') ?></strong>
+                                         <strong><?= esc($n['recipient_name'] ?: 'N/A') ?></strong>
                                     </span>
                                 <?php } ?>
                             </div>

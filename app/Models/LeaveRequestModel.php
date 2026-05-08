@@ -15,8 +15,9 @@ class LeaveRequestModel extends BaseModel
     protected $useSoftDeletes = true;
 
     protected $allowedFields = [
-        'employee_id', 'leave_type', 'start_date', 'end_date', 'total_days', 
-        'reason', 'status', 'approver_id', 'approval_note', 'approved_at'
+        'employee_id', 'leave_type', 'leave_duration', 'start_date', 'end_date', 'total_days', 
+        'reason', 'handover_to', 'handover_content', 'is_emergency',
+        'status', 'approver_id', 'approval_note', 'approved_at'
     ];
 
     // Note: BaseModel handles timestamps & soft deletes config.
@@ -26,8 +27,8 @@ class LeaveRequestModel extends BaseModel
         'employee_id' => 'required|numeric',
         'start_date'  => 'required|valid_date',
         'end_date'    => 'required|valid_date',
-        'leave_type'  => 'required|in_list[annual,paid,unpaid]',
-        'reason'      => 'required|min_length[10]'
+        'leave_type'  => 'required|in_list[annual,sick,personal,unpaid,maternity,wedding,funeral]',
+        'reason'      => 'required|min_length[5]'
     ];
 
     /**

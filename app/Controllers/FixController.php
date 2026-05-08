@@ -56,7 +56,6 @@ class FixController extends Controller
 
             echo "<h4>=> KẾT QUẢ: ĐÃ SỬA XONG.</h4>";
             echo "<p><b>BƯỚC QUAN TRỌNG:</b> Bạn hãy <b>Đăng xuất</b> rồi <b>Đăng nhập lại</b> để hệ thống nạp lại quyền mới vào Session nhé!</p>";
-            echo "<p>Nếu vẫn không thấy, hãy gửi lại cho mình toàn bộ nội dung hiển thị ở trang này (phần Session và bảng Roles).</p>";
 
         } catch (\Exception $e) {
             echo "Lỗi khi sửa: " . $e->getMessage();

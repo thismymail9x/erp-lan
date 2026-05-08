@@ -67,7 +67,7 @@
                     <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
                         <div class="form-group-premium">
                             <label class="label-premium">Ngày sinh</label>
-                            <input type="date" name="date_of_birth" class="form-control-premium" title="Ngày tháng năm sinh của khách hàng">
+                            <input type="date" name="date_of_birth" id="date_of_birth" class="form-control-premium datepicker-native" title="Ngày tháng năm sinh của khách hàng">
                         </div>
                         <div class="form-group-premium">
                             <label class="label-premium">Giới tính</label>
@@ -160,5 +160,5 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-<script src="<?= base_url('js/customer_wizard.js') ?>"></script>
+<script src="<?= base_url('js/customer_wizard.js') ?>?v=1.1"></script>
 <?= $this->endSection() ?>

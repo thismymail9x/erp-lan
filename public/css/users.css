@@ -132,3 +132,9 @@
     .selected-count-label { font-size: 13px; }
     .bulk-delete-button { padding: 10px 16px; font-size: 13px; }
 }
+
+/* Row Hover Effect */
+.user-list-wrapper .premium-table tbody tr:hover td {
+    background-color: rgba(255, 59, 48, 0.12) !important;
+    transition: background-color 0.2s ease;
+}

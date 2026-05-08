@@ -16,8 +16,8 @@ class KnowledgeModel extends BaseModel
     protected $useSoftDeletes   = true;
 
     protected $allowedFields    = [
-        'case_id', 'author_id', 'title', 'content', 'category', 
-        'view_count', 'helpful_count', 'is_pinned'
+        'case_id', 'author_id', 'title', 'summary', 'problem', 'solution', 
+        'red_flags', 'content', 'category', 'view_count', 'helpful_count', 'is_pinned'
     ];
 
     protected $useTimestamps = true;
@@ -31,18 +31,25 @@ class KnowledgeModel extends BaseModel
         'author_id' => 'required|is_not_unique[employees.id]',
         'case_id'   => 'permit_empty|is_not_unique[cases.id]',
         'title'     => 'required|min_length[5]|max_length[255]',
-        'content'   => 'required|min_length[10]',
+        'summary'   => 'permit_empty|max_length[255]',
+        'problem'   => 'required|min_length[10]',
+        'solution'  => 'required|min_length[10]',
+        'red_flags' => 'permit_empty',
         'category'  => 'required|in_list[case_study,skill,legal_update,general]'
     ];
 
     protected $validationMessages   = [
         'title' => [
-            'required' => 'Tiêu đề bài viết không được để trống.',
-            'min_length' => 'Tiêu đề quá ngắn, cần chi tiết hơn để dễ tìm kiếm.'
+            'required' => 'Vấn đề (Tiêu đề) không được để trống.',
+            'min_length' => 'Vấn đề quá ngắn, cần chi tiết hơn.'
         ],
-        'content' => [
-            'required' => 'Nội dung chia sẻ không được để trống.',
-            'min_length' => 'Nội dung quá ngắn.'
+        'problem' => [
+            'required' => 'Mô tả vấn đề không được để trống.',
+            'min_length' => 'Mô tả vấn đề quá ngắn.'
+        ],
+        'solution' => [
+            'required' => 'Cách giải quyết không được để trống.',
+            'min_length' => 'Cách giải quyết quá ngắn.'
         ]
     ];
 }

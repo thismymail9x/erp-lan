@@ -163,9 +163,10 @@ class CustomerController extends BaseController
         }
 
         $data = [
-            'customers'     => $query->orderBy('created_at', 'DESC')->findAll(),
+            'customers'     => $query->orderBy('created_at', 'DESC')->paginate(15),
+            'pager'         => $this->customerModel->pager,
             'stats'         => $this->customerService->getDashboardStats($statsEmpId, $statsDeptId, $statsManagerId), 
-            'availableTags' => get_available_tags('customers'), // Core Function
+            'availableTags' => $this->tagService->getAvailableTags('customers', has_permission('sys.admin') ? -1 : null),
             'title'         => 'Quản lý khách hàng | L.A.N ERP'
         ];
 
@@ -183,7 +184,7 @@ class CustomerController extends BaseController
     public function create()
     {
         $data = [
-            'availableTags' => get_available_tags('customers'), // Core Function
+            'availableTags' => $this->tagService->getAvailableTags('customers', has_permission('sys.admin') ? -1 : null),
             'title' => 'Tiếp nhận khách hàng mới | L.A.N ERP'
         ];
 
@@ -340,9 +341,33 @@ class CustomerController extends BaseController
         $file = $this->request->getFile('document');
         if (!$file) return redirect()->back()->with('error', 'Chưa chọn tệp tin.');
         
-        // --- BẢO MẬT: KIỂM TRA QUYỀN (IDOR Protection) ---
-        if (!has_permission('sys.admin') && !has_permission('customer.manage') && !has_permission('customer.edit_all')) {
-             return redirect()->back()->with('error', 'Cảnh báo bảo mật: Bạn không được quyền tải tài liệu vào hồ sơ khách hàng.');
+        // --- BẢO MẬT: KIỂM TRA QUYỀN TRUY CẬP (IDOR & Team Access Protection) ---
+        // Cho phép: Admin, người có quyền quản lý khách hàng, HOẶC nhân viên đang tham gia ít nhất 1 vụ việc của khách này.
+        $canUpload = false;
+        if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
+            $canUpload = true;
+        } else {
+            $myEmpId = session()->get('employee_id');
+            $db = \Config\Database::connect();
+            
+            // Kiểm tra xem nhân viên có đang phụ trách vụ việc nào của khách hàng này không
+            $hasCase = $db->table('cases')->where('customer_id', $id)
+                          ->groupStart()
+                            ->where('assigned_lawyer_id', $myEmpId)
+                            ->orWhere('assigned_staff_id', $myEmpId)
+                            ->orWhereIn('id', function($builder) use ($myEmpId) {
+                                return $builder->select('case_id')->from('case_members')->where('employee_id', $myEmpId);
+                            })
+                          ->groupEnd()
+                          ->countAllResults();
+            
+            if ($hasCase > 0) {
+                $canUpload = true;
+            }
+        }
+
+        if (!$canUpload) {
+             return redirect()->back()->with('error', 'Cảnh báo bảo mật: Bạn không được quyền tải tài liệu vào hồ sơ khách hàng này (Do không thuộc ban nghiệp vụ phụ trách).');
         }
 
         // 1. CHUẨN BỊ DỮ LIỆU ĐỒNG BỘ
@@ -369,6 +394,29 @@ class CustomerController extends BaseController
      */
     public function importDocument($customerId)
     {
+        // --- BẢO MẬT: KIỂM TRA QUYỀN TRUY CẬP (IDOR & Team Access Protection) ---
+        $canImport = false;
+        if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
+            $canImport = true;
+        } else {
+            $myEmpId = session()->get('employee_id');
+            $db = \Config\Database::connect();
+            $hasCase = $db->table('cases')->where('customer_id', $customerId)
+                          ->groupStart()
+                            ->where('assigned_lawyer_id', $myEmpId)
+                            ->orWhere('assigned_staff_id', $myEmpId)
+                            ->orWhereIn('id', function($builder) use ($myEmpId) {
+                                return $builder->select('case_id')->from('case_members')->where('employee_id', $myEmpId);
+                            })
+                          ->groupEnd()
+                          ->countAllResults();
+            if ($hasCase > 0) $canImport = true;
+        }
+
+        if (!$canImport) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Bạn không được quyền thực hiện thao tác này trên hồ sơ khách hàng này.']);
+        }
+
         $docId = $this->request->getPost('document_id');
         if (!$docId) return $this->response->setJSON(['status' => 'error', 'message' => 'Chưa chọn tài liệu.']);
 
@@ -392,34 +440,49 @@ class CustomerController extends BaseController
     {
         $data = $this->request->getPost();
         
-        // 1. QUY TẮC ĐỊNH DANH (Standard ID Coding):
-        // Nếu không nhập mã thủ công, hệ thống tự động sinh theo mẫu: KH-YYYY-STT (VD: KH-2024-001)
+        // 1. QUY TẮC ĐỊNH DANH (Robust Auto-Coding):
         if (empty($data['code'])) {
-            $count = $this->customerModel->withDeleted()->countAllResults() + 1;
-            $data['code'] = 'KH-' . date('Y') . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
+            $year = date('Y');
+            $latest = $this->customerModel->where('code LIKE', "KH-$year-%")
+                                         ->orderBy('code', 'DESC')
+                                         ->first();
+            $num = 1;
+            if ($latest) {
+                // Parse KH-2024-001 -> 1
+                $parts = explode('-', $latest['code']);
+                $num = (int)end($parts) + 1;
+            }
+            $data['code'] = 'KH-' . $year . '-' . str_pad($num, 3, '0', STR_PAD_LEFT);
         }
 
-        // 2. Tiền xử lý TAG (Nếu là mảng từ POST, chuyển về CSV để lưu vào metadata khách hàng nếu cần)
+        // 2. Tiền xử lý TAG
         $tags = $this->request->getPost('tags');
         if (is_array($tags)) {
             $data['tags'] = implode(',', $tags);
         }
 
-        // 3. Lưu dữ liệu
+        // 3. Thiết lập thông tin người tạo
         $data['created_by'] = session()->get('employee_id');
-        if ($this->customerModel->save($data)) {
-            $customerId = $this->customerModel->getInsertID();
 
-            // ĐỒNG BỘ NHÃN DÁN (Multi-modal relations)
-            if (is_array($tags) && !empty($tags)) {
-                $this->tagService->syncTags($customerId, 'customers', $tags);
+        // 4. Thực thi lưu
+        try {
+            if ($this->customerModel->save($data)) {
+                $customerId = $this->customerModel->getInsertID();
+
+                if (is_array($tags) && !empty($tags)) {
+                    $this->tagService->syncTags($customerId, 'customers', $tags);
+                }
+
+                return redirect()->to(base_url('customers'))->with('success', 'Hồ sơ khách hàng mới đã được thiết lập thành công.');
+            } else {
+                // Lỗi validation từ Model
+                return redirect()->back()->withInput()->with('errors', $this->customerModel->errors());
             }
-
-            return redirect()->to(base_url('customers'))->with('success', 'Hồ sơ khách hàng mới đã được thiết lập thành công.');
+        } catch (\Exception $e) {
+            // Lỗi Database hoặc Logic nghiêm trọng
+            log_message('error', '[CustomerStore] Error: ' . $e->getMessage());
+            return redirect()->back()->withInput()->with('error', 'Lỗi hệ thống khi lưu: ' . $e->getMessage());
         }
-
-        // 3. Trả về thông báo lỗi chi tiết nếu vi phạm các ràng buộc dữ liệu
-        return redirect()->back()->withInput()->with('errors', $this->customerModel->errors());
     }
 
     /**
@@ -450,7 +513,7 @@ class CustomerController extends BaseController
 
         $data = [
             'customer'      => $customer,
-            'availableTags' => get_available_tags('customers'), // Core Function
+            'availableTags' => $this->tagService->getAvailableTags('customers', has_permission('sys.admin') ? -1 : null),
             'selectedTags'  => array_column($this->tagService->getTagsByEntity($id, 'customers'), 'id'),
             'title'         => 'Chỉnh sửa hồ sơ: ' . $customer['name'] . ' | L.A.N ERP'
         ];
@@ -582,5 +645,52 @@ class CustomerController extends BaseController
         $logService->log('DELETE', 'Customers', $id, ['action' => 'HARD_REVOKE_CUSTOMER']);
 
         return redirect()->to(base_url('customers'))->with('success', 'Đã gỡ bỏ an toàn kho lưu trữ số của khách hàng này.');
+    }
+
+    /**
+     * Xóa chọn khách hàng (Bulk Action) - Chỉ Admin.
+     */
+    public function bulkDelete()
+    {
+        if (!has_permission('sys.admin')) {
+             return $this->response->setJSON(['status' => 'error', 'message' => 'Chỉ Quản trị viên mới được thực hiện thao tác này.']);
+        }
+
+        $ids = $this->request->getPost('ids');
+        if (empty($ids) || !is_array($ids)) {
+             return $this->response->setJSON(['status' => 'error', 'message' => 'Danh sách chọn trống.']);
+        }
+
+        $caseModel = new \App\Models\CaseModel();
+        $success = 0;
+        $skipped = 0;
+
+        foreach ($ids as $id) {
+            // Kiểm tra toàn vẹn: Không xóa khách hàng đang có vụ việc
+            $casesCount = $caseModel->where('customer_id', $id)->countAllResults();
+            if ($casesCount > 0) {
+                $skipped++;
+                continue;
+            }
+
+            // Xử lý liên đới (Dọn dẹp tương tác và gỡ liên kết tài liệu)
+            $db = \Config\Database::connect();
+            $db->table('customer_interactions')->where('customer_id', $id)->delete();
+            $db->table('documents')->where('customer_id', $id)->update(['customer_id' => null]);
+
+            if ($this->customerModel->delete($id)) {
+                $success++;
+            }
+        }
+
+        $msg = "Đã dọn dẹp thành công {$success} hồ sơ khách hàng.";
+        if ($skipped > 0) {
+            $msg .= " Bỏ qua {$skipped} mục do đang có vụ việc liên quan (Toàn vẹn dữ liệu).";
+        }
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'message' => $msg
+        ]);
     }
 }

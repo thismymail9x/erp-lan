@@ -72,14 +72,14 @@ $(document).ready(function() {
 /**
  * Xử lý Gắn nhãn nhanh (Quick Tag) - Duy trì từ code cũ
  */
-function openQuickTag(id, name) {
+function openQuickTag(id, name, tagIds = []) {
     document.getElementById('quickTagEntityId').value = id;
     document.getElementById('quickTagName').innerText = name;
     document.getElementById('quickTagModal').style.display = 'flex';
     
-    // Nếu có Select2 cho multiple tags, reset nó
+    // Nếu có Select2 cho multiple tags, điền các nhãn hiện có
     if (typeof $ !== 'undefined' && $('#quickTagSelect').hasClass('select2-hidden-accessible')) {
-        $('#quickTagSelect').val(null).trigger('change');
+        $('#quickTagSelect').val(tagIds).trigger('change');
     }
 }
 
@@ -112,9 +112,19 @@ function updateTagsRow(entityId, tags) {
     const row = $('#tags-row-' + entityId);
     if (row.length) {
         let html = '';
+        const tagIds = [];
         tags.forEach(t => {
+            tagIds.push(parseInt(t.id));
             html += `<a href="/tags/show/${t.id}" class="tag-badge-premium" style="background-color: ${t.color}15; color: ${t.color}; border: 1px solid ${t.color}30; font-size: 9px; padding: 1px 6px; text-decoration: none;">${t.name}</a> `;
         });
         row.html(html);
+
+        // CẬP NHẬT QUAN TRỌNG: Cập nhật lại thuộc tính onclick của nút bấm để lần click sau có dữ liệu mới nhất
+        const tagBtn = row.closest('tr').find('.text-tag');
+        if (tagBtn.length) {
+            const customerName = $('#quickTagName').text(); // Lấy lại tên đang hiển thị
+            const newOnClick = `openQuickTag(${entityId}, "${customerName}", ${JSON.stringify(tagIds)})`;
+            tagBtn.attr('onclick', newOnClick);
+        }
     }
 }

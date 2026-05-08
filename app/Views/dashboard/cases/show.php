@@ -5,6 +5,22 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
+<?php
+    $myEmpId = session()->get('employee_id');
+    $isPrimaryAssignee = false;
+    if (!empty($memberGroups['assignee']) && is_array($memberGroups['assignee'])) {
+        foreach ($memberGroups['assignee'] as $m) {
+            if ($m['employee_id'] == $myEmpId) {
+                $isPrimaryAssignee = true;
+                break;
+            }
+        }
+    }
+    
+    // Quyền chỉnh sửa tổng thể
+    $canEditCase = has_permission('sys.admin') || has_permission('case.manage') || has_permission('case.edit_all') || $isPrimaryAssignee;
+?>
+
 <div class="case-detail-container">
     <!-- 
         Tiêu đề trang chi tiết Vụ việc:
@@ -26,13 +42,16 @@
             <a href="<?= base_url('cases') ?>" class="btn-secondary-sm" title="Quay lại">
                 <i class="fas fa-chevron-left"></i> Danh sách
             </a>
-            <a href="<?= base_url('cases/edit/' . $case['id']) ?>" class="btn-secondary-sm" title="Sửa">
-                <i class="fas fa-edit"></i> Sửa
-            </a>
-            <button class="btn-premium" onclick="document.getElementById('statusModal').style.display='flex'"
-                    title="Cập nhật">
-                <i class="fas fa-sync-alt"></i> Cập nhật
-            </button>
+            
+            <?php if ($canEditCase) { ?>
+                <a href="<?= base_url('cases/edit/' . $case['id']) ?>" class="btn-secondary-sm" title="Sửa">
+                    <i class="fas fa-edit"></i> Sửa
+                </a>
+                <button class="btn-premium" onclick="document.getElementById('statusModal').style.display='flex'"
+                        title="Cập nhật trạng thái tổng thể">
+                    <i class="fas fa-sync-alt"></i> Cập nhật
+                </button>
+            <?php } ?>
         </div>
     </div>
 
@@ -232,9 +251,11 @@
 
                                     foreach ($reqDocs as $rd) {
                                         $isUploaded = false;
+                                        $matchedDoc = null;
                                         foreach ($stepDocs as $sd) {
                                             if (stripos($sd['file_name'] ?? '', $rd) !== false || stripos($sd['type'] ?? '', $rd) !== false) {
                                                 $isUploaded = true;
+                                                $matchedDoc = $sd;
                                                 break;
                                             }
                                         }
@@ -243,19 +264,81 @@
                                             <div class="doc-status-icon <?= $isUploaded ? 'uploaded' : 'missing' ?>">
                                                 <i class="fas <?= $isUploaded ? 'fa-check-circle' : 'fa-circle' ?>"></i>
                                             </div>
-                                            <div class="checklist-label"><?= esc($rd) ?></div>
-                                            <?php if (!$isUploaded) { ?>
-                                                <button class="btn-upload-checklist"
-                                                        onclick="openUploadStep(<?= $active_step['id'] ?? 0 ?>, '<?= esc($rd) ?>')">
-                                                    <i class="fas fa-upload"></i> Tải lên
-                                                </button>
-                                            <?php } ?>
+                                            <div class="checklist-label" style="flex:1;"><?= esc($rd) ?></div>
+                                            
+                                            <div class="checklist-actions" style="display: flex; gap: 8px;">
+                                                <?php if ($isUploaded) { ?>
+                                                    <?php 
+                                                        $isImg = in_array(strtolower($matchedDoc['file_type'] ?? ''), ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+                                                        $docUrl = base_url('documents/view/' . $matchedDoc['id']);
+                                                    ?>
+                                                    <a href="<?= $docUrl ?>" target="_blank" class="btn-secondary-sm" title="Tải về trực tiếp">
+                                                        <i class="fas fa-download"></i>
+                                                    </a>
+                                                    <?php if ($isImg) { ?>
+                                                        <button type="button" class="btn-secondary-sm text-apple-blue" 
+                                                                onclick="previewImage('<?= $docUrl . '?preview=1' ?>', '<?= esc($matchedDoc['file_name']) ?>')" 
+                                                                title="Xem nhanh ảnh">
+                                                            <i class="fas fa-eye"></i>
+                                                        </button>
+                                                    <?php } ?>
+                                                <?php } else { ?>
+                                                    <button class="btn-upload-checklist"
+                                                            onclick="openUploadStep(<?= $active_step['id'] ?? 0 ?>, '<?= esc($rd) ?>')">
+                                                        <i class="fas fa-upload"></i> Tải lên
+                                                    </button>
+                                                <?php } ?>
+                                            </div>
                                         </div>
                                     <?php }
                                 } ?>
                             </div>
                         </div>
                     <?php } ?>
+                <?php } ?>
+
+                <?php
+                $isHanhChinhOrAdmin = (session()->get('role_name') === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
+                if ($isHanhChinhOrAdmin) { 
+                ?>
+                <div class="premium-card p-20 m-b-24" style="background: rgba(var(--apple-blue-rgb), 0.03); border-color: rgba(var(--apple-blue-rgb), 0.2);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                        <h3 class="section-header-title m-0 text-apple-blue"><i class="fas fa-file-invoice-dollar m-r-8"></i> Tài khoản, Hợp đồng & Thanh toán</h3>
+                        <a href="<?= base_url('cases/edit/' . $case['id']) ?>" class="btn-secondary-sm text-xs"><i class="fas fa-edit m-r-4"></i> Cập nhật</a>
+                    </div>
+                    <div class="info-grid-premium">
+                        <div class="info-item">
+                            <label class="text-muted-dark text-xs font-weight-600 uppercase">Giá trị hợp đồng</label>
+                            <div class="font-weight-700 text-lg text-apple-main">
+                                <?= !empty($case['contract_value']) ? number_format($case['contract_value'], 0, ',', '.') . ' VNĐ' : '<span class="text-muted-dark font-weight-400 italic">Chưa cập nhật</span>' ?>
+                            </div>
+                        </div>
+                        <div class="info-item flex-2">
+                            <label class="text-muted-dark text-xs font-weight-600 uppercase">Tiến độ thanh toán</label>
+                            <div class="font-weight-500 text-apple-main" style="line-height: 1.5;">
+                                <?php 
+                                if (!empty($case['payment_progress'])) {
+                                    $payments = json_decode($case['payment_progress'], true);
+                                    if (json_last_error() === JSON_ERROR_NONE && is_array($payments)) {
+                                        echo '<ul style="padding-left: 20px; margin: 0;">';
+                                        foreach ($payments as $p) {
+                                            $amountHtml = !empty($p['amount']) ? '<span class="text-apple-blue font-weight-600">' . number_format($p['amount'], 0, ',', '.') . 'đ</span>' : '';
+                                            $deadlineHtml = !empty($p['deadline']) ? ' - Hạn: <span class="text-apple-red">' . date('d/m/Y', strtotime($p['deadline'])) . '</span>' : '';
+                                            $paidIcon = (!empty($p['is_paid']) && $p['is_paid'] == 1) ? '<span class="badge-success-minimal text-xs m-l-8"><i class="fas fa-check-circle"></i> Đã thu</span>' : '<span class="badge-warning-minimal text-xs m-l-8"><i class="fas fa-clock"></i> Chờ thu</span>';
+                                            echo '<li>' . esc($p['title']) . ': ' . $amountHtml . $deadlineHtml . $paidIcon . '</li>';
+                                        }
+                                        echo '</ul>';
+                                    } else {
+                                        echo nl2br(esc($case['payment_progress']));
+                                    }
+                                } else {
+                                    echo '<span class="text-muted-dark font-weight-400 italic">Chưa ghi chú</span>';
+                                }
+                                ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <?php } ?>
 
                 <div class="premium-card p-20 m-b-24">
@@ -522,10 +605,23 @@
                                         </td>
                                         <td class="table-cell-center text-sm"><?= isset($doc['created_at']) ? date('d/m/Y', strtotime($doc['created_at'])) : '--' ?></td>
                                         <td class="table-cell-center">
-                                            <a href="<?= base_url('documents/view/' . $doc['id']) ?>" target="_blank"
-                                               class="btn-secondary-sm" title="Xem / Tải xuống tài liệu này thông qua bộ lọc DMS Sec">
-                                                <i class="fas fa-download"></i>
-                                            </a>
+                                            <div style="display: flex; gap: 8px; justify-content: center;">
+                                                <?php 
+                                                    $isImg = in_array(strtolower($doc['file_type'] ?? ''), ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+                                                    $docUrl = base_url('documents/view/' . $doc['id']);
+                                                ?>
+                                                <a href="<?= $docUrl ?>" target="_blank"
+                                                   class="btn-secondary-sm" title="Tải xuống tài liệu">
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+                                                <?php if ($isImg) { ?>
+                                                    <button type="button" class="btn-secondary-sm text-apple-blue" 
+                                                            onclick="previewImage('<?= $docUrl . '?preview=1' ?>', '<?= esc($doc['file_name']) ?>')" 
+                                                            title="Xem nhanh ảnh">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                <?php } ?>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php } ?>
@@ -543,16 +639,15 @@
                 <div class="status-indicator-box text-center p-20 m-b-15"
                      style="background: rgba(0,0,0,0.02); border-radius: 12px;">
                     <?php
-                    $statusLabels = [
-                            'moi_tiep_nhan' => 'Mới tiếp nhận',
-                            'dang_xu_ly' => 'Đang xử lý',
-                            'cho_tham_tam' => 'Chờ thẩm định',
-                            'da_giai_quyet' => 'Đã giải quyết',
-                            'dong_ho_so' => 'Đã đóng hồ sơ',
-                            'huy' => 'Đã hủy'
+                    $statusClasses = [
+                            'cho_tiep_nhan' => 'badge-info-minimal',
+                            'dang_xu_ly'    => 'badge-warning-minimal',
+                            'da_hoan_thanh' => 'badge-success-minimal',
+                            'huy'           => 'badge-danger-minimal'
                     ];
+                    $currentStatusClass = $statusClasses[$case['status']] ?? 'badge-secondary-minimal';
                     ?>
-                    <div class="badge-log badge-info-minimal text-lg" style="padding: 10px 20px; display: block;"
+                    <div class="badge-log <?= $currentStatusClass ?> text-lg" style="padding: 10px 20px; display: block;"
                          title="Trạng thái xử lý của hồ sơ">
                         <?= $statusLabels[$case['status']] ?? $case['status'] ?>
                     </div>
@@ -600,7 +695,7 @@
             <div class="premium-card p-20">
                 <h3 class="sidebar-section-title">Hành động nhanh</h3>
                 <div class="quick-actions-list flex-column gap-10">
-                    <?php if (has_permission('case.manage')) { ?>
+                    <?php if ($canEditCase) { ?>
                         <button class="btn-secondary-sm w-100" style="justify-content: flex-start;"
                                 onclick="document.getElementById('statusModal').style.display='flex'"
                                 title="Cập nhật trạng thái tổng thể hồ sơ">
@@ -613,12 +708,18 @@
                         <i class="fas fa-comment-dots m-r-8"></i> Thêm ghi chú nội bộ
                     </button>
 
-                    <?php if (!empty($case['customer_phone'])) { ?>
-                    <a href="tel:<?= esc($case['customer_phone']) ?>" class="btn-secondary-sm w-100" style="justify-content: flex-start;"
-                       title="Gọi điện trực tiếp cho khách hàng: <?= esc($case['customer_phone']) ?>">
-                        <i class="fas fa-phone-alt m-r-8 text-apple-green"></i> Liên hệ: <?= esc($case['customer_phone']) ?>
-                    </a>
-                    <?php } ?>
+                    <button class="btn-secondary-sm w-100" style="justify-content: flex-start;"
+                            onclick="window.location.href='<?= base_url('knowledge/create?case_id=' . $case['id']) ?>'" 
+                            title="Bạn có kinh nghiệm gì về Case này không? Chia sẻ ngay">
+                        <i class="fas fa-lightbulb m-r-8 text-warning"></i> Chia sẻ kinh nghiệm ngay
+                    </button>
+
+<!--                    --><?php //if (!empty($case['customer_phone'])) { ?>
+<!--                    <a href="tel:--><?php //= esc($case['customer_phone']) ?><!--" class="btn-secondary-sm w-100" style="justify-content: flex-start;"-->
+<!--                       title="Gọi điện trực tiếp cho khách hàng: --><?php //= esc($case['customer_phone']) ?><!--">-->
+<!--                        <i class="fas fa-phone-alt m-r-8 text-apple-green"></i> Liên hệ: --><?php //= esc($case['customer_phone']) ?>
+<!--                    </a>-->
+<!--                    --><?php //} ?>
 
                     <button class="btn-secondary-sm w-100 text-apple-red" style="justify-content: flex-start;"
                             onclick="document.getElementById('reminderModal').style.display='flex'; $('.select2-single').select2({dropdownParent: $('#reminderModal')});"
@@ -682,10 +783,10 @@
             <div class="form-group-premium m-b-15">
                 <label class="info-list-label m-b-10" style="display:block;">Trạng thái tiếp theo</label>
                 <select name="status" class="form-control-premium" required title="Chọn trạng thái mới cho hồ sơ">
-                    <?php if (!empty($statusLabels) && is_array($statusLabels)) { ?>
-                        <?php foreach ($statusLabels as $val => $lbl) { ?>
-                            <option value="<?= $val ?>" <?= ($case['status'] ?? '') == $val ? 'selected' : '' ?>><?= $lbl ?></option>
-                        <?php } ?>
+                    <?php 
+                    $labels = \Config\AppConstants::CASE_STATUS_LABELS;
+                    foreach ($labels as $val => $lbl) { ?>
+                        <option value="<?= $val ?>" <?= ($case['status'] ?? '') == $val ? 'selected' : '' ?>><?= $lbl ?></option>
                     <?php } ?>
                 </select>
             </div>
@@ -800,7 +901,7 @@
         <form action="<?= base_url('cases/update-tags/' . $case['id']) ?>" method="POST">
             <?= csrf_field() ?>
             <div class="form-group-premium m-b-15">
-                <div class="tags-selector-list flex-column gap-15" style="max-height: 300px; overflow-y: auto; padding-right: 10px;">
+                <div class="tags-selector-list gap-15" style="max-height: 300px; overflow-y: auto; padding-right: 10px;">
                     <?php if (empty($availableTags)) { ?>
                         <div class="text-xs text-muted-dark italic">Chưa có nhãn dán nào trong hệ thống.</div>
                     <?php } else { ?>
@@ -828,12 +929,12 @@
                 </div>
             </div>
             
-            <div class="form-actions-row m-t-25" style="justify-content: flex-end; gap: 12px;">
+            <div class="form-actions-row m-t-25 text-center" style="justify-content: flex-end; gap: 12px;">
                 <button type="button" class="btn-secondary-sm"
                         onclick="document.getElementById('tagModal').style.display='none'">Hủy
                 </button>
                 <button type="submit" class="btn-premium">
-                    <i class="fas fa-save m-r-8"></i> Lưu nhãn dán
+                    <i class="fas fa-save m-r-8"></i> Lưu
                 </button>
             </div>
         </form>
@@ -844,14 +945,14 @@
         ?>
             <hr class="m-y-20" style="opacity: 0.1;">
             <div class="quick-create-tag-section">
-                <h4 class="text-xs font-weight-700 uppercase m-b-15" style="color: var(--apple-text-muted);">Tạo nhãn dán mới</h4>
+                <h4 class="text-xs font-weight-700 uppercase m-b-15" style="color: var(--apple-text-muted);">Tạo nhãn dán</h4>
                 <form action="<?= base_url('cases/create-tag') ?>" method="POST" class="flex-column gap-15">
                     <?= csrf_field() ?>
                     <div style="display: grid; grid-template-columns: 1fr 100px; gap: 10px;">
                         <input type="text" name="name" class="form-control-premium" placeholder="Tên nhãn dán..." required style="height: 38px;">
                         <input type="color" name="color" value="#007aff" class="form-control-premium" style="height: 38px; padding: 2px; width: 100%;">
                     </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: grid; grid-template-columns: 1fr 100px; gap: 10px;">
                         <select name="type" class="form-control-premium text-xs" style="width: auto; height: 32px; padding: 0 10px;">
                             <option value="global">Dùng chung (Toàn công ty)</option>
                             <option value="private">Dùng riêng (Cá nhân)</option>
@@ -859,7 +960,7 @@
                         <input type="hidden" name="module_scope" value="cases">
                         <input type="hidden" name="ref_case_id" value="<?= $case['id'] ?>">
                         <button type="submit" class="btn-secondary-sm" style="font-size: 11px;">
-                            <i class="fas fa-plus m-r-5"></i> Tạo và gán ngay
+                            <i class="fas fa-plus m-r-5"></i> Tạo mới
                         </button>
                     </div>
                 </form>
@@ -905,10 +1006,20 @@
     </div>
 </div>
 
-<!-- 
-    Giao diện chi tiết vụ việc (360-degree Case View).
-    Sử dụng kiến trúc Tabbed để phân tách các khối dữ liệu: Timeline, Bình luận, Lịch sử, Tài liệu.
--->
+<!-- Image Preview Modal (Apple-Style) -->
+<div id="imagePreviewModal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:2000; align-items:center; justify-content:center; backdrop-filter: blur(5px);">
+    <div style="position:relative; max-width:90%; max-height:90%;">
+        <button onclick="document.getElementById('imagePreviewModal').style.display='none'" 
+                style="position:absolute; top:-40px; right:-40px; background:none; border:none; color:white; font-size:30px; cursor:pointer;">
+            <i class="fas fa-times"></i>
+        </button>
+        <div style="background:white; padding:10px; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+            <img id="previewImgElement" src="" style="max-width:100%; max-height:80vh; display:block; border-radius:8px;">
+            <div id="previewImgTitle" style="text-align:center; padding-top:10px; font-weight:600; color:#333; font-size:14px;"></div>
+        </div>
+    </div>
+</div>
+
 <script>
     /**
      * L.A.N ERP - Quản lý Chi tiết Vụ việc
@@ -1038,8 +1149,30 @@
         });
     }
 
+    function previewImage(url, title) {
+        const modal = document.getElementById('imagePreviewModal');
+        const img = document.getElementById('previewImgElement');
+        const titleEl = document.getElementById('previewImgTitle');
+        
+        img.src = url;
+        titleEl.innerText = title;
+        modal.style.display = 'flex';
+    }
+
+    // Close modal on outside click
+    window.addEventListener('click', function(e) {
+        const modal = document.getElementById('imagePreviewModal');
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+
+    /**
+     * Lọc tài liệu trong Kho (Vault Search)
+     */
     function filterVault() {
         let input = document.getElementById('vaultSearch');
+        if (!input) return;
         let filter = input.value.toUpperCase();
         let tr = document.querySelectorAll('#vaultTableBody tr');
         tr.forEach(row => {
@@ -1047,5 +1180,34 @@
             row.style.display = text.toUpperCase().indexOf(filter) > -1 ? "" : "none";
         });
     }
+
+    /**
+     * Switch Tab Function
+     */
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+        document.querySelectorAll('.nav-tab-item').forEach(t => t.classList.remove('active'));
+        
+        const targetTab = document.getElementById('tab-' + tabName);
+        if (targetTab) targetTab.style.display = 'block';
+        
+        const targetItem = document.querySelector(`.nav-tab-item[onclick*="${tabName}"]`);
+        if (targetItem) targetItem.classList.add('active');
+    }
 </script>
+
+<!-- Global Image Preview Modal -->
+<div id="imagePreviewModal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:2000; align-items:center; justify-content:center; backdrop-filter: blur(5px);">
+    <div style="position:relative; max-width:90%; max-height:90%;">
+        <button onclick="document.getElementById('imagePreviewModal').style.display='none'" 
+                style="position:absolute; top:-40px; right:-40px; background:none; border:none; color:white; font-size:30px; cursor:pointer;">
+            <i class="fas fa-times"></i>
+        </button>
+        <div style="background:white; padding:10px; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+            <img id="previewImgElement" src="" style="max-width:100%; max-height:80vh; display:block; border-radius:8px;">
+            <div id="previewImgTitle" style="text-align:center; padding-top:10px; font-weight:600; color:#333; font-size:14px;"></div>
+        </div>
+    </div>
+</div>
+
 <?= $this->endSection() ?>

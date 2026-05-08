@@ -24,29 +24,54 @@
         <form action="<?= base_url('knowledge/store') ?>" method="POST" id="knowledgeForm" class="premium-form">
             <?= csrf_field() ?>
             
-            <?php if (session()->getFlashdata('errors')) : ?>
+            <?php if ($errors = session()->getFlashdata('errors')) : ?>
                 <div class="lan-status-box lan-status-error m-b-24">
                     <i class="fas fa-exclamation-circle lan-box-icon"></i>
-                    <p class="m-0">Vui lòng kiểm tra lại: <?= array_shift(session()->getFlashdata('errors')) ?></p>
+                    <p class="m-0">Vui lòng kiểm tra lại: <?= array_shift($errors) ?></p>
                 </div>
             <?php endif; ?>
 
             <div class="k-form-row">
                 <div class="k-main-col">
                     <div class="form-group-premium m-b-24">
-                        <label class="label-premium">Tiêu đề đúc kết <span style="color: #ff3b30;">*</span></label>
+                        <label class="label-premium">Vấn đề đúc kết <span style="color: #ff3b30;">*</span></label>
                         <input type="text" name="title" class="form-control-premium k-title-input" 
                                value="<?= old('title') ?>" 
-                               placeholder="Ví dụ: Kỹ năng tranh tụng thu hồi nợ, Kinh nghiệm đàm phán..." 
+                               placeholder="Vấn đề" 
                                required>
                     </div>
 
-                    <div class="form-group-premium">
-                        <label class="label-premium">Nội dung chi tiết <span style="color: #ff3b30;">*</span></label>
+                    <div class="form-group-premium m-b-24">
+                        <label class="label-premium">Tóm tắt nhanh (Quick Summary)</label>
+                        <input type="text" name="summary" class="form-control-premium" 
+                               value="<?= old('summary') ?>" 
+                               placeholder="Tóm tắt nhanh trong 1 câu để đồng nghiệp dễ dàng phân loại...">
+                    </div>
+
+                    <div class="form-group-premium m-b-28">
+                        <label class="label-premium">1. Chi tiết Vấn đề (Dạng Bullet points) <span style="color: #ff3b30;">*</span></label>
                         <div class="editor-wrapper">
-                            <div id="editor-container" style="min-height: 480px;"><?= old('content') ?></div>
+                            <div id="problem-editor" style="height: 150px;"><?= old('problem') ?></div>
                         </div>
-                        <input type="hidden" name="content" id="contentInput" value="<?= esc(old('content') ?? '') ?>">
+                        <input type="hidden" name="problem" id="problemInput" value="<?= esc(old('problem') ?? '') ?>">
+                        <p class="form-help-text">Nên dùng các gạch đầu dòng để người xem dễ quét mắt.</p>
+                    </div>
+
+                    <div class="form-group-premium m-b-28">
+                        <label class="label-premium">2. Cách giải quyết <span style="color: #ff3b30;">*</span></label>
+                        <div class="editor-wrapper">
+                            <div id="solution-editor" style="height: 150px;"><?= old('solution') ?></div>
+                        </div>
+                        <input type="hidden" name="solution" id="solutionInput" value="<?= esc(old('solution') ?? '') ?>">
+                    </div>
+
+                    <div class="form-group-premium m-b-28">
+                        <label class="label-premium">3. Lưu ý quan trọng (Red flags) <i class="fas fa-flag color-danger m-l-4"></i></label>
+                        <div class="editor-wrapper red-flag-wrapper">
+                            <div id="redflags-editor" style="height: 150px;"><?= old('red_flags') ?></div>
+                        </div>
+                        <input type="hidden" name="red_flags" id="redflagsInput" value="<?= esc(old('red_flags') ?? '') ?>">
+                        <p class="form-help-text">Những rủi ro, sai lầm cần tránh (Nên dùng màu đỏ/vàng để nhấn mạnh).</p>
                     </div>
                 </div>
 
@@ -94,12 +119,13 @@
                                     <option value="<?= $tag['id'] ?>"><?= esc($tag['name']) ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <p class="form-help-text m-t-12">Dùng nhãn để liên kết kinh nghiệm này với các hồ sơ khác.</p>
                         </div>
 
-                        <button type="submit" class="btn-premium btn-submit-premium w-100">
-                            <i class="fas fa-paper-plane m-r-8"></i> Đăng bài viết
+                        <button type="submit" class="mt-12 btn-premium btn-submit-premium w-100 m-b-16">
+                            <i class="fas fa-paper-plane m-r-8"></i> Công bố ngay
                         </button>
+                        
+                        <p class="text-xs color-muted text-center">Bạn có thể lưu và chỉnh sửa lại sau bất cứ lúc nào.</p>
                     </div>
                 </div>
             </div>
@@ -123,6 +149,15 @@ $(document).ready(function() {
 </script>
 <style>
 /* Module-specific refinements */
+.red-flag-wrapper {
+    border: 1px solid #ff3b3033;
+    background: #fffafa;
+    border-radius: 8px;
+}
+.red-flag-wrapper .ql-toolbar {
+    background: #fff5f5;
+    border-bottom: 1px solid #ff3b301a;
+}
 .case-link-box-active {
     background: #fff;
     padding: 16px;

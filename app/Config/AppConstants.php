@@ -39,17 +39,10 @@ class AppConstants
     public const CASE_STATUS_CANCELLED  = 'cancelled';
 
     public const CASE_STATUS_LABELS = [
-        'moi_tiep_nhan'   => 'Mới tiếp nhận',
+        'cho_tiep_nhan'   => 'Chờ tiếp nhận',
         'dang_xu_ly'      => 'Đang xử lý',
-        'cho_tham_tam'    => 'Chờ thẩm định',
-        'da_giai_quyet'   => 'Đã giải quyết',
-        'dong_ho_so'      => 'Đã đóng hồ sơ',
-        'huy'             => 'Đã hủy',
-        'open'            => 'Đang mở',
-        'in_progress'     => 'Đang tiến hành',
-        'pending'         => 'Đang chờ',
-        'closed'          => 'Đã đóng',
-        'cancelled'       => 'Đã hủy'
+        'da_hoan_thanh'   => 'Đã hoàn thành',
+        'huy'             => 'Hủy'
     ];
 
     /**
@@ -78,8 +71,11 @@ class AppConstants
     public const ATT_STATUS_INVALID_LOC   = 'INVALID_LOCATION';
     public const ATT_STATUS_LEAVE         = 'LEAVE'; // Nghỉ phép
     
+    // Mức phạt vi phạm (đi muộn/về sớm)
+    public const PENALTY_ATTENDANCE_VIOLATION = 30000;
+    
     // IP mạng LAN nội bộ được phép điểm danh không cần camera
-    public const ATT_LAN_IPS = ['1.55.89.247', '::1', '255.255.255.0', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.2', '172.3'];
+    public const ATT_LAN_IPS = ['1.55.89.247', '::1', '255.255.255.0', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.2', '172.3', '192.168.'];
 
     // === PHÂN LOẠI VỤ VIỆC (CASE TYPES CATEGORIES) ===
 }

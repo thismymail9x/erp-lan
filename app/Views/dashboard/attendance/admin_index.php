@@ -73,17 +73,15 @@
 <!-- Bulk Actions Bar -->
 <div class="bulk-actions-bar" id="bulk-bar">
     <span id="selected-count" style="font-weight: 600; font-size: 14px;">0 mục đã chọn</span>
-    <div style="display: flex; gap: 12px; align-items: center;">
-        <select id="bulk-status" class="form-control-premium" style="height: 40px; min-width: 180px; background-color: #333; color: white; border: none; font-size: 13px;" title="Chọn trạng thái mới cho các mục đã đánh dấu">
+    <div>
+        <select id="bulk-status" class="form-control-premium" title="Chọn trạng thái mới cho các mục đã đánh dấu">
             <option value="">Thay đổi trạng thái...</option>
-            <option value="REGULAR">Xác nhận ĐÚNG GIỜ</option>
-            <option value="LATE">Đánh dấu TRỄ GIỜ</option>
-            <option value="EARLY_LEAVE">Đánh dấu VỀ SỚM</option>
-            <option value="LEAVE">Nghỉ CÓ PHÉP</option>
-            <option value="INVALID_LOCATION">Sai VỊ TRÍ</option>
+            <option value="REGULAR">Đúng giờ</option>
+            <option value="LATE">Vi phạm</option>
         </select>
-        <button onclick="applyBulkUpdate()" class="btn-premium-sm" style="padding: 0 20px; height: 40px;" title="Áp dụng thay đổi hàng loạt">Xác nhận</button>
     </div>
+    <button onclick="applyBulkUpdate()" class="btn-premium" style="padding: 0 20px; height: 40px;" title="Áp dụng thay đổi hàng loạt">Xác nhận</button>
+
 </div>
 
 <?= $this->section('scripts') ?>

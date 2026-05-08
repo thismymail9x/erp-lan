@@ -58,7 +58,7 @@ class CreateHRAndCommsTables extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('employee_id', 'employees', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('leave_requests');
+        $this->forge->createTable('leave_requests', true);
 
         // 2. Performance Reviews Table
         $this->forge->addField([
@@ -107,7 +107,7 @@ class CreateHRAndCommsTables extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('employee_id', 'employees', 'id', 'CASCADE', 'CASCADE');
         $this->forge->addForeignKey('reviewer_id', 'employees', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('performance_reviews');
+        $this->forge->createTable('performance_reviews', true);
 
         // 3. Daily Reports Table
         $this->forge->addField([
@@ -143,7 +143,7 @@ class CreateHRAndCommsTables extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('employee_id', 'employees', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('daily_reports');
+        $this->forge->createTable('daily_reports', true);
 
         // 4. Internal Messages Table
         $this->forge->addField([
@@ -182,7 +182,7 @@ class CreateHRAndCommsTables extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('sender_id', 'users', 'id', 'CASCADE', 'CASCADE');
         $this->forge->addForeignKey('receiver_id', 'users', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('internal_messages');
+        $this->forge->createTable('internal_messages', true);
     }
 
     public function down()

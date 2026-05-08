@@ -3,13 +3,13 @@
 <?= $this->section('content') ?>
 <div class="dashboard-header-wrapper m-b-24">
     <div class="header-title-container">
-        <h2 class="content-title">Quản lý Đơn nghỉ phép</h2>
+        <h2 class="content-title">Quản lý Nghỉ phép</h2>
         <p class="content-subtitle">Theo dõi, phê duyệt và đồng bộ dữ liệu nghỉ phép vào hệ thống chấm công.</p>
     </div>
     <div class="header-controls">
         <?php if (has_permission('leave.manage')) { ?>
             <a href="<?= base_url('leave-requests/create') ?>" class="btn-premium">
-                <i class="fas fa-plus"></i>&nbsp; Tạo đơn mới
+                <i class="fas fa-plus"></i>&nbsp; Tạo đơn
             </a>
         <?php } ?>
     </div>
@@ -19,7 +19,7 @@
 <form action="<?= base_url('leave-requests') ?>" method="GET" class="search-filter-bar m-b-24" id="leave-filter-form">
     <div class="search-input-group">
         <i class="fas fa-search"></i>
-        <input type="text" name="search" placeholder="Tìm theo lý do, mã đơn..." value="<?= esc(request()->getGet('search')) ?>">
+        <input type="text" name="search" placeholder="Tìm theo lý do, ..." value="<?= esc(request()->getGet('search')) ?>">
     </div>
     
     <select name="status" class="filter-select">
@@ -42,7 +42,7 @@
 </form>
 
 <!-- Danh mục Đơn nghỉ phép -->
-<div class="premium-card no-padding overflow-hidden" id="leave-table-container">
+<div class="premium-card premium-card-full overflow-hidden" id="leave-table-container">
     <?= view('dashboard/leave_requests/index_table') ?>
 </div>
 
@@ -154,34 +154,6 @@
     const modal = document.getElementById('leaveModal');
     let currentId = null;
 
-    function viewDetails(req) {
-        currentId = req.id;
-        document.getElementById('modalId').innerText = '#' + req.id;
-        document.getElementById('modalName').innerText = req.employee_name;
-        document.getElementById('modalPos').innerText = req.position + ' (' + req.department_name + ')';
-        document.getElementById('modalDays').innerText = req.total_days + ' ngày';
-        document.getElementById('modalRange').innerText = formatDate(req.start_date) + ' - ' + formatDate(req.end_date);
-        document.getElementById('modalReason').innerText = req.reason;
-
-        const approvalSection = document.getElementById('approvalSection');
-        const approvedInfo = document.getElementById('approvedInfo');
-
-        if (req.status === 'pending' && (<?= has_permission('leave.approve') || has_permission('sys.admin') ? 'true' : 'false' ?>)) {
-            approvalSection.style.display = 'block';
-            approvedInfo.style.display = 'none';
-        } else if (req.status !== 'pending') {
-            approvalSection.style.display = 'none';
-            approvedInfo.style.display = 'block';
-            document.getElementById('modalApprover').innerText = req.approver_name || 'Hệ thống';
-            document.getElementById('modalAppDate').innerText = req.approved_at || '...';
-            document.getElementById('modalAppNote').innerText = req.approval_note || '(Không có ghi chú)';
-        } else {
-            approvalSection.style.display = 'none';
-            approvedInfo.style.display = 'none';
-        }
-
-        modal.style.display = 'flex';
-    }
 
     function closeModal() {
         modal.style.display = 'none';

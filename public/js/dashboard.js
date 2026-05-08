@@ -3,17 +3,17 @@
  * Quản lý các tương tác giao diện chính (sidebar, mobile navigation, tooltips).
  */
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // 1. Quản lý Sidebar & Mobile Menu
     const mobileToggle = document.getElementById('mobile_toggle') || document.getElementById('mobile-toggle');
     const sidebar = document.querySelector('.sidebar');
-    
+
     if (mobileToggle && sidebar) {
         /**
          * Toggle Sidebar trên thiết bị di động.
          * Ngăn chặn sự kiện click lan ra ngoài để tránh đóng ngay lập tức.
          */
-        mobileToggle.addEventListener('click', function(e) {
+        mobileToggle.addEventListener('click', function (e) {
             e.stopPropagation();
             sidebar.classList.toggle('active');
         });
@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
          * Đóng sidebar khi người dùng nhấn ra vùng bên ngoài main-content.
          * Chỉ áp dụng cho màn hình nhỏ (<= 1024px).
          */
-        document.addEventListener('click', function(e) {
+        document.addEventListener('click', function (e) {
             if (window.innerWidth <= 1024) {
                 if (!sidebar.contains(e.target) && !mobileToggle.contains(e.target)) {
                     sidebar.classList.remove('active');
@@ -37,10 +37,10 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     const navLinks = document.querySelectorAll('.nav-link');
     navLinks.forEach(link => {
-        link.addEventListener('click', function() {
+        link.addEventListener('click', function () {
             navLinks.forEach(l => l.classList.remove('active'));
             this.classList.add('active');
-            
+
             if (window.innerWidth <= 1024 && sidebar) {
                 sidebar.classList.remove('active');
             }
@@ -64,25 +64,25 @@ document.addEventListener('DOMContentLoaded', function() {
  * 4. Khởi tạo thư viện Select2 cho các thẻ Select.
  * Giúp các menu chọn lựa trở nên thông minh và hỗ trợ tìm kiếm nội bộ.
  */
-$(document).ready(function() {
+$(document).ready(function () {
     if ($.fn.select2) {
-        $('select:not(.no-select2)').each(function() {
+        $('select:not(.no-select2)').each(function () {
             var $el = $(this);
             var $modal = $el.closest('.modal, .modal-overlay, .modal-overlay-cust');
             var customMin = $el.data('search') === true ? 0 : 5; // Ngưỡng mặc định 5, hoặc 0 nếu ép buộc
-            
+
             var options = {
                 width: '100%',
                 minimumResultsForSearch: customMin,
                 language: {
-                    noResults: function() { return "Không tìm thấy kết quả"; }
+                    noResults: function () { return "Không tìm thấy kết quả"; }
                 }
             };
-            
+
             if ($modal.length) {
                 options.dropdownParent = $modal;
             }
-            
+
             $el.select2(options);
         });
     }
@@ -96,13 +96,54 @@ function globalSearch(inputId, targetSelector) {
     const input = document.getElementById(inputId);
     if (!input) return;
 
-    input.addEventListener('keyup', function() {
+    input.addEventListener('keyup', function () {
         const value = this.value.toLowerCase();
         const targets = document.querySelectorAll(targetSelector);
-        
+
         targets.forEach(el => {
             const text = el.textContent.toLowerCase();
             el.style.display = text.includes(value) ? '' : 'none';
         });
     });
 }
+
+/**
+ * 6. Quản lý lỗi định dạng Ngày/Tháng (Date Validation Pro)
+ * Tự động hiện thông báo chữ đỏ ngay dưới ô nhập liệu nếu sai định dạng.
+ */
+function handleDateError(input) {
+    let errorMsg = input.nextElementSibling;
+    
+    // Nếu chưa có thẻ báo lỗi bên dưới thì tạo mới
+    if (!errorMsg || !errorMsg.classList.contains('date-error-label')) {
+        errorMsg = document.createElement('div');
+        errorMsg.classList.add('date-error-label');
+        errorMsg.style.color = '#ff3b30'; // Màu đỏ Apple
+        errorMsg.style.fontSize = '11px';
+        errorMsg.style.marginTop = '4px';
+        errorMsg.style.fontWeight = '500';
+        input.parentNode.insertBefore(errorMsg, input.nextSibling);
+    }
+
+    if (input.value && !input.validity.valid) {
+        input.style.borderColor = '#ff3b30';
+        errorMsg.innerText = '⚠️ Ngày tháng không hợp lệ (Ví dụ: ngày 31/02 là sai).';
+        errorMsg.style.display = 'block';
+    } else {
+        input.style.borderColor = '';
+        errorMsg.style.display = 'none';
+        errorMsg.innerText = '';
+    }
+}
+
+document.addEventListener('input', function (e) {
+    if (e.target && (e.target.type === 'date' || e.target.type === 'month')) {
+        handleDateError(e.target);
+    }
+});
+
+document.addEventListener('blur', function (e) {
+    if (e.target && (e.target.type === 'date' || e.target.type === 'month')) {
+        handleDateError(e.target);
+    }
+}, true);

@@ -12,13 +12,13 @@
             <p class="content-subtitle hide-mobile">Bảng công chi tiết tháng <?= date('m/Y', strtotime($currentMonth . '-01')) ?></p>
         </div>
         
-        <div class="header-back-btn">
-            <form action="<?= base_url('attendance/list') ?>" method="get" style="display: inline-block; vertical-align: middle; margin-right: 12px;">
+        <div class="header-controls">
+            <form action="<?= base_url('attendance/list') ?>" method="get" class="filter-form" style="display: inline-block; vertical-align: middle; margin-right: 12px;">
                 <input type="hidden" name="view" value="monthly">
                 <?php if (isset($targetEmployeeId)) { ?>
                     <input type="hidden" name="employee_id" value="<?= $targetEmployeeId ?>">
                 <?php } ?>
-                <input type="month" name="month" value="<?= $currentMonth ?>" class="form-control-premium" onchange="this.form.submit()" style="height: 38px; padding: 0 12px;">
+                <input type="month" name="month" value="<?= $currentMonth ?>" class="form-control-premium" style="height: 38px; padding: 0 12px;">
             </form>
             <?php if (isset($isViewingOthers) && $isViewingOthers) { ?>
                 <a href="<?= base_url('attendance/list') ?>" class="btn-secondary-sm">
@@ -26,7 +26,7 @@
                 </a>
             <?php } else { ?>
                 <a href="<?= base_url('attendance') ?>" class="btn-premium-sm">
-                    <i class="fas fa-camera"></i>&nbsp; Check-in
+                    <i class="fas fa-camera"></i>&nbsp; Chấm công
                 </a>
             <?php } ?>
         </div>

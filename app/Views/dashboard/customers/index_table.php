@@ -3,6 +3,12 @@
     <table class="premium-table">
         <thead>
             <tr>
+                <?php if (has_permission('sys.admin')) { ?>
+                <th class="table-cell-center" style="width: 40px;">
+                    <input type="checkbox" id="check-all" style="width: 16px; height: 16px; cursor: pointer;" title="Chọn tất cả">
+                </th>
+                <?php } ?>
+                <th class="table-cell-center" style="width: 75px;">STT (<?= $pager->getDetails()['total'] ?>)</th>
                 <th>Mã KH</th>
                 <th style="width: 25%">Khách hàng</th>
                 <th>Liên hệ</th>
@@ -11,21 +17,37 @@
                 <th class="table-cell-right">Vụ việc</th>
                 <th style="width: 15%" class="table-cell-center">Thao tác</th>
             </tr>
+            <?php if (has_permission('sys.admin')) { ?>
+            <!-- Floating Bulk Actions Bar -->
+            <div class="bulk-actions-bar">
+                <span id="selected-count">0 mục đã chọn</span>
+                <button type="button" class="bulk-btn-delete" onclick="bulkDelete()" title="Xóa hàng loạt">
+                    <i class="fas fa-trash-alt"></i> Xóa vĩnh viễn
+                </button>
+            </div>
+            <?php } ?>
         </thead>
         <tbody>
+            <?php $stt = isset($pager) ? ($pager->getCurrentPage() - 1) * $pager->getPerPage() : 0; ?>
             <?php if (empty($customers)) { ?>
                 <tr>
-                    <td colspan="7" class="empty-state-container">
+                    <td colspan="10" class="empty-state-container">
                         <i class="fas fa-search-minus empty-state-icon" title="Không có dữ liệu"></i>
                         Không tìm thấy khách hàng nào phù hợp với bộ lọc.
                     </td>
                 </tr>
             <?php } else { ?>
-                <?php foreach ($customers as $customer) { 
+                <?php foreach ($customers as $customer) { $stt++;
                     $canSeePhone = has_permission('sys.admin') || ($customer['created_by'] == session()->get('employee_id'));
                     $maskedPhone = $canSeePhone ? $customer['phone'] : substr($customer['phone'], 0, 4) . '****' . substr($customer['phone'], -3);
                 ?>
                 <tr>
+                    <?php if (has_permission('sys.admin')) { ?>
+                    <td class="table-cell-center">
+                        <input type="checkbox" class="record-check" value="<?= $customer['id'] ?>" style="width: 16px; height: 16px; cursor: pointer;">
+                    </td>
+                    <?php } ?>
+                    <td class="table-cell-center text-muted-dark text-sm"><?= $stt ?></td>
                     <td data-label="Mã KH">
                         <span class="badge-secondary-minimal text-monospace font-weight-600" title="Mã định danh duy nhất"><?= esc($customer['code']) ?></span>
                     </td>
@@ -73,7 +95,9 @@
                             <a href="<?= base_url('customers/edit/' . $customer['id']) ?>" class="btn-secondary-sm text-edit" title="Sửa">
                                 <i class="fas fa-edit"></i>
                             </a>
-                            <button type="button" class="btn-secondary-sm text-tag" onclick="openQuickTag(<?= $customer['id'] ?>, '<?= esc($customer['name']) ?>')" title="Gắn nhãn">
+                            <button type="button" class="btn-secondary-sm text-tag" 
+                                    onclick='openQuickTag(<?= $customer['id'] ?>, "<?= esc($customer['name']) ?>", <?= json_encode(array_map("intval", array_column($cTags, "id"))) ?>)' 
+                                    title="Gắn nhãn">
                                 <i class="fas fa-tag"></i>
                             </button>
                         </div>

@@ -102,7 +102,7 @@ class CreateAttendancesTableV2 extends Migration
 
         $this->forge->addKey('id', true);
         $this->forge->addKey(['employee_id', 'attendance_date']);
-        $this->forge->createTable('attendances');
+        $this->forge->createTable('attendances', true);
 
         // Add foreign key manually to ensure compatibility
         $this->db->query("ALTER TABLE attendances ADD CONSTRAINT fk_attendance_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE ON UPDATE CASCADE");

@@ -39,7 +39,7 @@ class CreateRbacTables extends Migration
             ],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->createTable('roles');
+        $this->forge->createTable('roles', true);
 
         // 2. Permissions Table
         $this->forge->addField([
@@ -72,7 +72,7 @@ class CreateRbacTables extends Migration
             ],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->createTable('permissions');
+        $this->forge->createTable('permissions', true);
 
         // 3. Roles Permissions Pivot Table
         $this->forge->addField([
@@ -88,7 +88,7 @@ class CreateRbacTables extends Migration
             ],
         ]);
         $this->forge->addKey(['role_id', 'permission_id'], true);
-        $this->forge->createTable('roles_permissions');
+        $this->forge->createTable('roles_permissions', true);
     }
 
     public function down()

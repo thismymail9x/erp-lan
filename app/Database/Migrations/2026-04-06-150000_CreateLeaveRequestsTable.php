@@ -76,7 +76,7 @@ class CreateLeaveRequestsTable extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('employee_id', 'employees', 'id', 'CASCADE', 'CASCADE');
         $this->forge->addForeignKey('approver_id', 'employees', 'id', 'SET NULL', 'SET NULL');
-        $this->forge->createTable('leave_requests');
+        $this->forge->createTable('leave_requests', true);
 
         // 2. Bổ sung quyền hạn (Permissions)
         $db = \Config\Database::connect();

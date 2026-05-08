@@ -136,6 +136,11 @@ class DocumentService extends BaseService
                 if (isset($data['tags']) && is_array($data['tags'])) {
                     $tagService = new \App\Services\TagService();
                     $tagService->syncTags($docId, 'documents', $data['tags']);
+
+                    // Cập nhật chuỗi tags cache để hiển thị/tìm kiếm nhanh
+                    $tags = $tagService->getTagsByEntity($docId, 'documents');
+                    $tagNames = array_column($tags, 'name');
+                    $this->docModel->update($docId, ['tags' => json_encode($tagNames)]);
                 }
 
                 // Nhật ký Audit (Bên trong Transaction)
@@ -170,8 +175,8 @@ class DocumentService extends BaseService
         // Admin/Mod luôn có quyền
         if (has_permission('sys.admin') || has_permission('case.manage')) return true;
 
-        // Nếu là tài liệu công khai (Nội bộ hoặc Biểu mẫu)
-        if (in_array($doc['document_category'], ['internal', 'template'])) {
+        // Nếu không phải là Hồ sơ KH hoặc Hồ sơ vụ việc thì cho phép xem công khai (Nội bộ, Biểu mẫu, Tài chính...)
+        if (!in_array($doc['document_category'], ['client_intake', 'case_file'])) {
             return true;
         }
 

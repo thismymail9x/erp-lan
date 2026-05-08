@@ -3,6 +3,10 @@
 namespace App\Services;
 
 use App\Models\BaseModel;
+use App\Models\DepartmentModel;
+use App\Models\EmployeeModel;
+use App\Models\RoleModel;
+use App\Models\UserModel;
 use CodeIgniter\Config\Services;
 
 /**
@@ -14,19 +18,19 @@ use CodeIgniter\Config\Services;
  */
 class AuthService extends BaseService
 {
-    protected $userModel;
-    protected $session;
-    protected $mailService;
-    protected $logService;
+    protected $employeeModel;
+    protected $roleModel;
+    protected $deptModel;
 
-    public function __construct()
-    {
+    public function __construct() {
         parent::__construct();
-        // Nạp Model người dùng và các dịch vụ hỗ trợ (Session, Email, Nhật ký hệ thống)
-        $this->userModel = model('UserModel');
-        $this->session = Services::session();
+        $this->userModel = new UserModel();
+        $this->employeeModel = new EmployeeModel();
+        $this->roleModel = new RoleModel();
+        $this->deptModel = new DepartmentModel();
         $this->mailService = new MailService();
         $this->logService = new SystemLogService();
+        $this->session = Services::session();
     }
 
     /**
@@ -73,24 +77,22 @@ class AuthService extends BaseService
         $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
         
         // 2. Xác định vai trò (Role): Ưu tiên Thực tập sinh nế không chỉ định
-        $roleModel = model('RoleModel');
-        $defaultRole = $roleModel->where('name', \Config\AppConstants::ROLE_THUC_TAP_SINH)->first();
+        $defaultRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_THUC_TAP_SINH)->first();
         $data['role_id'] = $data['role_id'] ?? ($defaultRole ? $defaultRole['id'] : null);
         
         // 3. Tài khoản mới mặc định ở trạng thái Chờ duyệt (0) để đảm bảo an toàn
         $data['active_status'] = 0; 
-
+ 
         // Sử dụng Transaction để đảm bảo tính toàn vẹn dữ liệu khi ghi vào nhiều bảng
         $this->userModel->transStart();
         try {
             // Lưu vào bảng users (Tài khoản)
             $this->userModel->insert($data);
             $userId = $this->userModel->getInsertID();
-
+ 
             // Tự động tạo bản ghi hồ sơ nhân viên (Employees) tương ứng
             // Mặc định ném vào bộ phận "Pháp lý" để bộ phận nhân sự xử lý sau
-            $employeeModel = model('EmployeeModel');
-            $employeeModel->insert([
+            $this->employeeModel->insert([
                 'user_id' => $userId,
                 'department_id' => \Config\AppConstants::DEPT_PHAP_LY,
                 'full_name' => 'Nhân sự mới (' . $emailPrefix . ')',
@@ -321,15 +323,10 @@ class AuthService extends BaseService
      */
     private function setSession($user)
     {
-        // Khởi tạo các Model liên quan
-        $roleModel = model('RoleModel');
-        $employeeModel = model('EmployeeModel');
-        $deptModel = model('DepartmentModel');
-        
         // Thu thập thông tin vai trò, hồ sơ nhân viên và phòng ban từ CSDL
-        $role = $user['role_id'] ? $roleModel->find($user['role_id']) : null;
-        $employee = $employeeModel->where('user_id', $user['id'])->first();
-        $dept = ($employee && $employee['department_id']) ? $deptModel->find($employee['department_id']) : null;
+        $role = $user['role_id'] ? $this->roleModel->find($user['role_id']) : null;
+        $employee = $this->employeeModel->where('user_id', $user['id'])->first();
+        $dept = ($employee && $employee['department_id']) ? $this->deptModel->find($employee['department_id']) : null;
         
         // Đóng gói mảng dữ liệu Session chuẩn
         $data = [
@@ -342,6 +339,8 @@ class AuthService extends BaseService
             'department_name' => $dept ? $dept['name'] : null,
             'full_name'       => $employee ? $employee['full_name'] : 'Thành viên mới',
             'email'           => $user['email'],
+            'is_admin'        => ($role && $role['name'] === \Config\AppConstants::ROLE_ADMIN) || $user['role_id'] == 1,
+            'isadmin'         => ($role && $role['name'] === \Config\AppConstants::ROLE_ADMIN) || $user['role_id'] == 1,
             'isLoggedIn'      => true,
         ];
 

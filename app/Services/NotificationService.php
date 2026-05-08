@@ -20,14 +20,19 @@ class NotificationService extends BaseService
     protected $notificationModel;
     protected $userModel;
     protected $employeeModel;
+    protected $roleModel;
 
-    public function __construct()
-    {
+    public function __construct(
+        \App\Models\NotificationModel $notificationModel = null,
+        \App\Models\UserModel $userModel = null,
+        \App\Models\EmployeeModel $employeeModel = null,
+        \App\Models\RoleModel $roleModel = null
+    ) {
         parent::__construct();
-        // Nạp các Model cần thiết để truy vấn đích đến (Recipients)
-        $this->notificationModel = new NotificationModel();
-        $this->userModel = new UserModel();
-        $this->employeeModel = new EmployeeModel();
+        $this->notificationModel = $notificationModel ?? new \App\Models\NotificationModel();
+        $this->userModel = $userModel ?? new \App\Models\UserModel();
+        $this->employeeModel = $employeeModel ?? new \App\Models\EmployeeModel();
+        $this->roleModel = $roleModel ?? new \App\Models\RoleModel();
     }
 
     /**
@@ -42,84 +47,135 @@ class NotificationService extends BaseService
      */
     public function sendToUser($userId, $title, $message, $type = 'system', $link = null, $senderId = null)
     {
-        return $this->notificationModel->insert([
+        $res = $this->notificationModel->insert([
             'user_id'    => $userId,
             'sender_id'  => $senderId ?? session()->get('user_id'),
             'type'       => $type,
             'title'      => $title,
             'message'    => $message,
             'link'       => $link,
-            'created_at' => date('Y-m-d H:i:s')
+            'is_read'    => 0,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s')
         ]);
+
+        if ($res) {
+            $this->logInfo("NOTIF_SENT_TO_USER_{$userId}: {$title}");
+        }
+
+        return $res;
     }
 
     /**
-     * Phát thông báo đến toàn bộ ban Quản trị viên.
-     * Thường dùng cho các thông báo lỗi hệ thống, yêu cầu hỗ trợ kỹ thuật hoặc báo cáo tổng.
+     * Gửi thông báo đến danh sách nhiều người dùng (Smart Dispatcher).
+     * Tự động loại bỏ các ID trùng lặp và loại bỏ người gửi (sender) khỏi danh sách nhận.
+     * 
+     * @param array $userIds Danh sách ID người nhận.
+     * @param string $title
+     * @param string $message
+     * @param string $type
+     * @param string|null $link
+     * @param int|null $senderId
+     */
+    public function sendToMultiple(array $userIds, $title, $message, $type = 'system', $link = null, $senderId = null)
+    {
+        $senderId = $senderId ?? session()->get('user_id');
+        // 1. Loại bỏ trùng và lọc bỏ chính người gửi
+        $uniqueIds = array_unique($userIds);
+        $uniqueIds = array_filter($uniqueIds, function($id) use ($senderId) {
+            return !empty($id) && $id != $senderId;
+        });
+
+        foreach ($uniqueIds as $userId) {
+            $this->sendToUser($userId, $title, $message, $type, $link, $senderId);
+        }
+        return count($uniqueIds);
+    }
+
+    /**
+     * Phát thông báo đến toàn bộ ban Quản trị viên (Admin).
      */
     public function notifyAdmins($title, $message, $type = 'system', $link = null, $senderId = null)
     {
-        // Truy vấn tất cả User có Role là Admin (role_id = 1) và đang hoạt động
-        $admins = $this->userModel->where('role_id', 1)->where('active_status', 1)->findAll();
-        foreach ($admins as $admin) {
-            $this->sendToUser($admin['id'], $title, $message, $type, $link, $senderId);
+        $adminRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_ADMIN)->first();
+        if (!$adminRole) {
+            $this->logError("ROLE_NOT_FOUND: " . \Config\AppConstants::ROLE_ADMIN);
+            return 0;
         }
+        
+        $roleId = $adminRole['id'];
+
+        $admins = $this->userModel->where('role_id', $roleId)->where('active_status', 1)->findColumn('id') ?? [];
+        return $this->sendToMultiple($admins, $title, $message, $type, $link, $senderId);
     }
 
     /**
      * Gửi yêu cầu phê duyệt cho Trưởng phòng của một nhân viên cụ thể.
-     * Tự động xác định cấp quản lý dựa trên sơ đồ tổ chức (Phòng ban).
-     * 
-     * @param int $employeeId ID nhân viên phát sinh yêu cầu.
      */
     public function notifyManagerOfEmployee($employeeId, $title, $message, $type = 'approval', $link = null, $senderId = null)
     {
-        $departmentId = 3; // Mặc định là phòng Pháp lý nếu không tìm thấy dữ liệu
+        $departmentId = \Config\AppConstants::DEPT_PHAP_LY; 
         $employee = $this->employeeModel->find($employeeId);
-        
         if ($employee && $employee['department_id']) {
             $departmentId = $employee['department_id'];
         }
 
-        // 1. Tìm kiếm Trưởng phòng (Role Trưởng phòng = 3) thuộc cùng phòng ban với nhân viên
-        $managers = $this->userModel->select('users.*')
+        // Lấy ID vai trò Trưởng phòng
+        $managerRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_TRUONG_PHONG)->first();
+        if (!$managerRole) {
+            $this->logError("ROLE_NOT_FOUND: " . \Config\AppConstants::ROLE_TRUONG_PHONG);
+            return 0;
+        }
+        $roleId = $managerRole['id'];
+
+        $managers = $this->userModel->select('users.id')
                                     ->join('employees', 'employees.user_id = users.id')
                                     ->where('employees.department_id', $departmentId)
-                                    ->where('users.role_id', 3) 
+                                    ->where('users.role_id', $roleId) 
                                     ->where('users.active_status', 1)
-                                    ->findAll();
+                                    ->get()->getResultArray();
         
-        // 2. CƠ CHẾ DỰ PHÒNG (Fallback Strategy):
-        // Nếu phòng ban đó chưa có trưởng phòng, thông báo sẽ được định tuyến về phòng Pháp lý (Trụ sở chính quản lý).
-        if (empty($managers) && $departmentId !== 3) {
-            $managers = $this->userModel->select('users.*')
+        $ids = array_column($managers, 'id');
+        
+        // Fallback: Nếu phòng đó không có sếp, gửi cho sếp phòng Pháp lý
+        if (empty($ids) && $departmentId !== \Config\AppConstants::DEPT_PHAP_LY) {
+            $managers = $this->userModel->select('users.id')
                                     ->join('employees', 'employees.user_id = users.id')
-                                    ->where('employees.department_id', 3)
-                                    ->where('users.role_id', 3)
+                                    ->where('employees.department_id', \Config\AppConstants::DEPT_PHAP_LY)
+                                    ->where('users.role_id', $roleId)
                                     ->where('users.active_status', 1)
-                                    ->findAll();
+                                    ->get()->getResultArray();
+            $ids = array_column($managers, 'id');
         }
 
-        // 3. Thực hiện gửi thông báo cho từng Manager tìm được
-        foreach ($managers as $manager) {
-            $this->sendToUser($manager['id'], $title, $message, $type, $link, $senderId);
-        }
-        return true;
+        return $this->sendToMultiple($ids, $title, $message, $type, $link, $senderId);
     }
 
     /**
      * Gửi thông báo đến toàn bộ Ban quản lý (Admin và Trưởng phòng).
-     * Dùng cho các cảnh báo nghiêm trọng như QUÁ HẠN tiến độ.
      */
     public function notifyManagement($title, $message, $type = 'alert', $link = null, $senderId = null)
     {
-        // 1. Gửi cho toàn bộ Admin (Role ID 1)
-        $this->notifyAdmins($title, $message, $type, $link, $senderId);
-        
-        // 2. Gửi cho toàn bộ Trưởng phòng (Role ID 3)
-        $managers = $this->userModel->where('role_id', 3)->where('active_status', 1)->findAll();
-        foreach ($managers as $manager) {
-            $this->sendToUser($manager['id'], $title, $message, $type, $link, $senderId);
+        // Lấy ID các vai trò quản lý
+        $roles = $this->roleModel->whereIn('name', [\Config\AppConstants::ROLE_ADMIN, \Config\AppConstants::ROLE_TRUONG_PHONG])->findAll();
+        $roleIds = array_column($roles, 'id');
+
+        if (empty($roleIds)) {
+            $this->logError("MANAGEMENT_ROLES_NOT_FOUND");
+            return 0;
         }
+
+        $userIds = $this->userModel->whereIn('role_id', $roleIds)->where('active_status', 1)->findColumn('id') ?? [];
+        
+        return $this->sendToMultiple($userIds, $title, $message, $type, $link, $senderId);
+    }
+
+    /**
+     * Gửi thông báo đến toàn bộ nhân viên đang hoạt động.
+     */
+    public function notifyAllEmployees($title, $message, $type = 'system', $link = null, $senderId = null)
+    {
+        $userIds = $this->userModel->where('active_status', 1)->findColumn('id') ?? [];
+        return $this->sendToMultiple($userIds, $title, $message, $type, $link, $senderId);
     }
 }

@@ -30,6 +30,15 @@ class Paths
 
     /**
      * ---------------------------------------------------------------
+     * COMPOSER DIRECTORY NAME
+     * ---------------------------------------------------------------
+     *
+     * This variable must contain the name of your "vendor" directory.
+     */
+    public string $composerDirectory = __DIR__ . '/../../vendor';
+
+    /**
+     * ---------------------------------------------------------------
      * APPLICATION FOLDER NAME
      * ---------------------------------------------------------------
      *

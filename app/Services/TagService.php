@@ -28,12 +28,21 @@ class TagService extends BaseService
      */
     public function getAvailableTags(string $module = 'all', int $ownerId = null)
     {
+        $isAdmin = has_permission('sys.admin');
         $ownerId = $ownerId ?? session()->get('employee_id');
 
-        $query = $this->tagModel->groupStart()
-            ->where('type', 'global')
-            ->orWhere('owner_id', $ownerId)
-        ->groupEnd();
+        $query = $this->tagModel->select('tags.*');
+        
+        // Tối ưu: Đếm số lượng (Sửa lỗi cột id và lọc theo module để số lượng chính xác với bối cảnh)
+        $countFilter = ($module !== 'all') ? " AND entity_type = '{$module}'" : "";
+        $query->select("(SELECT COUNT(*) FROM entity_tags WHERE tag_id = tags.id {$countFilter}) as usage_count");
+
+        if (!$isAdmin || ($ownerId !== null && $ownerId !== -1)) {
+            $query->groupStart()
+                ->where('type', 'global')
+                ->orWhere('owner_id', $ownerId)
+            ->groupEnd();
+        }
 
         if ($module !== 'all') {
             $query->groupStart()
@@ -42,7 +51,7 @@ class TagService extends BaseService
             ->groupEnd();
         }
 
-        return $query->findAll();
+        return $query->orderBy('name', 'ASC')->findAll();
     }
 
     /**
@@ -107,14 +116,21 @@ class TagService extends BaseService
                     }
                     break;
                 case 'cases':
-                    $entity = $db->table('cases')->where('id', $link['entity_id'])->get()->getRowArray();
+                    $entity = $db->table('cases')
+                        ->select('cases.*, customers.name as customer_name, customers.id as customer_id')
+                        ->join('customers', 'customers.id = cases.customer_id', 'left')
+                        ->where('cases.id', $link['entity_id'])
+                        ->get()->getRowArray();
+
                     if ($entity) {
                         $results[] = [
                             'type' => 'Vụ việc',
                             'name' => $entity['title'],
                             'code' => $entity['code'],
                             'url'  => base_url('cases/show/' . $entity['id']),
-                            'date' => null
+                            'customer_name' => $entity['customer_name'] ?? null,
+                            'customer_url'  => $entity['customer_id'] ? base_url('customers/show/' . $entity['customer_id']) : null,
+                            'date' => $link['created_at'] ?? null 
                         ];
                     }
                     break;
@@ -123,7 +139,7 @@ class TagService extends BaseService
                     if ($entity) {
                         $results[] = [
                             'type' => 'Tài liệu',
-                            'name' => $entity['name'],
+                            'name' => $entity['file_name'],
                             'code' => 'DMS-' . $entity['id'],
                             'url'  => base_url('documents/view/' . $entity['id']),
                             'date' => null
@@ -145,43 +161,60 @@ class TagService extends BaseService
      * @param string $entityType Loại đối tượng
      * @param array $tagIds Danh sách ID các nhãn mới muốn gán
      */
-    public function syncTags(int $entityId, string $entityType, array $tagIds)
+    public function syncTags(int $entityId, string $entityType, array $tagsInput)
     {
         $currentEmpId = session()->get('employee_id');
+        $resolvedTagIds = [];
         
-        // 1. Chỉ chuẩn hóa ID (ép kiểu int) để tránh sai lệch so sánh giữa string/int
-        $tagIds = array_map('intval', $tagIds);
+        // 1. Phân loại và chuyển đổi Input sang ID nhãn
+        foreach ($tagsInput as $input) {
+            if (is_numeric($input)) {
+                $resolvedTagIds[] = (int)$input;
+            } else {
+                // Nếu là chuỗi (Tên nhãn), tìm hoặc tạo mới
+                $tag = $this->tagModel->where('name', trim($input))->first();
+                if ($tag) {
+                    $resolvedTagIds[] = (int)$tag['id'];
+                } else {
+                    // Tạo nhãn mới (Mặc định là Global hoặc theo quyền - tham khảo logic createTag)
+                    $newTagId = $this->tagModel->insert([
+                        'name' => trim($input),
+                        'type' => 'global', // Mặc định cho DMS
+                        'color' => '#6c757d',
+                        'module_scope' => $entityType
+                    ]);
+                    if ($newTagId) $resolvedTagIds[] = (int)$newTagId;
+                }
+            }
+        }
         
-        // 2. Xác định các nhãn nhân viên này có quyền quản lý (Global + Cá nhân)
+        $resolvedTagIds = array_unique($resolvedTagIds);
+
+        // 2. Xác định các nhãn nhân viên này có quyền quản lý để đồng bộ (Global + Cá nhân)
         $availableTags = $this->getAvailableTags('all', $currentEmpId);
         $availableTagIds = array_column($availableTags, 'id');
 
-        if (empty($availableTagIds)) {
-            return $this->success();
-        }
-
-        // 3. Lọc lấy những nhãn hợp lệ (User có quyền gán)
-        $validNewTagIds = array_intersect($tagIds, $availableTagIds);
-
-        // 4. Thực thi truy vấn đồng bộ hóa
+        // 3. Thực thi truy vấn đồng bộ hóa
         $db = \Config\Database::connect();
-        
         try {
             $db->transBegin();
 
-            // Bước A: XÓA các liên kết cũ mà User có quyền nhìn thấy
-            $db->table('entity_tags')
+            // Bước A: XÓA các liên kết cũ mà User có quyền nhìn thấy trong phạm vi quản lý
+            $builder = $db->table('entity_tags')
                 ->where('entity_id', $entityId)
-                ->where('entity_type', $entityType)
-                ->whereIn('tag_id', $availableTagIds)
-                ->delete();
+                ->where('entity_type', $entityType);
+            
+            if (!empty($availableTagIds)) {
+                $builder->whereIn('tag_id', $availableTagIds);
+            }
+            $builder->delete();
 
             // Bước B: GÁN các liên kết mới
-            if (!empty($validNewTagIds)) {
+            if (!empty($resolvedTagIds)) {
                 $insertData = [];
-                foreach ($validNewTagIds as $tid) {
+                foreach ($resolvedTagIds as $tid) {
                     $insertData[] = [
-                        'tag_id'      => (int)$tid,
+                        'tag_id'      => $tid,
                         'entity_id'   => $entityId,
                         'entity_type' => $entityType
                     ];
@@ -191,16 +224,15 @@ class TagService extends BaseService
 
             if ($db->transStatus() === false) {
                 $db->transRollback();
-                return $this->fail('Không thể đồng bộ nhãn dán cho hồ sơ.');
+                return ['status' => 'error', 'message' => 'Không thể đồng bộ nhãn dán.'];
             }
 
             $db->transCommit();
-            return $this->success(null, 'Cập nhật nhãn dán thành công.');
+            return ['status' => 'success', 'message' => 'Cập nhật nhãn dán thành công.'];
 
         } catch (\Exception $e) {
-            $db->transRollback();
-            $this->logError('Tag Sync Exception: ' . $e->getMessage(), ['id' => $entityId, 'type' => $entityType]);
-            return $this->fail('Lỗi hệ thống khi lưu trữ nhãn dán.');
+            if ($db->transStatus() === false) $db->transRollback();
+            return ['status' => 'error', 'message' => 'Lỗi hệ thống khi lưu nhãn: ' . $e->getMessage()];
         }
     }
 

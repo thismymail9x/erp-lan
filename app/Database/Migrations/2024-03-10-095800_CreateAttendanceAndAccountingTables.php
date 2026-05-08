@@ -47,7 +47,7 @@ class CreateAttendanceAndAccountingTables extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('employee_id', 'employees', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('attendance');
+        $this->forge->createTable('attendance', true);
 
         // 2. Accounting Table
         $this->forge->addField([
@@ -100,7 +100,7 @@ class CreateAttendanceAndAccountingTables extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('case_id', 'cases', 'id', 'SET NULL', 'CASCADE');
-        $this->forge->createTable('accounting');
+        $this->forge->createTable('accounting', true);
     }
 
     public function down()

@@ -24,29 +24,52 @@
         <form action="<?= base_url('knowledge/update/' . $article['id']) ?>" method="POST" id="knowledgeForm" class="premium-form">
             <?= csrf_field() ?>
             
-            <?php if (session()->getFlashdata('errors')) : ?>
+            <?php if ($errors = session()->getFlashdata('errors')) : ?>
                 <div class="lan-status-box lan-status-error m-b-24">
                     <i class="fas fa-exclamation-circle lan-box-icon"></i>
-                    <p class="m-0">Vui lòng kiểm tra lại: <?= array_shift(session()->getFlashdata('errors')) ?></p>
+                    <p class="m-0">Vui lòng kiểm tra lại: <?= array_shift($errors) ?></p>
                 </div>
             <?php endif; ?>
 
             <div class="k-form-row">
                 <div class="k-main-col">
                     <div class="form-group-premium m-b-24">
-                        <label class="label-premium">Tiêu đề đúc kết <span style="color: #ff3b30;">*</span></label>
+                        <label class="label-premium">Vấn đề đúc kết <span style="color: #ff3b30;">*</span></label>
                         <input type="text" name="title" class="form-control-premium k-title-input" 
                                value="<?= old('title', $article['title']) ?>" 
-                               placeholder="Nhập tiêu đề xúc tích..." 
+                               placeholder="Vấn đề" 
                                required>
                     </div>
 
-                    <div class="form-group-premium">
-                        <label class="label-premium">Nội dung đúc kết <span style="color: #ff3b30;">*</span></label>
+                    <div class="form-group-premium m-b-24">
+                        <label class="label-premium">Tóm tắt nhanh (Quick Summary)</label>
+                        <input type="text" name="summary" class="form-control-premium" 
+                               value="<?= old('summary', $article['summary']) ?>" 
+                               placeholder="Tóm tắt nhanh trong 1 câu...">
+                    </div>
+
+                    <div class="form-group-premium m-b-28">
+                        <label class="label-premium">1. Chi tiết Vấn đề (Dạng Bullet points) <span style="color: #ff3b30;">*</span></label>
                         <div class="editor-wrapper">
-                            <div id="editor-container" style="min-height: 480px;"><?= old('content', $article['content']) ?></div>
+                            <div id="problem-editor" style="height: 150px;"><?= old('problem', $article['problem']) ?></div>
                         </div>
-                        <input type="hidden" name="content" id="contentInput" value="<?= esc(old('content', $article['content']) ?? '') ?>">
+                        <input type="hidden" name="problem" id="problemInput" value="<?= esc(old('problem', $article['problem']) ?? '') ?>">
+                    </div>
+
+                    <div class="form-group-premium m-b-28">
+                        <label class="label-premium">2. Cách giải quyết <span style="color: #ff3b30;">*</span></label>
+                        <div class="editor-wrapper">
+                            <div id="solution-editor" style="height: 150px;"><?= old('solution', $article['solution']) ?></div>
+                        </div>
+                        <input type="hidden" name="solution" id="solutionInput" value="<?= esc(old('solution', $article['solution']) ?? '') ?>">
+                    </div>
+
+                    <div class="form-group-premium m-b-28">
+                        <label class="label-premium">3. Lưu ý quan trọng (Red flags) <i class="fas fa-flag color-danger m-l-4"></i></label>
+                        <div class="editor-wrapper red-flag-wrapper">
+                            <div id="redflags-editor" style="height: 150px;"><?= old('red_flags', $article['red_flags']) ?></div>
+                        </div>
+                        <input type="hidden" name="red_flags" id="redflagsInput" value="<?= esc(old('red_flags', $article['red_flags']) ?? '') ?>">
                     </div>
                 </div>
 
@@ -94,10 +117,9 @@
                                     <option value="<?= $tag['id'] ?>" <?= in_array($tag['id'], $currentTags) ? 'selected' : '' ?>><?= esc($tag['name']) ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <p class="form-help-text m-t-12">Hệ thống sẽ dựa vào tags để gợi ý cho các hồ sơ tương tự.</p>
                         </div>
 
-                        <div class="stats-overview-box m-b-32">
+                        <div class="stats-overview-box m-b-24">
                             <div class="d-flex justify-content-between">
                                 <div class="stat-item">
                                     <div class="text-xs color-muted">Lượt xem</div>
@@ -135,6 +157,8 @@ $(document).ready(function() {
 });
 </script>
 <style>
+.red-flag-wrapper { border: 1px solid #ff3b3033; background: #fffafa; border-radius: 8px; }
+.red-flag-wrapper .ql-toolbar { background: #fff5f5; border-bottom: 1px solid #ff3b301a; }
 .case-link-box-active { background: #fff; padding: 16px; border-radius: 12px; border: 1px solid #0071e333; }
 .case-link-box-empty { background: #f5f5f7; padding: 16px; border-radius: 12px; border: 1px dashed #d2d2d7; text-align: center; }
 .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }

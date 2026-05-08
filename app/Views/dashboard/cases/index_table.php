@@ -3,7 +3,13 @@
     <table class="premium-table">
         <thead>
         <tr>
-            <th class="table-cell-center text-center" style="width: 100px;">
+            <?php if (has_permission('sys.admin')) { ?>
+            <th class="table-cell-center" style="width: 40px;">
+                <input type="checkbox" id="check-all" style="width: 16px; height: 16px; cursor: pointer;" title="Chọn tất cả">
+            </th>
+            <?php } ?>
+            <th class="table-cell-center" style="width: 75px;">STT (<?= $pager->getDetails()['total'] ?>)</th>
+            <th class="table-cell-center text-center" style="width: 110px;">
                 <a href="<?= base_url('cases') ?>?sort=code&order=<?= ($currentSort == 'code' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>"
                    class="sort-link" title="Sắp xếp theo mã hồ sơ">
                     Mã
@@ -14,7 +20,7 @@
                     <?php } ?>
                 </a>
             </th>
-            <th style="width: 30%">
+            <th style="width: 18%">
                 <a href="<?= base_url('cases') ?>?sort=title&order=<?= ($currentSort == 'title' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>"
                    class="sort-link" title="Vụ việc">
                     Vụ việc
@@ -36,7 +42,7 @@
                     <?php } ?>
                 </a>
             </th>
-            <th style="width: 15%">
+            <th style="width: 12%">
                 <a href="<?= base_url('cases') ?>?sort=lawyer&order=<?= ($currentSort == 'lawyer' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>"
                    class="sort-link" title="Người phụ trách">
                     Phụ trách
@@ -47,7 +53,10 @@
                     <?php } ?>
                 </a>
             </th>
-            <th style="width: 15%" class="table-cell-center">
+            <th style="width: 8%">
+                Người duyệt
+            </th>
+            <th style="width: 12%" class="table-cell-center">
                 <a href="<?= base_url('cases') ?>?sort=status&order=<?= ($currentSort == 'status' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>"
                    class="sort-link" title="Trạng thái">
                     Trạng thái
@@ -58,6 +67,22 @@
                     <?php } ?>
                 </a>
             </th>
+            <th class="table-cell-center" style="width: 120px;">
+                <a href="<?= base_url('cases') ?>?sort=kpi&order=<?= ($currentSort == 'kpi' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>"
+                   class="sort-link" title="Sắp xếp theo số tiền thưởng đã đạt">
+                    KPI (Đạt/Còn)
+                    <?php if ($currentSort == 'kpi') { ?>
+                        <i class="fas fa-sort-<?= $currentOrder == 'asc' ? 'up' : 'down' ?>"></i>
+                    <?php } else { ?>
+                        <i class="fas fa-sort sort-icon-inactive"></i>
+                    <?php } ?>
+                </a>
+            </th>
+            <?php 
+            $isHanhChinhOrAdmin = (session()->get('role_name') === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
+            if ($isHanhChinhOrAdmin) { ?>
+            <th class="table-cell-center" style="width: 120px;">Giá trị HĐ</th>
+            <?php } ?>
             <th class="table-cell-center">
                 <a href="<?= base_url('cases') ?>?sort=deadline&order=<?= ($currentSort == 'deadline' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>"
                    class="sort-link" title="Hạn chót">
@@ -69,21 +94,38 @@
                     <?php } ?>
                 </a>
             </th>
-            <th style="width: 14%" class="table-cell-center">Thao tác</th>
+            <th style="width: 12%" class="table-cell-center">Thao tác</th>
+        </tr>
+        <?php if (has_permission('sys.admin')) { ?>
+        <!-- Floating Bulk Actions Bar -->
+        <div class="bulk-actions-bar">
+            <span id="selected-count">0 mục đã chọn</span>
+            <button type="button" class="bulk-btn-delete" onclick="bulkDelete()" title="Xóa hàng loạt">
+                <i class="fas fa-trash-alt"></i> Xóa vĩnh viễn
+            </button>
+        </div>
+        <?php } ?>
         </tr>
         </thead>
         <tbody>
+        <?php $stt = isset($pager) ? ($pager->getCurrentPage() - 1) * $pager->getPerPage() : 0; ?>
         <?php if (empty($cases)) { ?>
             <tr>
-                <td colspan="7" class="empty-state-container">
+                <td colspan="10" class="empty-state-container">
                     <i class="fas fa-folder-open"
                        style="font-size: 3rem; display: block; margin-bottom: 15px; opacity: 0.1;"></i>
                     Chưa có vụ việc nào khớp với tìm kiếm của bạn.
                 </td>
             </tr>
         <?php } else { ?>
-        <?php foreach ($cases as $case) { ?>
+        <?php foreach ($cases as $case) { $stt++; ?>
         <tr>
+            <?php if (has_permission('sys.admin')) { ?>
+            <td class="table-cell-center">
+                <input type="checkbox" class="record-check" value="<?= $case['id'] ?>" style="width: 16px; height: 16px; cursor: pointer;">
+            </td>
+            <?php } ?>
+            <td class="table-cell-center text-muted-dark text-sm"><?= $stt ?></td>
             <td class="table-cell-center" data-label="Mã số">
                                 <span class="badge-secondary-minimal text-monospace font-weight-600 text-sm">
                                     <?= esc($case['code']) ?>
@@ -113,36 +155,61 @@
                 <?php } ?>
             </td>
             <td data-label="Khách hàng">
-                <a href="<?= base_url('customers/show/' . $case['customer_id']) ?>"
-                   class="link-premium flex-item-center">
-                    <i class="fas fa-user-circle m-r-5 text-muted-dark"></i> <?= esc($case['customer_name']) ?>
-                </a>
+                <?php if ($case['customer_id']) { ?>
+                    <a href="<?= base_url('customers/show/' . $case['customer_id']) ?>" class="link-premium font-weight-600 text-muted-dark text-sm">
+                         <?= esc($case['customer_name'] ?: 'N/A') ?>
+                    </a>
+                <?php } else { ?>
+                    <div class="font-weight-600 text-sm"><?= esc($case['customer_name'] ?: 'N/A') ?></div>
+                <?php } ?>
             </td>
             <td data-label="Phụ trách">
                 <?php if (!empty($case['assigned_lawyer_id'])) { ?>
                     <a href="<?= base_url('employees/edit/' . $case['assigned_lawyer_id']) ?>"
                        class="link-premium flex-item-center">
-                        <i class="fas fa-user-tie m-r-5 text-muted-dark"></i> <?= esc($case['lawyer_name'] ?: 'N/A') ?>
+                       <?= esc($case['lawyer_name'] ?: 'N/A') ?>
                     </a>
                 <?php } else { ?>
-                    <div class="font-weight-500 text-muted-dark italic"><?= esc($case['lawyer_name'] ?: 'Chưa phân công') ?></div>
+                    <div class="font-weight-500"><?= esc($case['lawyer_name'] ?: 'Chưa phân công') ?></div>
+                <?php } ?>
+            </td>
+            <td data-label="Người duyệt">
+                <?php if (!empty($case['approvers'])) { ?>
+                    <div class="font-weight-500 text-sm text-muted-dark">
+                        <?= esc(implode(', ', $case['approvers'])) ?>
+                    </div>
+                <?php } else { ?>
+                    <div class="font-weight-500 text-muted-dark text-sm">--</div>
                 <?php } ?>
             </td>
             <td class="table-cell-center" data-label="Trạng thái">
                 <?php
                 $statusClasses = [
-                        'moi_tiep_nhan' => 'badge-info-minimal',
-                        'dang_xu_ly' => 'badge-warning-minimal',
-                        'cho_tham_tam' => 'badge-secondary-minimal',
-                        'da_giai_quyet' => 'badge-success-minimal',
-                        'dong_ho_so' => 'badge-success-minimal',
-                        'huy' => 'badge-danger-minimal'
+                        'cho_tiep_nhan' => 'badge-info-minimal',
+                        'dang_xu_ly'    => 'badge-warning-minimal',
+                        'da_hoan_thanh' => 'badge-success-minimal',
+                        'huy'           => 'badge-danger-minimal'
                 ];
+                $currentClass = $statusClasses[$case['status']] ?? 'badge-secondary-minimal';
                 ?>
-                <span class="badge-log <?= $statusClasses[$case['status']] ?? 'badge-secondary-minimal' ?> text-xs">
-                                    <?= $statusLabels[$case['status']] ?? $case['status'] ?>
-                                </span>
+                <span class="badge-log <?= $currentClass ?> text-xs">
+                    <?= $statusLabels[$case['status']] ?? $case['status'] ?>
+                </span>
             </td>
+            <td class="table-cell-center" data-label="KPI Thưởng">
+                <div class="text-sm font-weight-500">
+                    <span class="text-apple-green" title="Đã đạt"><?= number_format($case['kpi_earned'] ?? 0) ?></span>
+                    <span class="text-muted mx-1">/</span>
+                    <span class="text-apple-orange" title="Tiềm năng"><?= number_format($case['kpi_remaining'] ?? 0) ?></span>
+                </div>
+            </td>
+            <?php if ($isHanhChinhOrAdmin) { ?>
+            <td class="table-cell-center" data-label="Giá trị HĐ">
+                <div class="text-sm font-weight-600 text-apple-blue" title="<?= esc($case['payment_progress'] ?? '') ?>">
+                    <?= !empty($case['contract_value']) ? number_format($case['contract_value'], 0, ',', '.') : '--' ?>
+                </div>
+            </td>
+            <?php } ?>
             <td class="table-cell-center" data-label="Hạn chót">
                 <?php
                 $displayDeadline = $case['step_deadline'] ?: $case['deadline'];
@@ -171,10 +238,10 @@
                        onclick="return confirm('Bạn có chắc chắn muốn đưa hồ sơ vào thùng rác? Bạn vẫn có thể khôi phục sau này.');">
                         <i class="fas fa-trash-alt"></i>
                     </a>
-                    <a href="<?= base_url('cases/purge/' . $case['id']) ?>"
+                    <a href="<?= base_url('cases/purge/' . $case['id'] . '?force=1') ?>"
                        class="btn-secondary-sm text-red-premium"
-                       title="Xóa VĨNH VIỄN (Purge)"
-                       onclick="return confirm('HÀNH ĐỘNG KHÔNG THỂ PHỤC HỒI: Hệ thống sẽ xóa hồ sơ và mọi rác dữ liệu đi kèm. Bạn có chắc chắn?');">
+                       title="Xóa VĨNH VIỄN (Force Purge)"
+                       onclick="return confirm('HÀNH ĐỘNG KHÔNG THỂ PHỤC HỒI: Hệ thống sẽ xóa hồ sơ và mọi rác dữ liệu đi kèm (Bao gồm lịch sử nghiệm thu). Bạn có chắc chắn?');">
                         <i class="fas fa-eraser"></i>
                     </a>
                 <?php } ?>

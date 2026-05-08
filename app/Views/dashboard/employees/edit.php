@@ -46,7 +46,12 @@
             
 
             <div class="form-grid">
+                <!-- THÔNG TIN CƠ BẢN -->
                 <div class="form-group form-group-full">
+                    <h4 class="m-b-10 text-apple-main"><i class="fas fa-id-card m-r-8"></i> Thông tin cơ bản</h4>
+                </div>
+
+                <div class="form-group">
                     <label for="full_name">Họ và tên</label>
                     <input type="text" name="full_name" id="full_name" required value="<?= esc($employee['full_name']) ?>" placeholder="Nhập họ và tên...">
                 </div>
@@ -54,12 +59,6 @@
                 <div class="form-group">
                     <label for="position">Chức vụ / Vị trí</label>
                     <input type="text" name="position" id="position" required value="<?= esc($employee['position']) ?>" placeholder="Ví dụ: Luật sư chính, Thư ký..." <?= $restrictedAttr ?>>
-                    <?php if (!$canEditSensitive) { ?><small class="text-muted">Liên hệ Admin để thay đổi chức danh</small><?php } ?>
-                </div>
-
-                <div class="form-group">
-                    <label for="salary_base">Mức lương cơ bản (VNĐ)</label>
-                    <input type="number" name="salary_base" id="salary_base" required value="<?= (int)$employee['salary_base'] ?>" <?= $restrictedAttr ?>>
                 </div>
 
                 <div class="form-group">
@@ -78,14 +77,14 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="manager_id">Người quản lý trực tiếp (Sếp)</label>
+                    <label for="manager_id">Người quản lý (Sếp)</label>
                     <?php if ($canEditSensitive) { ?>
                         <select name="manager_id" id="manager_id">
-                            <option value="">-- Không có sếp trực tiếp --</option>
+                            <option value="">-- Không có sếp --</option>
                             <?php foreach ($managers as $m) { ?>
-                                <?php if ($m['id'] == $employee['id']) continue; // Không thể quản lý bản thân ?>
+                                <?php if ($m['id'] == $employee['id']) continue; ?>
                                 <option value="<?= $m['id'] ?>" <?= ($employee['manager_id'] == $m['id']) ? 'selected' : '' ?>>
-                                    <?= esc($m['full_name']) ?> (<?= esc($m['role_name']) ?>)
+                                    <?= esc($m['full_name']) ?>
                                 </option>
                             <?php } ?>
                         </select>
@@ -93,10 +92,7 @@
                         <?php 
                             $myManager = 'Chưa thiết lập';
                             foreach ($managers as $m) {
-                                if ($employee['manager_id'] == $m['id']) {
-                                    $myManager = $m['full_name'];
-                                    break;
-                                }
+                                if ($employee['manager_id'] == $m['id']) { $myManager = $m['full_name']; break; }
                             }
                         ?>
                         <input type="text" class="form-control-premium" value="<?= esc($myManager) ?>" readonly style="background: #f8f9fa;">
@@ -124,30 +120,11 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="personal_email">Email cá nhân (Nếu có)</label>
+                    <label for="personal_email">Email cá nhân</label>
                     <input type="email" name="personal_email" id="personal_email" value="<?= esc($employee['personal_email'] ?? '') ?>" placeholder="name@gmail.com">
                 </div>
 
-                <div class="form-group form-group-full">
-                    <h4 class="m-t-20 m-b-10 text-apple-main"><i class="fas fa-university m-r-8"></i> Thông tin ngân hàng</h4>
-                </div>
-
                 <div class="form-group">
-                    <label for="bank_name">Tên ngân hàng</label>
-                    <input type="text" name="bank_name" id="bank_name" value="<?= esc($employee['bank_name'] ?? '') ?>" placeholder="Ví dụ: Vietcombank, Techcombank...">
-                </div>
-
-                <div class="form-group">
-                    <label for="bank_account">Số tài khoản ngân hàng</label>
-                    <input type="text" name="bank_account" id="bank_account" value="<?= esc($employee['bank_account'] ?? '') ?>" placeholder="Nhập số tài khoản...">
-                </div>
-
-                <div class="form-group form-group-full">
-                    <label for="bank_owner">Tên chủ tài khoản</label>
-                    <input type="text" name="bank_owner" id="bank_owner" value="<?= esc($employee['bank_owner'] ?? '') ?>" placeholder="NHẬN VIẾT HOA KHÔNG DẤU">
-                </div>
-
-                <div class="form-group form-group-full">
                     <label for="user_id">Liên kết tài khoản hệ thống</label>
                     <?php if ($canEditSensitive) { ?>
                         <select name="user_id" id="user_id">
@@ -157,13 +134,43 @@
                             <?php } ?>
                         </select>
                     <?php } else { ?>
-                        <input type="text" class="form-control-premium" value="<?= esc(session()->get('email')) ?> - [<?= esc($employee['role_name'] ?? 'Chưa kết nối') ?>]" readonly style="background: #f8f9fa;">
+                        <input type="text" class="form-control-premium" value="<?= esc(session()->get('email')) ?>" readonly style="background: #f8f9fa;">
                     <?php } ?>
                 </div>
 
                 <div class="form-group form-group-full">
                     <label for="address">Địa chỉ thường trú</label>
                     <input type="text" name="address" id="address" value="<?= esc($employee['address']) ?>" placeholder="Địa chỉ liên lạc đầy đủ...">
+                </div>
+
+                <!-- NHÓM TÀI CHÍNH: NGÂN HÀNG & LƯƠNG -->
+                <div class="form-group form-group-full">
+                    <h4 class="m-b-10 text-apple-main"><i class="fas fa-university m-r-8"></i> Thông tin Tài chính & Ngân hàng</h4>
+                </div>
+
+                <div class="form-group">
+                    <label for="bank_name">Tên ngân hàng</label>
+                    <input type="text" name="bank_name" id="bank_name" value="<?= esc($employee['bank_name'] ?? '') ?>" placeholder="Vietcombank, Techcombank...">
+                </div>
+
+                <div class="form-group">
+                    <label for="bank_account">Số tài khoản ngân hàng</label>
+                    <input type="text" name="bank_account" id="bank_account" value="<?= esc($employee['bank_account'] ?? '') ?>" placeholder="Nhập số tài khoản...">
+                </div>
+
+                <div class="form-group">
+                    <label for="bank_owner">Tên chủ tài khoản</label>
+                    <input type="text" name="bank_owner" id="bank_owner" value="<?= esc($employee['bank_owner'] ?? '') ?>" placeholder="VIẾT HOA KHÔNG DẤU">
+                </div>
+
+                <div class="form-group">
+                    <label for="salary_base">Mức lương cơ bản (VNĐ)</label>
+                    <input type="number" name="salary_base" id="salary_base" required value="<?= (int)$employee['salary_base'] ?>" <?= $restrictedAttr ?>>
+                </div>
+
+                <div class="form-group form-group-full">
+                    <label for="allowance_base">Phụ cấp cố định (VNĐ)</label>
+                    <input type="number" name="allowance_base" id="allowance_base" value="<?= (int)($employee['allowance_base'] ?? 0) ?>" <?= $restrictedAttr ?> placeholder="Ví dụ: 500000">
                 </div>
             </div>
 
@@ -202,4 +209,24 @@
         </form>
     </div>
 </div>
+
+<style>
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px 25px;
+        position: relative;
+    }
+    .form-group-full {
+        grid-column: span 2 !important;
+    }
+    @media (max-width: 768px) {
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+        .form-group-full {
+            grid-column: span 1 !important;
+        }
+    }
+</style>
 <?= $this->endSection() ?>

@@ -6,6 +6,7 @@ use App\Models\KnowledgeModel;
 use App\Models\CaseModel;
 use App\Services\SystemLogService;
 use App\Services\TagService;
+use App\Services\NotificationService;
 
 /**
  * KnowledgeController
@@ -39,12 +40,14 @@ class KnowledgeController extends BaseController
     protected $knowledgeModel;
     protected $tagService;
     protected $logService;
+    protected $notifyService;
 
     public function __construct()
     {
         $this->knowledgeModel = new KnowledgeModel();
         $this->tagService = new TagService();
         $this->logService = new SystemLogService();
+        $this->notifyService = new NotificationService();
     }
 
     /**
@@ -88,7 +91,7 @@ class KnowledgeController extends BaseController
         $builder->orderBy('kb.created_at', 'DESC');
 
         // Phân trang Pagination
-        $perPage = 10;
+        $perPage = 20;
         $page = $this->request->getGet('page') ?? 1;
         $total = $builder->countAllResults(false);
         $articles = $builder->limit($perPage, ($page - 1) * $perPage)->get()->getResultArray();
@@ -98,13 +101,23 @@ class KnowledgeController extends BaseController
             $article['tags'] = $this->tagService->getTagsByEntity($article['id'], 'knowledge');
         }
 
+        // Bảng xếp hạng: Chuyên gia chia sẻ của tháng (Dựa trên số lượt Helpful trong tháng)
+        $leaderboard = $db->table('knowledge_base kb')
+            ->select('e.full_name, e.position, SUM(kb.helpful_count) as total_helpful')
+            ->join('employees e', 'e.id = kb.author_id', 'inner')
+            ->where('kb.created_at >=', date('Y-m-01 00:00:00'))
+            ->groupBy('kb.author_id')
+            ->orderBy('total_helpful', 'DESC')
+            ->limit(5)
+            ->get()->getResultArray();
+
         $data = [
             'title'        => 'Cẩm nang nghiệp vụ nội bộ | L.A.N ERP',
             'articles'     => $articles,
             'total'        => $total,
             'pager'        => \Config\Services::pager(),
             'currentPage'  => $page,
-            'currentMonth' => date('Y-m'), // Fake placeholder for compatibility if needed
+            'leaderboard'  => $leaderboard,
             'perPage'      => $perPage,
             'availableTags'=> get_available_tags('knowledge') // Nạp danh mục tag từ Core Function
         ];
@@ -152,10 +165,10 @@ class KnowledgeController extends BaseController
         $input['author_id'] = session()->get('employee_id');
         $input['case_id'] = !empty($input['case_id']) ? $input['case_id'] : null;
         
-        // BẢO MẬT: Chặn hành vi tiêm dữ liệu trái phép (Data Injection) qua Form
-        unset($input['view_count']);
-        unset($input['helpful_count']);
-        unset($input['is_pinned']);
+        // Tự động gộp 3 phần thành content (để phục vụ tìm kiếm/legacy)
+        $input['content'] = "<h3>Vấn đề:</h3>" . ($input['problem'] ?? '') . 
+                            "<h3>Cách giải quyết:</h3>" . ($input['solution'] ?? '') . 
+                            "<h3>Lưu ý:</h3>" . ($input['red_flags'] ?? '');
 
         // Cơ chế chặn Spam hoặc SQL Injection được bảo trợ qua Model validation
         if ($this->knowledgeModel->save($input)) {
@@ -167,10 +180,18 @@ class KnowledgeController extends BaseController
                 $this->tagService->syncTags($knowledgeId, 'knowledge', $tags);
             }
 
+            // [NEW] Thông báo cho toàn thể nhân viên khi có kinh nghiệm mới
+            $this->notifyService->notifyAllEmployees(
+                "Kinh nghiệm mới: " . $input['title'],
+                session()->get('full_name') . " vừa chia sẻ một kinh nghiệm mới: " . ($input['summary'] ?? $input['title']),
+                'system',
+                base_url('knowledge/show/' . $knowledgeId)
+            );
+
             // Ghi nhận Audit Log
             $this->logService->log('CREATE', 'KnowledgeBase', $knowledgeId, ['title' => $input['title']]);
 
-            return redirect()->to(base_url('knowledge'))->with('success', 'Tuyệt vời! Bạn đã chia sẻ thành công một bài học kinh nghiệm trị giá.');
+            return redirect()->to(base_url('knowledge'))->with('success', 'Tuyệt vời! Bạn đã chia sẻ thành công một bài học kinh nghiệm giá trị.');
         }
 
         return redirect()->back()->withInput()->with('errors', $this->knowledgeModel->errors());
@@ -287,15 +308,23 @@ class KnowledgeController extends BaseController
         $input['case_id'] = !empty($input['case_id']) ? $input['case_id'] : null;
 
         // Chặn Ghi đè metrics và Bảo toàn tác giả
-        unset($input['view_count']);
-        unset($input['helpful_count']);
-        unset($input['is_pinned']);
-        $input['author_id'] = $article['author_id']; // Fix lỗi Validation CI4 "required" mà vẫn chống bị ghi đè trái phép.
+        // Tự động gộp 3 phần thành content
+        $input['content'] = "<h3>Vấn đề:</h3>" . ($input['problem'] ?? '') . 
+                            "<h3>Cách giải quyết:</h3>" . ($input['solution'] ?? '') . 
+                            "<h3>Lưu ý:</h3>" . ($input['red_flags'] ?? '');
 
         if ($this->knowledgeModel->update($id, $input)) {
             $tags = $this->request->getPost('tags');
             $this->tagService->syncTags($id, 'knowledge', is_array($tags) ? $tags : []);
             
+            // [NEW] Thông báo cho Admin khi có chỉnh sửa kinh nghiệm
+            $this->notifyService->notifyAdmins(
+                "Chỉnh sửa kinh nghiệm: " . $article['title'],
+                session()->get('full_name') . " vừa cập nhật nội dung bài chia sẻ.",
+                'system',
+                base_url('knowledge/show/' . $id)
+            );
+
             return redirect()->to(base_url('knowledge/show/' . $id))->with('success', 'Đã lưu thay đổi Cẩm nang thành công!');
         }
 

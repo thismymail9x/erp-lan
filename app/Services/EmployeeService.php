@@ -39,7 +39,7 @@ class EmployeeService extends BaseService
      * @param string $search Từ khóa tìm kiếm (Tên, Chức vụ, Phòng ban).
      * @return array
      */
-    public function getAllEmployees(string $sort = 'id', string $order = 'desc', int $perPage = 10, string $search = '')
+    public function getAllEmployees(string $sort = 'id', string $order = 'desc', int $perPage = 20, string $search = '')
     {
         $roleName = session()->get('role_name');
         $departmentName = session()->get('department_name');

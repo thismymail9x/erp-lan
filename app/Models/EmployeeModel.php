@@ -17,8 +17,8 @@ class EmployeeModel extends BaseModel
     protected $protectFields    = true;
     protected $allowedFields    = [
         'user_id', 'department_id', 'manager_id', 'full_name', 'dob', 'identity_card', 
-        'address', 'join_date', 'salary_base', 'position', 'bank_name', 'bank_account',
-        'bank_owner', 'personal_email', 'phone_number'
+        'address', 'join_date', 'salary_base', 'allowance_base', 'position', 'bank_name', 
+        'bank_account', 'bank_owner', 'personal_email', 'phone_number'
     ];
 
     // Dates

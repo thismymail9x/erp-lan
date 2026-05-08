@@ -24,14 +24,17 @@ class UserService extends BaseService
     protected $roleModel;
     protected $logService;
 
-    public function __construct()
-    {
+    public function __construct(
+        UserModel $userModel = null,
+        EmployeeModel $employeeModel = null,
+        RoleModel $roleModel = null,
+        SystemLogService $logService = null
+    ) {
         parent::__construct();
-        // Khởi tạo các Model nòng cốt
-        $this->userModel = new UserModel();
-        $this->employeeModel = new EmployeeModel();
-        $this->roleModel = new RoleModel();
-        $this->logService = new SystemLogService();
+        $this->userModel = $userModel ?? new UserModel();
+        $this->employeeModel = $employeeModel ?? new EmployeeModel();
+        $this->roleModel = $roleModel ?? new RoleModel();
+        $this->logService = $logService ?? new SystemLogService();
     }
 
     /**
@@ -43,7 +46,7 @@ class UserService extends BaseService
      * @param string $search Từ khóa tìm kiếm (Email hặc Tên).
      * @return array Danh sách kết quả đã được lọc và phân trang.
      */
-    public function getUsers(string $sort = 'id', string $order = 'desc', int $perPage = 10, string $search = '')
+    public function getUsers(string $sort = 'id', string $order = 'desc', int $perPage = 20, string $search = '')
     {
         // 1. Xác định danh tính và bộ phận của người đang thao tác
         $roleName = session()->get('role_name');
@@ -303,6 +306,9 @@ class UserService extends BaseService
         $oldData = $this->userModel->find($id);
 
         if ($this->userModel->delete($id)) {
+            // Xóa hồ sơ nhân sự liên kết (Soft delete)
+            $this->employeeModel->where('user_id', $id)->delete();
+
             // Nhật ký tiêu hủy
             $this->logService->log('DELETE', 'Users', $id, ['deleted_account' => $oldData['email']]);
             return $this->success(null, 'Đã gỡ bỏ tài khoản hoàn toàn khỏi hệ thống.');

@@ -26,7 +26,7 @@
     -->
     <div class="stats-grid-premium">
         <!-- Card: Tổng số vụ việc hồ sơ trong hệ thống (Dựa theo quyền truy cập) -->
-        <div class="stat-card-premium" title="Tổng số vụ việc/hồ sơ pháp lý bạn có quyền truy cập">
+        <div class="stat-card-premium pointer" onclick="filterByStat('')" title="Tổng số vụ việc/hồ sơ pháp lý bạn có quyền truy cập">
             <div class="stat-icon-wrapper stat-icon-blue">
                 <i class="fas fa-folder"></i>
             </div>
@@ -36,7 +36,7 @@
             </div>
         </div>
         <!-- Vụ việc đang trong quá trình xử lý -->
-        <div class="stat-card-premium" title="Số lượng vụ việc đang trong các bước thực hiện">
+        <div class="stat-card-premium pointer" onclick="filterByStat('dang_xu_ly')" title="Số lượng vụ việc đang trung các bước thực hiện">
             <div class="stat-icon-wrapper stat-icon-orange">
                 <i class="fas fa-spinner"></i>
             </div>
@@ -45,8 +45,18 @@
                 <div class="stat-value"><?= $stats['processing'] ?? 0 ?></div>
             </div>
         </div>
-        <!-- Vụ việc đã hoàn thành trong tháng -->
-        <div class="stat-card-premium" title="Số lượng vụ việc đã đóng hoặc giải quyết xong tháng này">
+        <!-- Vụ việc Chờ tiếp nhận -->
+        <div class="stat-card-premium pointer" onclick="filterByStat('cho_tiep_nhan')" title="Số lượng vụ việc mới khởi tạo, đang chờ tiếp nhận">
+            <div class="stat-icon-wrapper stat-icon-blue" style="color: #5856d6; background: rgba(88, 86, 214, 0.1);">
+                <i class="fas fa-hourglass-start"></i>
+            </div>
+            <div>
+                <div class="stat-label">Chờ tiếp nhận</div>
+                <div class="stat-value"><?= $stats['waiting'] ?? 0 ?></div>
+            </div>
+        </div>
+        <!-- Vụ việc đã hoàn thành (Tổng số) -->
+        <div class="stat-card-premium pointer" onclick="filterByStat('da_hoan_thanh')" title="Số lượng vụ việc đã hoàn thành từ trước đến nay">
             <div class="stat-icon-wrapper stat-icon-green">
                 <i class="fas fa-check-double"></i>
             </div>
@@ -56,7 +66,7 @@
             </div>
         </div>
         <!-- Vụ việc có bước bị quá hạn -->
-        <div class="stat-card-premium" title="Cảnh báo: Các vụ việc có bước công việc đã quá hạn chót">
+        <div class="stat-card-premium pointer" onclick="filterByStat('overdue')" title="Cảnh báo: Các vụ việc có bước công việc đã quá hạn chót">
             <div class="stat-icon-wrapper stat-icon-purple" style="color: var(--apple-red); background: rgba(255, 59, 48, 0.1);">
                 <i class="fas fa-exclamation-triangle"></i>
             </div>
@@ -68,13 +78,55 @@
     </div>
 
     <!-- Search and Filter Bar -->
-    <div class="search-filter-wrapper m-b-16" style="display: flex; gap: 15px; align-items: center;">
-        <div class="search-input-container" style="flex: 1;">
+    <div class="search-filter-wrapper m-b-16" style="display: flex; gap: 12px; align-items: center; flex-wrap: nowrap;">
+        <div class="search-input-container" style="flex: 1; min-width: 200px;">
             <i class="fas fa-search search-icon"></i>
-            <input type="text" id="case-search" class="input-premium" placeholder="Tìm theo tên vụ việc, mã hồ sơ hoặc khách hàng..." value="<?= esc($search) ?>" autocomplete="off">
+            <input type="text" id="case-search" class="input-premium" placeholder="Tìm tên vụ việc, mã hoặc khách hàng..." value="<?= esc($search) ?>" autocomplete="off">
         </div>
+        
+        <div class="filter-select-container" style="width: 140px; flex-shrink: 0;">
+            <select id="status-filter" name="status" class="form-control-premium">
+                <option value="">Trạng thái</option>
+                <?php foreach ($statusLabels as $val => $label) { ?>
+                    <option value="<?= $val ?>" <?= $currentStatus == $val ? 'selected' : '' ?>><?= $label ?></option>
+                <?php } ?>
+                <option value="overdue" <?= $currentStatus == 'overdue' ? 'selected' : '' ?>>Có bước quá hạn</option>
+            </select>
+        </div>
+
+        <div class="filter-select-container" style="width: 170px; flex-shrink: 0;">
+            <select id="month-year-filter" class="form-control-premium">
+                <option value="">Chọn Tháng/Năm</option>
+                <?php 
+                $yNow = (int)date('Y');
+                $mNow = (int)date('m');
+                // Hiển thị danh sách các tháng từ hiện tại lùi về tháng 01/2026
+                for ($y = $yNow; $y >= 2026; $y--) {
+                    $startM = ($y == $yNow) ? $mNow : 12;
+                    $endM = ($y == 2026) ? 1 : 1; 
+                    for ($m = $startM; $m >= $endM; $m--) {
+                        $val = sprintf('%04d-%02d', $y, $m);
+                        $isSel = ($currentYear == $y && $currentMonth == $m) ? 'selected' : '';
+                        echo "<option value='$val' $isSel>Tháng $m, $y</option>";
+                    }
+                }
+                ?>
+            </select>
+        </div>
+        <div class="filter-select-container" style="width: 130px; flex-shrink: 0;">
+            <select id="tag-filter" name="tag_id" class="form-control-premium">
+                <option value="">Nhãn dán</option>
+                <?php foreach ($availableTags as $tag) { ?>
+                    <option value="<?= $tag['id'] ?>" <?= ($currentTagId ?? 0) == $tag['id'] ? 'selected' : '' ?>>
+                        <?= esc($tag['name']) ?>
+                    </option>
+                <?php } ?>
+            </select>
+        </div>
+
+
         <?php if (has_permission('sys.admin') || strpos(strtolower(session()->get('role_name')), 'trưởng phòng') !== false) { ?>
-        <div class="filter-select-container" style="width: 350px;">
+        <div class="filter-select-container" style="width: 220px; flex-shrink: 0;">
             <select id="lawyer-filter" name="lawyer_id[]" class="form-control-premium" multiple="multiple">
                 <?php foreach ($availableLawyers as $lawyer) { ?>
                     <option value="<?= $lawyer['id'] ?>" <?= in_array($lawyer['id'], $lawyerIds) ? 'selected' : '' ?>>

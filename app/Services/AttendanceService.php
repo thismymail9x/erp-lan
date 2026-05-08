@@ -41,14 +41,8 @@ class AttendanceService extends BaseService
      */
     public function isInternalAccess(string $ip, ?string $token = null): bool
     {
-        // CHIẾN LƯỢC 1: Kiểm tra IP (Dùng cho các văn phòng có đường truyền IP tĩnh)
-        foreach (AppConstants::ATT_LAN_IPS as $allowedIp) {
-            if (strpos($ip, $allowedIp) === 0) {
-                return true;
-            }
-        }
-
-        // CHIẾN LƯỢC 2: Kiểm tra Security Token (Dành cho PC cố định nhưng IP bị thay đổi liên tục)
+        // Bỏ qua kiểm tra IP theo mạng LAN theo yêu cầu mới
+        // Chỉ sử dụng Kiểm tra bằng Cookie Security Token (Dành cho PC đã được ủy quyền)
         if (!empty($token)) {
             $officeToken = $this->systemSettingModel->where('key', 'office_security_token')->first();
             if ($officeToken && $token === $officeToken['value']) {

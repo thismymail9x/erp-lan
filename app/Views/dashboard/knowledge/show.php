@@ -45,7 +45,7 @@
             
             <div class="d-flex justify-content-center align-items-center gap-3 text-muted">
                 <div class="avatar-sm shadow-sm k-author-avatar">
-                    <?= strtoupper(substr($author['full_name'], 0, 1)) ?>
+                    <?= mb_strtoupper(mb_substr($author['full_name'], 0, 1)) ?>
                 </div>
                 <div class="text-start">
                     <strong class="d-block text-dark"><?= esc($author['full_name']) ?></strong>
@@ -73,35 +73,74 @@
         <?php } ?>
 
         <!-- Bài viết chính -->
-        <div class="article-content ql-editor">
-            <!-- Render raw HTML từ QuillJS Editor (Đã lọc XSS từ tầng Controller nếu cần) -->
-            <?= $article['content'] ?>
+        <div class="article-content-main">
+            <!-- Summary Area -->
+            <?php if (!empty($article['summary'])) : ?>
+                <div class="knowledge-quick-summary m-b-32">
+                    <i class="fas fa-quote-left color-primary m-r-8"></i>
+                    <strong>Tóm tắt nhanh:</strong> <?= esc($article['summary']) ?>
+                </div>
+            <?php endif; ?>
+
+            <div class="knowledge-section m-b-40">
+                <h4 class="section-title"><i class="fas fa-question-circle m-r-8 color-primary"></i> 1. Vấn đề (Problem)</h4>
+                <div class="section-body ql-editor">
+                    <?= $article['problem'] ?? '<p class="text-muted italic">Đang cập nhật...</p>' ?>
+                </div>
+            </div>
+
+            <div class="knowledge-section m-b-40">
+                <h4 class="section-title"><i class="fas fa-check-circle m-r-8 color-success"></i> 2. Cách giải quyết (Solution)</h4>
+                <div class="section-body ql-editor">
+                    <?= $article['solution'] ?? '<p class="text-muted italic">Đang cập nhật...</p>' ?>
+                </div>
+            </div>
+
+            <?php if (!empty($article['red_flags'])) : ?>
+                <div class="red-flag-section m-b-40">
+                    <div class="red-flag-title">
+                        <i class="fas fa-exclamation-triangle"></i> LƯU Ý QUAN TRỌNG (RED FLAGS)
+                    </div>
+                    <div class="section-body ql-editor">
+                        <?= $article['red_flags'] ?>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
 
         <!-- Footer / Tags / Analytics -->
         <div class="m-t-40 p-t-24 k-footer-divider">
             
-            <div class="m-b-24">
-                <strong>Nhãn dán liên kết:</strong> 
-                <div class="tags-group mt-2">
-                    <?php if(!empty($tags)) { foreach($tags as $tag) { ?>
-                        <span class="badge bg-secondary rounded-pill fw-normal px-3 py-2"><i class="fas fa-tag"></i> <?= esc($tag['name']) ?></span>
-                    <?php } } else { ?>
-                        <span class="text-muted italic">Không có nhãn dán nào</span>
-                    <?php } ?>
+            <div class="m-b-32">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <strong>Nhãn dán liên kết:</strong> 
+                        <div class="tags-group mt-2">
+                            <?php if(!empty($tags)) { foreach($tags as $tag) { ?>
+                                <span class="badge bg-light text-dark border rounded-pill fw-normal px-3 py-2"><i class="fas fa-tag"></i> <?= esc($tag['name']) ?></span>
+                            <?php } } else { ?>
+                                <span class="text-muted italic">Không có nhãn dán nào</span>
+                            <?php } ?>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button class="btn-premium-sm btn-copy-link" data-link="<?= base_url('knowledge/show/' . $article['id']) ?>">
+                            <i class="fas fa-link"></i> Copy Link nhanh
+                        </button>
+                    </div>
                 </div>
             </div>
 
             <div class="d-flex justify-content-between align-items-center bg-light rounded-pill p-x-24 p-y-16">
                 <div class="text-muted font-weight-bold">
-                    <i class="fas fa-eye m-r-8"></i> Đã tiếp cận <?= $article['view_count'] ?> lượt đọc
+                    <i class="fas fa-eye m-r-8"></i> <?= $article['view_count'] ?> lượt xem
                 </div>
                 
                 <!-- Khối chức năng Vote Hữu Ích qua POST Form -->
                 <form action="<?= base_url('knowledge/vote/' . $article['id']) ?>" method="POST" class="m-0">
                     <?= csrf_field() ?>
                     <button type="submit" class="btn btn-warning rounded-pill px-4 shadow-sm">
-                        <i class="fas fa-lightbulb"></i> Bài viết siêu Hữu Ích (<?= $article['helpful_count'] ?>)
+                        <i class="fas fa-lightbulb"></i> Bài này cực hữu ích (<?= $article['helpful_count'] ?>)
                     </button>
                 </form>
             </div>
@@ -109,4 +148,34 @@
         </div>
     </div>
 </div>
+
+<script>
+$(document).ready(function() {
+    $('.btn-copy-link').click(function() {
+        const link = $(this).data('link');
+        const el = document.createElement('textarea');
+        el.value = link;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        
+        const originalHtml = $(this).html();
+        $(this).html('<i class="fas fa-check"></i> Đã Copy!');
+        $(this).addClass('bg-success text-white');
+        
+        setTimeout(() => {
+            $(this).html(originalHtml);
+            $(this).removeClass('bg-success text-white');
+        }, 2000);
+    });
+});
+</script>
+
+<style>
+.section-title { font-weight: 700; font-size: 1.2rem; color: #1d1d1f; border-bottom: 2px solid #f2f2f7; padding-bottom: 12px; margin-bottom: 20px; }
+.knowledge-quick-summary { background: #f5f5f7; padding: 20px; border-radius: 12px; border-left: 4px solid #0071e3; font-style: italic; color: #48484a; }
+.btn-copy-link { background: #fff; border: 1px solid #d2d2d7; color: #1d1d1f; padding: 10px 20px; border-radius: 20px; font-weight: 600; font-size: 12px; transition: all 0.2s; }
+.btn-copy-link:hover { background: #f5f5f7; border-color: #0071e3; color: #0071e3; }
+</style>
 <?= $this->endSection() ?>

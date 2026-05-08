@@ -302,3 +302,37 @@
     filter: brightness(0.95);
     transform: translateY(-1px);
 }
+/* Timeline & Internal Comments */
+.timeline-item-premium {
+    padding-left: 25px; 
+    border-left: 2px solid #0071e3; 
+    position: relative; 
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+}
+
+.timeline-dot {
+    position: absolute; 
+    left: -7px; 
+    top: 0; 
+    width: 12px; 
+    height: 12px; 
+    border-radius: 50%; 
+    background: #0071e3;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.1);
+}
+
+.comment-feed {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,0,0,0.1) transparent;
+}
+
+.comment-feed::-webkit-scrollbar {
+    width: 6px;
+}
+
+.comment-feed::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.1);
+    border-radius: 10px;
+}

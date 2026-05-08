@@ -205,7 +205,7 @@ class ImplementAdvancedCRM extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('customer_id', 'customers', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('customer_interactions');
+        $this->forge->createTable('customer_interactions', true);
 
         // 3. Customer Documents
         $this->forge->addField([
@@ -252,7 +252,7 @@ class ImplementAdvancedCRM extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('customer_id', 'customers', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('customer_documents');
+        $this->forge->createTable('customer_documents', true);
 
         // 4. Customer Payments
         $this->forge->addField([
@@ -311,7 +311,7 @@ class ImplementAdvancedCRM extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('customer_id', 'customers', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('customer_payments');
+        $this->forge->createTable('customer_payments', true);
     }
 
     public function down()

@@ -56,7 +56,7 @@ class UserController extends BaseController
         $sort    = $this->request->getGet('sort') ?? 'id'; // Cột cần sắp xếp
         $order   = $this->request->getGet('order') ?? 'desc'; // Thứ tự (ASC/DESC)
         $search  = $this->request->getGet('search') ?? ''; // Từ khóa tìm kiếm (Email, Tên...)
-        $perPage = 10; // Cấu hình số lượng bản ghi hiển thị trên mỗi trang
+        $perPage = 20; // Cấu hình số lượng bản ghi hiển thị trên mỗi trang
 
         // Lấy danh sách User và thống kê trạng thái từ Service
         $users = $this->userService->getUsers($sort, $order, $perPage, $search);

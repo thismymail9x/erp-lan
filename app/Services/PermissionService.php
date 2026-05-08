@@ -12,6 +12,13 @@ namespace App\Services;
  */
 class PermissionService extends BaseService
 {
+    protected $db;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->db = \Config\Database::connect();
+    }
     /**
      * Tải và cache danh sách quyền của User vào Session ngay khi đăng nhập.
      * Đây là hàm quan trọng nhất để xác định "khả năng" của một người trong hệ thống.
@@ -21,7 +28,7 @@ class PermissionService extends BaseService
      */
     public function loadUserPermissions(int $userId, int $roleId)
     {
-        $db = \Config\Database::connect();
+        $db = $this->db;
         
         // 1. LẤY QUYỀN MẶC ĐỊNH TỪ VAI TRÒ (Role-based):
         // Truy vấn các quyền được gán cho Nhóm (ví dụ: Trưởng phòng có quyền 'case.view', 'attendance.approve')
@@ -77,7 +84,7 @@ class PermissionService extends BaseService
      */
     public function getUserPermissionMatrix(int $userId, int $roleId)
     {
-        $db = \Config\Database::connect();
+        $db = $this->db;
         // Lấy tất cả các "định nghĩa" quyền có trong hệ thống
         $allPerms = $db->table('permissions')->orderBy('module_group', 'ASC')->get()->getResultArray();
         
@@ -133,7 +140,7 @@ class PermissionService extends BaseService
      */
     public function updateUserOverrides(int $userId, array $overrides)
     {
-        $db = \Config\Database::connect();
+        $db = $this->db;
         $builder = $db->table('user_permissions');
         
         // Sử dụng Transaction để an toàn khi cập nhật hàng loạt
@@ -179,7 +186,7 @@ class PermissionService extends BaseService
      */
     public function registerModulePermissions(string $group, array $permissions, array $defaultRoles = [1, 3])
     {
-        $db = \Config\Database::connect();
+        $db = $this->db;
         $results = [];
 
         foreach ($permissions as $name => $info) {

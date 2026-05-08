@@ -8,38 +8,47 @@ $(document).ready(function() {
         });
     }
 
-    // 2. Khởi tạo Trình Soạn Thảo (QuillJS)
-    var quill = null;
-    var editorContainer = document.getElementById('editor-container');
-    
-    if (editorContainer) {
-        quill = new Quill('#editor-container', {
+    // 2. Khởi tạo các trình soạn thảo theo cấu trúc mới
+    function initQuill(id, inputId, placeholder) {
+        var container = document.getElementById(id);
+        if (!container) return null;
+        
+        var q = new Quill('#' + id, {
             theme: 'snow',
-            placeholder: 'Sửa đổi/Soạn thảo nội dung...',
+            placeholder: placeholder,
             modules: {
                 toolbar: [
-                    [{ 'header': [1, 2, 3, false] }],
                     ['bold', 'italic', 'underline', 'strike'],
-                    ['blockquote', 'code-block'],
                     [{ 'list': 'ordered'}, { 'list': 'bullet' }],
                     [{ 'color': [] }, { 'background': [] }],
-                    [{ 'align': [] }],
                     ['clean']
                 ]
             }
         });
+        
+        return q;
     }
 
-    // 3. Hook đẩy dữ liệu HTML thực từ Quill sang hidden input khi user bấm Submit
+    var problemQuill = initQuill('problem-editor', 'problemInput', 'Mô tả vấn đề cụ thể (nên dùng bullet points)...');
+    var solutionQuill = initQuill('solution-editor', 'solutionInput', 'Các bước xử lý hoặc giải pháp đã áp dụng...');
+    var redflagsQuill = initQuill('redflags-editor', 'redflagsInput', 'Những điều cần đặc biệt lưu ý hoặc rủi ro tiềm ẩn...');
+
+    // 3. Hook đẩy dữ liệu HTML thực từ các editor sang hidden inputs khi user bấm Submit
     $('#knowledgeForm').on('submit', function(e) {
-        if (quill) {
-            var htmlContent = quill.root.innerHTML;
-            if (quill.getText().trim().length === 0) {
-                e.preventDefault();
-                alert('Nội dung không được để trống!');
-                return false;
-            }
-            $('#contentInput').val(htmlContent);
+        if (problemQuill) $('#problemInput').val(problemQuill.root.innerHTML);
+        if (solutionQuill) $('#solutionInput').val(solutionQuill.root.innerHTML);
+        if (redflagsQuill) $('#redflagsInput').val(redflagsQuill.root.innerHTML);
+        
+        // Kiểm tra tối thiểu
+        if (problemQuill && problemQuill.getText().trim().length < 5) {
+            e.preventDefault();
+            alert('Vui lòng mô tả chi tiết vấn đề!');
+            return false;
+        }
+        if (solutionQuill && solutionQuill.getText().trim().length < 5) {
+            e.preventDefault();
+            alert('Vui lòng cung cấp cách giải quyết!');
+            return false;
         }
     });
 });

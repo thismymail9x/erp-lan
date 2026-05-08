@@ -66,7 +66,7 @@ class CreateCaseStepsTable extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('case_id', 'cases', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('case_steps');
+        $this->forge->createTable('case_steps', true);
     }
 
     public function down()

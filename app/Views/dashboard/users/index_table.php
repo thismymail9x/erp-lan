@@ -6,20 +6,21 @@
                         <th class="table-cell-center logs-col-40px">
                             <input type="checkbox" id="check-all" class="checkbox-premium" title="Chọn tất cả các mục">
                         </th>
-                        <th>
-                            <a href="<?= base_url('users') ?>?sort=email&order=<?= ($currentSort == 'email' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" class="sort-link" title="Sắp xếp theo email">
-                                Tài khoản / Email
-                                <?php if($currentSort == 'email') { ?>
+                        <th class="table-cell-center" style="width: 75px;">STT (<?= $pager->getDetails()['total'] ?>)</th>
+                        <th class="hide-mobile">
+                            <a href="<?= base_url('users') ?>?sort=name&order=<?= ($currentSort == 'name' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" class="sort-link" title="Sắp xếp theo tên nhân sự">
+                                Liên kết nhân sự
+                                <?php if($currentSort == 'name') { ?>
                                     <i class="fas fa-sort-<?= $currentOrder == 'asc' ? 'up' : 'down' ?>"></i>
                                 <?php } else { ?>
                                     <i class="fas fa-sort sort-icon-inactive"></i>
                                 <?php } ?>
                             </a>
                         </th>
-                        <th class="hide-mobile">
-                            <a href="<?= base_url('users') ?>?sort=name&order=<?= ($currentSort == 'name' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" class="sort-link" title="Sắp xếp theo tên nhân sự">
-                                Liên kết nhân sự
-                                <?php if($currentSort == 'name') { ?>
+                        <th>
+                            <a href="<?= base_url('users') ?>?sort=email&order=<?= ($currentSort == 'email' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" class="sort-link" title="Sắp xếp theo email">
+                                Tài khoản / Email
+                                <?php if($currentSort == 'email') { ?>
                                     <i class="fas fa-sort-<?= $currentOrder == 'asc' ? 'up' : 'down' ?>"></i>
                                 <?php } else { ?>
                                     <i class="fas fa-sort sort-icon-inactive"></i>
@@ -48,20 +49,32 @@
                         </th>
                         <th class="table-cell-right">Thao tác</th>
                     </tr>
+                    <?php if (has_permission('sys.admin')) { ?>
+                    <!-- Floating Bulk Actions Bar -->
+                    <div class="bulk-actions-bar">
+                        <span id="selected-count">0 mục đã chọn</span>
+                        <button type="button" class="bulk-btn-delete" onclick="bulkDelete()" title="Xóa hàng loạt">
+                            <i class="fas fa-trash-alt"></i> Xóa vĩnh viễn
+                        </button>
+                    </div>
+                    <?php } ?>
                 </thead>
                 <tbody>
+                    <?php $stt = isset($pager) ? ($pager->getCurrentPage() - 1) * $pager->getPerPage() : 0; ?>
                     <?php if (empty($users)) { ?>
                         <tr>
-                            <td colspan="6" class="empty-state-container">
+                            <td colspan="10" class="empty-state-container">
                                 Chưa có tài khoản nào được đăng ký.
                             </td>
                         </tr>
                     <?php } else { ?>
-                        <?php foreach ($users as $user) { ?>
+                        <?php foreach ($users as $user) { $stt++; ?>
                         <tr>
                             <td class="table-cell-center">
                                 <input type="checkbox" class="record-check checkbox-premium" value="<?= $user['id'] ?>" title="Chọn tài khoản này">
                             </td>
+                            <td class="table-cell-center text-muted-dark text-sm"><?= $stt ?></td>
+                            <td class="hide-mobile"><a href="<?= base_url('employees/edit/' . $user['emp_id']) ?>" class="text-decoration-none" title="Xem nhân viên"><?= esc($user['full_name'] ?? 'Chưa liên kết') ?></a></td>
                             <td>
                                 <div class="user-email font-weight-500" title="Email định danh của tài khoản">
                                     <a href="<?= base_url('users/edit/' . $user['id']) ?>" class="text-decoration-none" title="Chỉnh sửa">
@@ -73,7 +86,6 @@
                                         <?= esc($user['full_name'] ?? 'Chưa liên kết') ?> </a>
                                 </div>
                             </td>
-                            <td class="hide-mobile"><a href="<?= base_url('employees/edit/' . $user['emp_id']) ?>" class="text-decoration-none" title="Xem nhân viên"><?= esc($user['full_name'] ?? 'Chưa liên kết') ?></a></td>
                             <td class="hide-mobile">
                                 <div class="flex-column gap-4">
                                     <span class="badge-secondary-minimal text-xs" title="Phân quyền hệ thống">

@@ -36,8 +36,7 @@ class PerformanceService extends BaseService
         $db = \Config\Database::connect();
         $builder = $db->table('case_steps cs');
         $builder->select('SUM(CASE WHEN cs.completed_at <= cs.deadline THEN cs.kpi_reward ELSE 0 END) as total_kpi, COUNT(cs.id) as completed_count');
-        $builder->join('case_members cm', 'cm.case_id = cs.case_id');
-        $builder->where('cm.employee_id', $employeeId);
+        $builder->where('cs.completed_by', $employeeId);
         $builder->where('cs.status', 'completed');
         $builder->where('cs.completed_at IS NOT NULL');
         $builder->where('cs.completed_at >=', $startDate);

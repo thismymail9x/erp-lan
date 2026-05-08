@@ -29,18 +29,33 @@ class WorkflowService extends BaseService
     protected $timelineService;
     protected $documentModel;
     protected $notificationService;
+    protected $roleModel;
+    protected $userModel;
+    protected $employeeModel;
 
-    public function __construct()
-    {
+    public function __construct(
+        \App\Models\CaseModel $caseModel = null,
+        \App\Models\CaseStepModel $stepModel = null,
+        \App\Models\WorkflowTemplateModel $templateModel = null,
+        \App\Models\WorkflowStepModel $templateStepModel = null,
+        \App\Models\DocumentModel $documentModel = null,
+        \App\Models\EmployeeModel $employeeModel = null,
+        \App\Models\RoleModel $roleModel = null,
+        \App\Models\UserModel $userModel = null,
+        NotificationService $notificationService = null,
+        CaseTimelineService $timelineService = null
+    ) {
         parent::__construct();
-        // Khởi tạo các Model và Service phụ trợ để xử lý logic liên tầng
-        $this->caseModel = new CaseModel();
-        $this->stepModel = new CaseStepModel();
-        $this->templateModel = new WorkflowTemplateModel();
-        $this->templateStepModel = new WorkflowStepModel();
-        $this->timelineService = new CaseTimelineService();
-        $this->documentModel = new DocumentModel();
-        $this->notificationService = new NotificationService();
+        $this->caseModel = $caseModel ?? new \App\Models\CaseModel();
+        $this->stepModel = $stepModel ?? new \App\Models\CaseStepModel();
+        $this->templateModel = $templateModel ?? new \App\Models\WorkflowTemplateModel();
+        $this->templateStepModel = $templateStepModel ?? new \App\Models\WorkflowStepModel();
+        $this->documentModel = $documentModel ?? new \App\Models\DocumentModel();
+        $this->employeeModel = $employeeModel ?? new \App\Models\EmployeeModel();
+        $this->roleModel = $roleModel ?? new \App\Models\RoleModel();
+        $this->userModel = $userModel ?? new \App\Models\UserModel();
+        $this->notificationService = $notificationService ?? new NotificationService();
+        $this->timelineService = $timelineService ?? new CaseTimelineService();
     }
 
     /**
@@ -106,7 +121,8 @@ class WorkflowService extends BaseService
                 'required_documents'    => $tStep['required_documents'], // Danh sách giấy tờ cần quét upload
                 'next_step_condition'   => $tStep['next_step_condition'],
                 'notification_template' => $tStep['notification_template'],
-                'kpi_reward'            => $tStep['kpi_reward'] ?? 0
+                'kpi_reward'            => $tStep['kpi_reward'] ?? 0,
+                'assigned_to'           => $case['assigned_lawyer_id'] ?: $case['assigned_staff_id']
             ]);
 
             // Cập nhật mốc 'startDate' cho vòng lặp kế tiếp
@@ -157,10 +173,44 @@ class WorkflowService extends BaseService
         // 2. Kiểm duyệt điều kiện tài liệu (Gating)
         $this->verifyRequiredDocuments($step);
 
+        // --- CHỐT KPI CHO NGƯỜI PHỤ TRÁCH CHÍNH (ASSIGNED_TO) ---
+        // Bất kể ai bấm nút, KPI vẫn thuộc về người được giao bước này
+        $completedBy = $step['assigned_to'];
+        
+        if (!$completedBy) {
+            $case = $this->caseModel->find($step['case_id']);
+            $completedBy = $case['assigned_lawyer_id'] ?: $case['assigned_staff_id'];
+            
+            // Nếu vẫn rỗng, tìm trong bảng CaseMember (Người thực hiện được phân công)
+            if (!$completedBy) {
+                $member = model('CaseMemberModel')->where(['case_id' => $step['case_id'], 'role_in_case' => 'assignee'])->first();
+                if ($member) $completedBy = $member['employee_id'];
+            }
+            
+            // Fallback cuối cùng: Chính là người đang bấm nút (để tránh NULL làm hỏng KPI)
+            if (!$completedBy) {
+                $completedBy = session()->get('employee_id');
+            }
+        }
+
         // 3. Đánh dấu trạng thái 'pending_approval'
-        $this->stepModel->update($stepId, [
-            'status' => 'pending_approval'
-        ]);
+        $updateData = [
+            'status' => 'pending_approval',
+            'completed_by' => $completedBy
+        ];
+
+        // Nếu bước này chưa có người phụ trách, cập nhật luôn để chuẩn hóa dữ liệu
+        if (empty($step['assigned_to']) && $completedBy) {
+            $updateData['assigned_to'] = $completedBy;
+        }
+
+        $this->stepModel->update($stepId, $updateData);
+        
+        if ($this->stepModel->errors()) {
+            throw new Exception("Lỗi Database: " . json_encode($this->stepModel->errors()));
+        }
+
+        log_message('info', "[WORKFLOW] Step $stepId submitted by user " . session()->get('user_id') . " with completed_by: $completedBy and status: pending_approval");
 
         // 4. Lưu vết lịch sử (Audit Log Specific to Case)
         $historyModel = model('CaseHistoryModel');
@@ -177,26 +227,33 @@ class WorkflowService extends BaseService
         $msg = "Thành viên {$senderName} vừa gửi yêu cầu xét duyệt công việc: [{$step['step_name']}] của hồ sơ {$case['code']}.";
         $link = base_url('cases/show/' . $step['case_id']);
         
-        // Không gửi cho Admin nếu Admin là người thực hiện (Tự duyệt)
-        if (session()->get('role_name') !== 'Admin') {
-            // Tìm danh sách người duyệt (Approvers) được phân công cụ thể cho vụ việc này
-            $approvers = model('CaseMemberModel')->where('case_id', $step['case_id'])->where('role_in_case', 'approver')->findAll();
-            
-            if (count($approvers) > 0) {
-                $employeeModel = model('EmployeeModel');
-                foreach ($approvers as $app) {
-                    $emp = $employeeModel->find($app['employee_id']);
-                    if ($emp && $emp['user_id']) {
-                        // Bắn thông báo qua Web/App notification
-                        $this->notificationService->sendToUser($emp['user_id'], "Yêu cầu xét duyệt mới", $msg, 'approval', $link);
-                    }
-                }
-            } else {
-                // Nếu chưa có người duyệt cụ thể -> Gửi cho quản lý trực tiếp của nhân viên theo sơ đồ tổ chức
-                $employeeId = session()->get('employee_id');
-                $this->notificationService->notifyManagerOfEmployee($employeeId, "Phê duyệt công việc", $msg, 'approval', $link);
-            }
+        // THU THẬP DANH SÁCH NGƯỜI NHẬN (Recipients)
+        $recipientUserIds = [];
+
+        // 1. Luôn thêm Admin vào danh sách giám sát (trừ khi chính Admin là người làm)
+        $adminRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_ADMIN)->first();
+        if ($adminRole) {
+            $adminIds = $this->userModel->where('role_id', $adminRole['id'])->where('active_status', 1)->findColumn('id') ?? [];
+            $recipientUserIds = array_merge($recipientUserIds, $adminIds);
         }
+
+        // 2. Thêm người duyệt cụ thể của vụ việc
+        $approvers = model('CaseMemberModel')->where('case_id', $step['case_id'])->where('role_in_case', 'approver')->findAll();
+        if (count($approvers) > 0) {
+            $employeeModel = model('EmployeeModel');
+            foreach ($approvers as $app) {
+                $emp = $employeeModel->find($app['employee_id']);
+                if ($emp && $emp['user_id']) {
+                    $recipientUserIds[] = $emp['user_id'];
+                }
+            }
+        } else {
+            // Nếu không có người duyệt riêng -> Gửi cho Trưởng phòng/Quản lý
+            $this->notificationService->notifyManagerOfEmployee((int)session()->get('employee_id'), "Yêu cầu xét duyệt mới", $msg, 'approval', $link);
+        }
+
+        // 3. Gửi thông báo tập trung (Smart Dispatch)
+        $this->notificationService->sendToMultiple($recipientUserIds, "Yêu cầu xét duyệt mới", $msg, 'approval', $link);
 
         return true;
     }
@@ -210,12 +267,16 @@ class WorkflowService extends BaseService
         $step = $this->stepModel->find($stepId);
         if (!$step) throw new Exception("Không tìm thấy dữ liệu bước.");
 
-        // 1. Chốt thời gian hoàn thành thực tế
+        // 1. Chốt thời gian hoàn thành thực tế và người thực hiện
         $completedAt = date('Y-m-d H:i:s');
         
+        // Lấy người thực hiện (Ưu tiên người đã submit trước đó, nếu không lấy người được giao)
+        $completedBy = !empty($step['completed_by']) ? $step['completed_by'] : (!empty($step['assigned_to']) ? $step['assigned_to'] : session()->get('employee_id'));
+
         $this->stepModel->update($stepId, [
             'completed_at' => $completedAt,
-            'status'       => 'completed'
+            'status'       => 'completed',
+            'completed_by' => $completedBy
         ]);
 
         // 2. Ghi nhật ký phê duyệt (Audit Trail)
@@ -228,12 +289,12 @@ class WorkflowService extends BaseService
             'details' => "Ký duyệt bởi: " . $mgrName
         ]);
 
-        // 3. Quảng bá thông tin cho Ban vụ việc
+        // 3. Quảng bá thông tin cho Ban vụ việc & Admin (Smart Dispatch)
         $case = $this->caseModel->find($step['case_id']);
         $msg = "Quản lý {$mgrName} đã chấp thuận và hoàn thành mục tiêu: [{$step['step_name']}] (Hồ sơ {$case['code']}).";
         $link = base_url('cases/show/' . $step['case_id']);
         
-        $this->notifyCaseMembers($step['case_id'], "Hoàn thành tiến độ", $msg, 'approval', $link);
+        $this->broadcastWorkflowUpdate($step['case_id'], "Hoàn thành tiến độ", $msg, 'success', $link);
 
         return true;
     }
@@ -267,7 +328,7 @@ class WorkflowService extends BaseService
         $msg = "Quản lý {$mgrName} đã TRẢ HỒ SƠ bước [{$step['step_name']}] (Hồ sơ {$case['code']}). Lý do: {$reason}";
         $link = base_url('cases/show/' . $step['case_id']);
         
-        $this->notifyCaseMembers($step['case_id'], "Yêu cầu chỉnh sửa", $msg, 'system', $link);
+        $this->broadcastWorkflowUpdate($step['case_id'], "Yêu cầu chỉnh sửa", $msg, 'system', $link);
 
         return true;
     }
@@ -281,9 +342,17 @@ class WorkflowService extends BaseService
         $step = $this->stepModel->find($stepId);
         if (!$step) throw new Exception("Không tìm thấy bước.");
 
+        // Chốt KPI cho người phụ trách bước
+        $completedBy = $step['assigned_to'];
+        if (!$completedBy) {
+            $case = $this->caseModel->find($step['case_id']);
+            $completedBy = $case['assigned_lawyer_id'] ?: $case['assigned_staff_id'];
+        }
+
         $this->stepModel->update($stepId, [
             'completed_at' => date('Y-m-d H:i:s'),
-            'status'       => 'completed'
+            'status'       => 'completed',
+            'completed_by' => $completedBy
         ]);
 
         $mgrName = session()->get('full_name');
@@ -295,13 +364,20 @@ class WorkflowService extends BaseService
             'details' => json_encode($data)
         ]);
 
+        // --- THÊM THÔNG BÁO CHO FAST-TRACK ---
+        $case = $this->caseModel->find($step['case_id']);
+        $msg = "Thành viên {$mgrName} đã HOÀN THÀNH TRỰC TIẾP bước [{$step['step_name']}] (Hồ sơ {$case['code']}).";
+        $link = base_url('cases/show/' . $step['case_id']);
+        
+        $this->broadcastWorkflowUpdate($step['case_id'], "Hoàn thành tiến độ", $msg, 'success', $link);
+
         return true;
     }
 
     /**
      * Lấy toàn bộ danh mục Quy trình mẫu với bộ lọc nâng cao & Phân trang.
      */
-    public function getAllTemplates(string $search = '', string $status = '', int $perPage = 10)
+    public function getAllTemplates(string $search = '', string $status = '', int $perPage = 20)
     {
         $query = $this->templateModel->orderBy('created_at', 'DESC');
 
@@ -356,35 +432,57 @@ class WorkflowService extends BaseService
     }
 
     /**
-     * Helper: Phân phối thông báo cho toàn bộ đội ngũ tham gia vụ việc.
-     * Tận dụng tối đa sự liên kết giữa các bảng CaseMember và Employee.
+     * Gửi thông báo cho toàn bộ thành viên ban vụ việc (Public Wrapper).
      */
-    private function notifyCaseMembers(int $caseId, string $title, string $msg, string $type, string $link)
+    public function notifyCaseMembers(int $caseId, string $title, string $msg, string $type = 'task', string $link = '')
     {
-        $caseMemberModel = model('CaseMemberModel');
-        $employeeModel = model('EmployeeModel');
-        $currentEmployeeId = session()->get('employee_id');
+        return $this->broadcastWorkflowUpdate($caseId, $title, $msg, $type, $link);
+    }
 
-        // 1. Quét danh sách thành viên hiện hữu trong ban vụ việc
+    /**
+     * Helper: Phối hợp thông báo cho cả thành viên vụ việc và ban quản trị (Admin).
+     * Đảm bảo không trùng lặp và loại bỏ người gửi.
+     */
+    private function broadcastWorkflowUpdate(int $caseId, string $title, string $msg, string $type, string $link)
+    {
+        $recipientUserIds = [];
+
+        // 1. Lấy danh sách Admin (User IDs)
+        $adminRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_ADMIN)->first();
+        if ($adminRole) {
+            $recipientUserIds = $this->userModel->where('role_id', $adminRole['id'])->where('active_status', 1)->findColumn('id') ?? [];
+        }
+
+        // 2. Lấy danh sách thành viên & nhân sự phụ trách (Employee IDs -> User IDs)
+        $caseMemberModel = model('CaseMemberModel');
         $members = $caseMemberModel->where('case_id', $caseId)->findAll();
         
-        // 2. Bổ sung các nhân sự cốt cán (Lawyer/Staff) từ hồ sơ gốc
         $case = $this->caseModel->find($caseId);
         $legacyEmpIds = [];
         if (!empty($case['assigned_lawyer_id'])) $legacyEmpIds[] = $case['assigned_lawyer_id'];
         if (!empty($case['assigned_staff_id'])) $legacyEmpIds[] = $case['assigned_staff_id'];
 
-        $allEmpIds = array_column($members, 'employee_id');
-        $allEmpIds = array_unique(array_merge($allEmpIds, $legacyEmpIds));
+        $allEmpIds = array_unique(array_merge(array_column($members, 'employee_id'), $legacyEmpIds));
 
-        // 3. Gửi thông báo loại trừ người vừa ra lệnh (Current User)
         foreach ($allEmpIds as $empId) {
-            if ($empId != $currentEmployeeId) { 
-                $emp = $employeeModel->find($empId);
-                if ($emp && !empty($emp['user_id'])) {
-                    $this->notificationService->sendToUser($emp['user_id'], $title, $msg, $type, $link);
-                }
+            $emp = $this->employeeModel->find($empId);
+            if ($emp && !empty($emp['user_id'])) {
+                $recipientUserIds[] = $emp['user_id'];
             }
+        }
+
+        // 3. CHỐT CHẶN CUỐI: Lọc trùng và loại bỏ người gửi (Sender)
+        $recipientUserIds = array_unique($recipientUserIds);
+        $senderId = (function_exists('session') && session()->has('user_id')) ? session()->get('user_id') : null;
+
+        if ($senderId) {
+            $recipientUserIds = array_filter($recipientUserIds, function($id) use ($senderId) {
+                return $id != $senderId;
+            });
+        }
+
+        if (!empty($recipientUserIds)) {
+            $this->notificationService->sendToMultiple(array_values($recipientUserIds), $title, $msg, $type, $link);
         }
     }
 
@@ -515,29 +613,43 @@ class WorkflowService extends BaseService
 
     /**
      * Tự động kiểm tra hạn chót toàn hệ thống (Daily Task logic).
-     * Bắn thông báo nhắc nhở sắp đến hạn hoặc báo cáo quá hạn cho quản lý.
+     * Thuật toán vận hành:
+     * 1. Quét toàn bộ các bước (steps) đang ở trạng thái 'active' (đang thực hiện) và chưa có ngày hoàn thành.
+     * 2. Tính toán khoảng cách thời gian giữa hiện tại và Hạn chót (Deadline).
+     * 3. Phân loại để xử lý:
+     *    - Sắp đến hạn (còn < 24h): Nhắc nhở để nhân viên chủ động dứt điểm công việc.
+     *    - Đã quá hạn: Nhắc nhở lặp lại hàng ngày (Daily Reminder) cho đến khi hoàn thành.
+     * 4. Sử dụng cột 'last_overdue_notified_at' để kiểm soát việc nhắc nhở đúng 1 lần/ngày, tránh spam gây khó chịu cho nhân sự.
      */
     public function checkStepDeadlines()
     {
-        // 1. Tìm các bước chưa hoàn thành (active)
+        // Chỉ lấy các bước đang hoạt động và chưa xong
         $activeSteps = $this->stepModel->where('status', 'active')
                                        ->where('completed_at', null)
                                        ->findAll();
 
-        $now = new DateTime('now');
-        
+        $now = new \DateTime('now');
+        $today = $now->format('Y-m-d');
+
         foreach ($activeSteps as $step) {
-            $deadline = new DateTime($step['deadline']);
-            $diff = $now->diff($deadline);
+            $deadline = new \DateTime($step['deadline']);
+            // Tính toán số giờ còn lại (Số âm tức là đã quá hạn)
             $hoursLeft = ($deadline->getTimestamp() - $now->getTimestamp()) / 3600;
 
-            // Trường hợp 1: Sắp đến hạn (còn dưới 24h)
-            if ($hoursLeft > 0 && $hoursLeft <= 24) {
+            // TRƯỜNG HỢP 1: Cảnh báo sớm (Sắp đến hạn trong vòng 24h tới)
+            // Chỉ cảnh báo 1 lần duy nhất để nhân viên nắm bắt thông tin.
+            if ($hoursLeft > 0 && $hoursLeft <= 24 && $step['overdue_notified'] == 0) {
                 $this->notifyUpcomingDeadline($step);
             }
-            // Trường hợp 2: Đã quá hạn
-            elseif ($hoursLeft <= 0 && $step['overdue_notified'] == 0) {
-                $this->handleOverdueStep($step);
+            // TRƯỜNG HỢP 2: Đã quá hạn (Deadline < Hiện tại)
+            // Áp dụng cơ chế "Nhắc nhở dai dẳng": Mỗi ngày bắn 1 thông báo cho đến khi bước được tích Hoàn thành.
+            elseif ($hoursLeft <= 0) {
+                // Kiểm tra xem ngày hôm nay đã gửi thông báo quá hạn chưa?
+                // Nếu 'last_overdue_notified_at' khác ngày hôm nay, nghĩa là cần phải gửi lượt nhắc nhở mới.
+                $lastNotified = $step['last_overdue_notified_at'] ?? null;
+                if ($lastNotified !== $today) {
+                    $this->handleOverdueStep($step);
+                }
             }
         }
     }
@@ -552,29 +664,62 @@ class WorkflowService extends BaseService
         $msg = "Bước [{$step['step_name']}] của hồ sơ '{$case['code']}' chỉ còn chưa đầy 24h để hoàn thành. Hãy kiểm tra ngay!";
         $link = base_url('cases/show/' . $step['case_id']);
         
-        $this->notifyCaseMembers($step['case_id'], $title, $msg, 'warning', $link);
+        $this->broadcastWorkflowUpdate($step['case_id'], $title, $msg, 'warning', $link);
     }
 
     /**
-     * Thông báo cho quản lý khi bước bị quá hạn (Escalation).
-     * Đồng thời đánh dấu đã thông báo để không bắn liên tục.
+     * Quy trình xử lý hồ sơ Quá hạn (Escalation & Penalty logic).
+     * Khi một bước bị quá hạn, hệ thống sẽ:
+     * 1. Gửi cảnh báo nghiêm trọng cho nhân sự phụ trách và ban quản lý.
+     * 2. Đánh dấu trạng thái quá hạn để phục vụ báo cáo KPI cuối tháng.
+     * 3. Thiết lập cơ chế nhắc nhở lặp lại hàng ngày (thông qua last_overdue_notified_at).
      */
     private function handleOverdueStep($step)
     {
         $case = $this->caseModel->find($step['case_id']);
         $title = "Báo Cáo: QUÁ HẠN tiến độ";
-        $msg = "CẢNH BÁO: Bước [{$step['step_name']}] của hồ sơ '{$case['code']}' đã QUÁ HẠN. KPI và Thưởng của bước này sẽ bị hủy.";
+        $msg = "CẢNH BÁO: Bước [{$step['step_name']}] của hồ sơ '{$case['code']}' đã QUÁ HẠN. Đề nghị nhân sự dứt điểm ngay để tránh ảnh hưởng đến KPI tổng thể.";
         $link = base_url('cases/show/' . $step['case_id']);
         
-        // 1. Đánh dấu đã báo quá hạn và hủy KPI/Thưởng tạm thời (tính toán thực tế ở lúc hoàn thành)
-        $this->stepModel->update($step['id'], ['overdue_notified' => 1]);
+        // 1. Đánh dấu đã báo quá hạn và cập nhật ngày nhắc nhở cuối cùng
+        $this->stepModel->update($step['id'], [
+            'overdue_notified' => 1,
+            'last_overdue_notified_at' => date('Y-m-d')
+        ]);
 
         // 2. Tìm người phụ trách để trừ điểm tiềm năng
-        // 3. Thông báo cho Ban Giám đốc / Trưởng phòng
-        $this->notificationService->notifyManagement($title, $msg, 'danger', $link);
+        // 3. Thông báo leo thang (Escalation Dispatch)
+        $recipientIds = [];
         
-        // Cũng thông báo cho Team đang làm vụ việc
-        $this->notifyCaseMembers($step['case_id'], $title, $msg, 'danger', $link);
+        // 3.1 Thêm Admin & Manager (Ban quản lý)
+        $adminRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_ADMIN)->first();
+        $managerRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_TRUONG_PHONG)->first();
+
+        if ($adminRole) {
+            $recipientIds = $this->userModel->where('role_id', $adminRole['id'])->where('active_status', 1)->findColumn('id') ?? [];
+        }
+        if ($managerRole) {
+            $managerIds = $this->userModel->where('role_id', $managerRole['id'])->where('active_status', 1)->findColumn('id') ?? [];
+            $recipientIds = array_merge($recipientIds, $managerIds);
+        }
+        
+        // 3.2 Thêm thành viên vụ việc
+        $members = model('CaseMemberModel')->where('case_id', $step['case_id'])->findAll();
+        foreach ($members as $m) {
+            $emp = $this->employeeModel->find($m['employee_id']);
+            if ($emp && $emp['user_id']) $recipientIds[] = $emp['user_id'];
+        }
+        
+        // Bổ sung nhân sự chính
+        if (!empty($case['assigned_lawyer_id'])) {
+            $l = $this->employeeModel->find($case['assigned_lawyer_id']);
+            if ($l && $l['user_id']) $recipientIds[] = $l['user_id'];
+        }
+        if (!empty($case['assigned_staff_id'])) {
+            $s = $this->employeeModel->find($case['assigned_staff_id']);
+            if ($s && $s['user_id']) $recipientIds[] = $s['user_id'];
+        }
+        $this->notificationService->sendToMultiple($recipientIds, $title, $msg, 'danger', $link);
     }
 
     /**

@@ -63,7 +63,7 @@ class CreateContractAndTrainingTables extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('case_id', 'cases', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('contracts');
+        $this->forge->createTable('contracts', true);
 
         // 2. Training Table
         $this->forge->addField([
@@ -105,7 +105,7 @@ class CreateContractAndTrainingTables extends Migration
             ],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->createTable('trainings');
+        $this->forge->createTable('trainings', true);
 
         // 3. Employee Training Pivot Table
         $this->forge->addField([
@@ -137,7 +137,7 @@ class CreateContractAndTrainingTables extends Migration
         $this->forge->addKey(['employee_id', 'training_id'], true);
         $this->forge->addForeignKey('employee_id', 'employees', 'id', 'CASCADE', 'CASCADE');
         $this->forge->addForeignKey('training_id', 'trainings', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('employee_trainings');
+        $this->forge->createTable('employee_trainings', true);
     }
 
     public function down()

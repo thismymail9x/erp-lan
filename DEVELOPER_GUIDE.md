@@ -119,4 +119,105 @@ Module Knowledge Management sinh ra nhằm bảo vệ chất xám công ty và l
 
 ---
 
-*Cập nhật lần cuối: 07/04/2026 - Biên soạn Quy chuẩn Số 10: Master Sync & Registry.*
+## 11. Phân Trang Bắt Buộc (Mandatory Pagination)
+Mọi trang danh sách (Index/List View) trong hệ thống **BẮT BUỘC** phải có phân trang. Đây là nguyên tắc chống quá tải dữ liệu.
+
+### **11.1. Quy tắc triển khai:**
+- **Controller**: Luôn sử dụng `$model->paginate($perPage)` thay vì `findAll()` khi hiển thị danh sách.
+- **View**: Luôn hiển thị component `<?= $pager->links() ?>` ở cuối danh sách.
+- **AJAX**: Nếu view dùng AJAX để tải dữ liệu (như Knowledge Feed), phải hook sự kiện click vào pagination links để load nội dung mới mà không reload trang.
+
+### **11.2. Giá trị mặc định:**
+- Số dòng mỗi trang: **10-15** (tùy module).
+- Ngoại lệ: Dashboard (thống kê tổng), Modal chọn nhân sự (Select2 infinite scroll).
+
+---
+
+## 12. Quản lý Nghỉ phép & Phối hợp Nhân sự (Leave & Handover Rule)
+Module Nghỉ phép được thiết kế để đảm bảo tính liên tục của vận hành công ty thông qua các rào cản báo trước "hợp pháp".
+
+### **12.1. Quy tắc báo trước (Rule #1 - Notice Period):**
+Hệ thống tự động tính toán tổng số ngày nghỉ và áp dụng bộ kiểm soát báo trước (Tính từ thời điểm làm đơn đến ngày bắt đầu nghỉ):
+- **Nghỉ 1 ngày**: Báo trước ≥ 1 ngày.
+- **Nghỉ 2-4 ngày**: Báo trước ≥ 3 ngày.
+- **Nghỉ ≥ 5 ngày**: Báo trước ≥ 7 ngày.
+- **Nghỉ đột xuất (Emergency)**: Cờ ghi đè (`is_emergency`) cho phép bỏ qua các ràng buộc báo trước nhưng yêu cầu giải trình lý do khẩn cấp và thường bị kiểm soát chặt chẽ hơn khi phê duyệt.
+
+### **12.2. Cơ chế Bàn giao (Handover):**
+- **Người nhận bàn giao (Optional)**: Nhân viên có thể chọn một đồng nghiệp để bàn giao công việc. Hệ thống sẽ tự động gửi thông báo (`NotificationService`) cho người nhận bàn giao kèm nội dung bàn giao chi tiết.
+- **Nội dung bàn giao**: Văn bản mô tả các đầu việc cần hỗ trợ trong kỳ nghỉ. Trường này không bắt buộc nhưng khuyến khích nhập nếu nghỉ dài ngày.
+
+### **12.3. Quy chuẩn Thẩm mỹ (Rule #8 - Premium Aesthetic):**
+- Giao diện sử dụng dải màu Apple, icon trực quan thay thế cho text (Sign-out/Sign-in icons).
+- Hiển thị badge tổng số ngày nghỉ dạng minimal (`badge-success-minimal`).
+- Padding và Spacing được tối ưu cho mật độ hiển thị cao (Compact Design).
+
+
+---
+
+## 13. Cơ chế Bàn giao & KPI chi tiết (Handover & KPI Attribution Rule)
+Module Vụ việc được nâng cấp để giải quyết bài toán luân chuyển nhân sự giữa chừng mà không làm sai lệch bảng lương thưởng KPI.
+
+### **13.1. Phân bộ KPI theo Bước (Step-level Attribution):**
+- **Nguyên tắc**: KPI thuộc về người sở hữu bước công việc đó tại thời điểm thực hiện.
+- **Dữ liệu**:
+    - `case_steps.assigned_to`: Người chịu trách nhiệm thực hiện chính (Người sở hữu KPI tiềm năng).
+    - `case_steps.completed_by`: Người thực tế đã nộp bài (Người sở hữu KPI thực nhận).
+- **Quy tắc Người Phụ Trách (Primary Person Rule)**: Bất kể ai bấm nút "Nộp bài/Trình duyệt" (như Người hỗ trợ, TTS), hệ thống luôn ưu tiên ghi nhận KPI cho ID nằm trong cột `assigned_to` của bước đó.
+
+### **13.2. Cơ chế Bàn giao tự động (Auto-Handover Integration):**
+- Khi vụ việc thay đổi nhân sự phụ trách (`assigned_lawyer_id` hoặc `assigned_staff_id` thay đổi):
+    - Hệ thống tự động quét tất cả các bước **chưa hoàn thành** (Pending) và đổi `assigned_to` sang cho người mới.
+    - Các bước **đã hoàn thành** (Completed) được giữ nguyên người cũ để bảo toàn lịch sử thu nhập.
+
+### **13.3. Logic Báo cáo (KPI Reporting Strategy):**
+- Hệ thống báo cáo (`KpiService`) được thiết kế tách rời khỏi trạng thái vụ việc:
+    - **Earned KPI**: Truy vấn trực tiếp từ bảng `case_steps` dựa trên cột `completed_by`. Đảm bảo nhân sự rời khỏi vụ việc vẫn xem được các khoản thưởng mình đã nỗ lực làm xong.
+    - **Potential KPI**: Truy vấn dựa trên cột `assigned_to` của các bước chưa xong.
+
+---
+
+*Cập nhật lần cuối: 21/04/2026 - Bổ sung Quy tắc Số 13: Cơ chế Bàn giao & KPI chi tiết.*
+
+## T�nh nang Ngh? ph�p N?a ng�y (Half-day Leave)
+- **M� t?**: Cho ph�p nh�n vi�n t?o don ngh? ph�p v?i kho?ng th?i gian ch? m?t n?a ng�y (S�ng/Chi?u).
+- **�?i tu?ng**: T?t c? nh�n s? c� quy?n leave.manage.
+- **Quy tr�nh**: C?p nh?t Database (leave_duration trong b?ng leave_requests), thay d?i UI t? kh�a Ng�y k?t th�c tr�ng v?i Ng�y b?t d?u, v� Service t? d?ng n?i suy t?ng s? ng�y l�  .5.
+
+---
+
+## 12. Ph�n h? Truy?n th�ng MKT (MKT Hub)
+- **M?c d�ch:** X�y d?ng quy tr�nh kh�p k�n gi?a nh�n vi�n hi?n tru?ng (thu th?p tu li?u, ?nh th?c t?) v� b? ph?n MKT (Ki?m duy?t, t?i uu SEO, dang b�i MXH). Gi�p c�ng ty lu�n c� ngu?n content d?i d�o, ch�n th?c.
+- **Quy?n h?n:**
+  - Nh�n vi�n c� quy?n mkt.hub ho?c m?c d?nh du?c c?p quy?n g?i tu li?u.
+  - B? ph?n MKT ho?c Qu?n l� du?c c?p quy?n mkt.manage c� th? xem to�n b? tu li?u, duy?t ?nh, v� th?c hi?n x�a d?n d?p h? th?ng.
+- **T�nh nang tr?ng t�m:**
+  - **Auto-Nullify & Soft Delete:** �p d?ng cho b?ng mkt_materials (Tu li?u) d? qu?n l� l?ch s? an to�n.
+  - **SEO Naming:** T? d?ng b?t t�n g?c c?a file ho?c nh�n vi�n t? g�n t�n chu?n SEO (vd: 	u-van-ly-hon.jpg) ngay t? l�c upload, ph?c v? d?y m?nh t?i uu SEO Facebook/Google.
+  - **Clear Data:** Co ch? c?ng x�a c�c b?n nh�p r�c/t? ch?i d? ch?ng d?y b? nh? ? c?ng.
+  - **Data Isolation:** Nh�n vi�n ch? xem du?c ?nh m�nh t? up, MKT xem du?c ?nh c?a to�n b? nh�n vi�n.
+
+---
+
+## MODULE BẢO MẬT: XÁC THỰC 2 LỚP (2FA) - Cập nhật 06/05/2026
+
+### 1. Mục tiêu
+Bảo vệ các dữ liệu nhạy cảm (Lương, Ngân hàng, CCCD) khỏi việc xem trộm ngay cả khi nhân viên đã đăng nhập. Chỉ những người có mã OTP từ ứng dụng điện thoại mới có thể mở khóa dữ liệu này.
+
+### 2. Thành phần kỹ thuật
+- **Service:** SecurityService - Xử lý tạo mã Secret và kiểm tra OTP.
+- **Controller:** SecurityController - API endpoints cho frontend.
+- **Cấu trúc Database:** Bảng users bổ sung cột two_factor_secret.
+- **Thư viện sử dụng:** sonata-project/google-authenticator.
+
+### 3. Cách thức hoạt động
+1. **Khởi tạo:** Khi người dùng bấm "Mở khóa", hệ thống kiểm tra nếu chưa có Secret Key sẽ tạo mới và trả về QR Code.
+2. **Xác thực:** Người dùng nhập mã 6 số. Nếu đúng, hệ thống lưu sensitive_data_verified = true vào Session.
+3. **Hiển thị:** View kiểm tra Session để quyết định có gỡ bỏ lớp mờ (blur) và cho phép chỉnh sửa hay không.
+
+### 4. Quy tắc phát triển liên quan
+- Luôn sử dụng SecurityService cho mọi logic liên quan đến bảo mật đa nhân tố.
+- Không lưu mã OTP vào database, chỉ lưu Secret Key.
+- Khi thêm dữ liệu nhạy cảm mới, hãy bọc chúng bằng class CSS .sensitive-masked và kiểm tra quyền qua Session.
+
+---

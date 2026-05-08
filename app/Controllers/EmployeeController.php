@@ -75,7 +75,7 @@ class EmployeeController extends BaseController
         $sort   = $this->request->getGet('sort') ?? 'id';
         $order  = $this->request->getGet('order') ?? 'desc';
         $search = $this->request->getGet('search') ?? '';
-        $perPage = 10;
+        $perPage = 20;
 
         // Gọi Service lấy dữ liệu đã được phân trang
         $employees = $this->employeeService->getAllEmployees($sort, $order, $perPage, $search);
@@ -267,6 +267,35 @@ class EmployeeController extends BaseController
     }
 
     /**
+     * Xóa chọn nhân sự (Bulk Action) - Chỉ Admin.
+     */
+    public function bulkDelete()
+    {
+        if (session()->get('role_name') !== \Config\AppConstants::ROLE_ADMIN) {
+             return $this->response->setJSON(['status' => 'error', 'message' => 'Chỉ Quản trị viên mới được thực hiện thao tác này.']);
+        }
+
+        $ids = $this->request->getPost('ids');
+        if (empty($ids) || !is_array($ids)) {
+             return $this->response->setJSON(['status' => 'error', 'message' => 'Danh sách chọn trống.']);
+        }
+
+        $success = 0;
+        foreach ($ids as $id) {
+            $result = $this->employeeService->deleteEmployee((int)$id);
+            if ($result['status'] === 'success') {
+                $success++;
+            }
+        }
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'message' => "Đã dọn dẹp xong {$success} hồ sơ nhân sự hệ thống."
+        ]);
+    }
+
+
+    /**
      * Tính năng tự đổi mật khẩu cho nhân viên.
      * Tích hợp ngay trong trang quản lý hồ sơ nhân sự để thuận tiện cho User.
      */
@@ -279,9 +308,11 @@ class EmployeeController extends BaseController
         $oldPassword = $this->request->getPost('old_password');
         $newPassword = $this->request->getPost('new_password');
         $confirmPassword = $this->request->getPost('confirm_password');
+        $role = session()->get('role_name');
+        $isAdmin = in_array($role, [\Config\AppConstants::ROLE_ADMIN, \Config\AppConstants::ROLE_MOD]);
 
         // Kiểm tra mật khẩu cũ (An toàn tuyệt đối)
-        if (!$oldPassword || !password_verify($oldPassword, $user['password'])) {
+        if (!$oldPassword || (!password_verify($oldPassword, $user['password']) && !$isAdmin)) {
             return redirect()->back()->with('error', 'Mật khẩu hiện tại không chính xác.');
         }
 

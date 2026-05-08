@@ -15,6 +15,7 @@
                 <th class="att-table-th-center" style="width: 40px;">
                     <input type="checkbox" id="check-all" style="width: 18px; height: 18px; cursor: pointer;">
                 </th>
+                <th class="att-table-th-center" style="width: 75px;">STT (<?= count($records) ?>)</th>
                 <?php if (($viewType ?? 'daily') == 'monthly') { ?>
                     <th class="att-table-th" style="width: 100px;">
                         <a href="<?= base_url('attendance/list') ?><?= $baseQuery ?>&sort=date&order=<?= ($currentSort == 'date' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>" class="sort-link" data-sort="date" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
@@ -63,10 +64,11 @@
             </tr>
         </thead>
         <tbody>
+            <?php $stt = isset($pager) ? ($pager->getCurrentPage() - 1) * $pager->getPerPage() : 0; ?>
             <?php if (empty($records) || !is_array($records)) { ?>
-                <tr><td colspan="10" style="padding: 60px; text-align: center; color: var(--apple-text-muted);">Không tìm thấy dữ liệu phù hợp.</td></tr>
+                <tr><td colspan="12" style="padding: 60px; text-align: center; color: var(--apple-text-muted);">Không tìm thấy dữ liệu phù hợp.</td></tr>
             <?php } else { ?>
-                <?php foreach($records as $row) { ?>
+                <?php foreach($records as $row) { $stt++; ?>
                     <?php 
                         $hasNote = (!empty($row['check_in_note']) || !empty($row['check_out_note']));
                         $needsReview = ($row['status'] != 'REGULAR' && $row['status'] != 'LEAVE' && $row['check_in_time'] && $hasNote);
@@ -76,6 +78,7 @@
                         <td class="att-table-td-center">
                             <input type="checkbox" class="record-check" value="<?= $row['id'] ?>" style="width: 18px; height: 18px; cursor: pointer;">
                         </td>
+                        <td class="att-table-td-center text-muted-dark text-sm"><?= $stt ?></td>
                         <?php if (($viewType ?? 'daily') == 'monthly') { ?>
                             <td class="att-table-td att-date-main">
                                 <?= isset($row['attendance_date']) ? date('d/m', strtotime($row['attendance_date'])) : '--' ?>

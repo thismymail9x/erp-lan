@@ -43,7 +43,7 @@ class CustomerService
 
         // 1. TIÊU CHÍ 1: Số điện thoại (Phương thức liên lạc chính)
         if (!empty($data['phone'])) {
-            $query = $this->customerModel->where('phone', $data['phone']);
+            $query = $this->customerModel->where('phone', $data['phone'])->where('deleted_at', null);
             if ($excludeId) $query->where('id !=', $excludeId);
             $found = $query->first();
             if ($found) $duplicates['phone'] = $found;
@@ -51,7 +51,7 @@ class CustomerService
 
         // 2. TIÊU CHÍ 2: Số CCCD/Hộ chiếu/Mã số thuế (Định danh pháp lý)
         if (!empty($data['identity_number'])) {
-            $query = $this->customerModel->where('identity_number', $data['identity_number']);
+            $query = $this->customerModel->where('identity_number', $data['identity_number'])->where('deleted_at', null);
             if ($excludeId) $query->where('id !=', $excludeId);
             $found = $query->first();
             if ($found) $duplicates['identity_number'] = $found;
@@ -59,7 +59,7 @@ class CustomerService
 
         // 3. TIÊU CHÍ 3: Địa chỉ Email
         if (!empty($data['email'])) {
-            $query = $this->customerModel->where('email', $data['email']);
+            $query = $this->customerModel->where('email', $data['email'])->where('deleted_at', null);
             if ($excludeId) $query->where('id !=', $excludeId);
             $found = $query->first();
             if ($found) $duplicates['email'] = $found;
@@ -104,6 +104,9 @@ class CustomerService
         // 1. Khai báo hàm helper để áp dụng bộ lọc phân quyền (Data Scoping)
         $applyScope = function($query) use ($employeeId, $departmentId, $managerId) {
             $db = \Config\Database::connect();
+
+            // Sửa lỗi: Do dùng raw builder() thay vì model nên phải tự handle soft deletes
+            $query->where('customers.deleted_at', null);
 
             if ($managerId) {
                 // TRƯỞNG PHÒNG (TEAM-BASED): Thống kê dựa trên "Quân" của chính sếp đó
@@ -158,6 +161,16 @@ class CustomerService
                                     ->where('YEAR(customers.created_at)', date('Y'))
                                     ->countAllResults(),
             
+            // Tổng khách hàng công ty (Doanh nghiệp)
+            'total_corporate' => $applyScope($this->customerModel->builder())
+                                    ->where('type', 'doanh_nghiep')
+                                    ->countAllResults(),
+                                    
+            // Khách VIP (Doanh thu > 100tr chẳng hạn) - Thống kê heuristic
+            'total_vip'       => $applyScope($this->customerModel->builder())
+                                    ->where('total_revenue >=', 100000000)
+                                    ->countAllResults(),
+
             // Danh sách TOP 5 khách hàng VIP (Lấy ít hơn cho Dashboard gọn)
             'top_revenue'     => $applyScope($this->customerModel->builder())
                                     ->select('customers.*')

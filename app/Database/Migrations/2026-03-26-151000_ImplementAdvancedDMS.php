@@ -126,7 +126,7 @@ class ImplementAdvancedDMS extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('document_id', 'documents', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('document_versions');
+        $this->forge->createTable('document_versions', true);
 
         // 3. Tạo bảng `document_access_logs`
         $this->forge->addField([
@@ -166,7 +166,7 @@ class ImplementAdvancedDMS extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('document_id', 'documents', 'id', 'CASCADE', 'CASCADE');
-        $this->forge->createTable('document_access_logs');
+        $this->forge->createTable('document_access_logs', true);
     }
 
     public function down()

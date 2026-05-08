@@ -54,10 +54,20 @@ class AccessControlService extends BaseService
             $menu[] = ['title' => 'Đơn nghỉ phép', 'url' => 'leave-requests', 'icon' => 'fas fa-calendar-minus'];
         }
 
+        // 1.3 BẢNG LƯƠNG (Payroll):
+        if (has_permission('payroll.view') || has_permission('payroll.manage') || session()->get('employee_id')) {
+            $menu[] = ['title' => 'Bảng lương', 'url' => 'payroll', 'icon' => 'fas fa-money-check-alt'];
+        }
+
         // 2. MODULE VỤ VIỆC PHÁP LÝ (Legal Cases):
         // Mặc định bộ phận Pháp lý sẽ được thấy menu này, hoặc các vai trò có quyền view/manage
         if (has_permission('case.view') || has_permission('case.view_all') || has_permission('case.edit_all') || session()->get('department_id') == \Config\AppConstants::DEPT_PHAP_LY) {
             $menu[] = ['title' => 'Vụ việc pháp lý', 'url' => 'cases', 'icon' => 'fas fa-briefcase'];
+        }
+
+        // 2.5 TÀI CHÍNH KẾ TOÁN (Dành cho bộ phận Hành chính Kế toán / Admin)
+        if ($roleName === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH) {
+            $menu[] = ['title' => 'Tài chính Vụ việc', 'url' => 'finance/cases', 'icon' => 'fas fa-file-invoice-dollar'];
         }
         
         // 3. MODULE KHÁCH HÀNG (Customers):
@@ -104,8 +114,12 @@ class AccessControlService extends BaseService
             }
         }
 
-        // 5. CÀI ĐẶT HỆ THỐNG (System Settings):
-        // Dành cho Admin tối cao HOẶC người được cấp quyền Quản lý quy trình riêng biệt
+        // 5. CÀI ĐẶT HỆ THỐNG & BÁO CÁO (Settings & Reports):
+        // Dành cho Admin hoặc Quản lý được cấp quyền xem báo cáo KPI
+        if (has_permission('kpi.view_all') || has_permission('kpi.view_team')) {
+            $menu[] = ['title' => 'Báo cáo KPI', 'url' => 'kpi', 'icon' => 'fas fa-chart-line'];
+        }
+
         if (has_permission('sys.admin') || has_permission('workflow.manage')) {
             $menu[] = ['title' => 'Quy trình mẫu', 'url' => 'workflows', 'icon' => 'fas fa-project-diagram'];
         }

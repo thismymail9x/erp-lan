@@ -11,8 +11,8 @@ class LeaveRequestController extends BaseController
     public static $modulePermissions = [
         'group' => 'Nhân sự & Tài khoản',
         'permissions' => [
-            'leave.view'    => ['desc' => 'Xem danh sách đơn nghỉ phép', 'roles' => [1, 2, 3, 4, 5]], 
-            'leave.manage'  => ['desc' => 'Gửi đơn nghỉ phép cá nhân', 'roles' => [1, 2, 3, 4, 5]],
+            'leave.view'    => ['desc' => 'Xem danh sách đơn nghỉ phép', 'roles' => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]], 
+            'leave.manage'  => ['desc' => 'Gửi đơn nghỉ phép cá nhân', 'roles' => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]],
             'leave.approve' => ['desc' => 'Phê duyệt đơn xin nghỉ phép (Admin/Manager)', 'roles' => [1, 3]]
         ]
     ];
@@ -81,6 +81,11 @@ class LeaveRequestController extends BaseController
                 'approved'  => 'Đã phê duyệt',
                 'rejected'  => 'Đã từ chối',
                 'cancelled' => 'Đã hủy'
+            ],
+            'leaveTypeLabels' => [
+                'annual'    => 'Nghỉ phép năm',
+                'personal'  => 'Nghỉ có lương',
+                'unpaid'    => 'Nghỉ không lương',
             ]
         ];
 
@@ -102,10 +107,11 @@ class LeaveRequestController extends BaseController
 
         $data = [
             'title' => 'Gửi đơn xin nghỉ phép | L.A.N ERP',
+            'staffs' => get_available_employees(), // Core helper function
             'leaveTypes' => [
-                'annual'   => 'Nghỉ phép (P)',
-                'paid'     => 'Nghỉ có lương (Công tác/Khác)',
-                'unpaid'   => 'Nghỉ không lương'
+                'annual'   => 'Nghỉ phép năm (P)',
+                'personal' => 'Nghỉ có lương (Công tác/Việc riêng)',
+                'unpaid'   => 'Nghỉ không lương',
             ]
         ];
 
@@ -113,20 +119,29 @@ class LeaveRequestController extends BaseController
     }
 
     /**
-     * Xử lý gửi đơn.
+     * LƯU TRỮ ĐƠN NGHỈ PHÉP (Rule #2: Controller-to-Service Dispatcher)
+     * Chỉ nhận dữ liệu và đẩy xuống Service xử lý.
      */
     public function store()
     {
+        if (!has_permission('leave.manage')) {
+            return redirect()->back()->with('error', 'Bạn không được phép gửi đơn nghỉ phép.');
+        }
+
+        // Nhận dữ liệu sạch từ Request
         $data = $this->request->getPost();
+        
+        // Gán ID nhân viên từ Session để bảo mật (Rule #7)
         $data['employee_id'] = session()->get('employee_id');
 
+        // Đẩy toàn bộ cho Service xử lý logic và Rule 1
         $result = $this->service->create($data);
 
         if ($result['status'] === 'success') {
-            return redirect()->to('/leave-requests')->with('success', $result['message']);
+            return redirect()->to('leave-requests')->with('success', $result['message']);
         }
 
-        return redirect()->back()->withInput()->with('errors', $result['errors']);
+        return redirect()->back()->withInput()->with('error', $result['message']);
     }
 
     /**
@@ -145,13 +160,7 @@ class LeaveRequestController extends BaseController
         if ($action === 'approved') {
             $result = $this->service->approve($id, $approverId, $note);
         } else {
-            $updated = $this->model->update($id, [
-                'status'        => 'rejected',
-                'approver_id'   => $approverId,
-                'approval_note' => $note,
-                'approved_at'   => date('Y-m-d H:i:s')
-            ]);
-            $result = $updated ? ['status' => 'success', 'message' => 'Đã từ chối đơn nghỉ phép.'] : ['status' => 'error', 'message' => 'Lỗi cập nhật.'];
+            $result = $this->service->reject($id, $approverId, $note);
         }
 
         if ($this->request->isAJAX()) {
@@ -177,5 +186,99 @@ class LeaveRequestController extends BaseController
 
         $this->model->update($id, ['status' => 'cancelled']);
         return redirect()->back()->with('success', 'Đơn nghỉ phép đã được hủy thành công.');
+    }
+
+    /**
+     * Xóa đơn lẻ (Chỉ Admin).
+     */
+    public function delete($id)
+    {
+        if (!has_permission('sys.admin')) {
+            return redirect()->back()->with('error', 'Chỉ Quản trị viên mới có quyền xóa đơn đã duyệt.');
+        }
+
+        $result = $this->service->delete($id);
+        return redirect()->back()->with($result['status'], $result['message']);
+    }
+
+    /**
+     * Form chỉnh sửa đơn (Chỉ dành cho Admin sửa đơn đã duyệt hoặc của nhân viên sai).
+     */
+    public function edit($id)
+    {
+        if (!has_permission('sys.admin')) {
+            return redirect()->back()->with('error', 'Bạn không có quyền chỉnh sửa đơn nghỉ phép này.');
+        }
+
+        $request = $this->model->select('leave_requests.*, e.full_name as employee_name')
+                               ->join('employees e', 'e.id = leave_requests.employee_id')
+                               ->find($id);
+        if (!$request) {
+            return redirect()->to('leave-requests')->with('error', 'Không tìm thấy đơn.');
+        }
+
+        $data = [
+            'title'     => 'Chỉnh sửa đơn nghỉ phép | L.A.N ERP',
+            'request'   => $request,
+            'staffs'    => get_available_employees(),
+            'leaveTypes' => [
+                'annual'   => 'Nghỉ phép năm (P)',
+                'personal' => 'Nghỉ có lương (Công tác/Việc riêng)',
+                'unpaid'   => 'Nghỉ không lương',
+            ]
+        ];
+
+        return view('dashboard/leave_requests/edit', $data);
+    }
+
+    /**
+     * Cập nhật đơn.
+     */
+    public function update($id)
+    {
+        if (!has_permission('sys.admin')) {
+            return redirect()->back()->with('error', 'Từ chối quyền truy cập.');
+        }
+
+        $data = $this->request->getPost();
+        
+        // Xử lý Checkbox (Trường hợp bỏ tích khẩn cấp sẽ không gửi lên Post)
+        $data['is_emergency'] = isset($data['is_emergency']) ? 1 : 0;
+
+        $result = $this->service->update((int)$id, $data);
+
+        if ($result['status'] === 'success') {
+            return redirect()->to('leave-requests')->with('success', $result['message']);
+        }
+
+        return redirect()->back()->withInput()->with('error', $result['message']);
+    }
+
+    /**
+     * Xóa chọn đơn nghỉ phép (Bulk Action) - Chỉ Admin.
+     */
+    public function bulkDelete()
+    {
+        if (!has_permission('sys.admin')) {
+             return $this->response->setJSON(['status' => 'error', 'message' => 'Chỉ Quản trị viên mới được thực hiện thao tác này.']);
+        }
+
+        $ids = $this->request->getPost('ids');
+        if (empty($ids) || !is_array($ids)) {
+             return $this->response->setJSON(['status' => 'error', 'message' => 'Danh sách chọn trống.']);
+        }
+
+        $success = 0;
+        foreach ($ids as $id) {
+            $res = $this->service->delete((int)$id);
+            if ($res['status'] === 'success') {
+                $success++;
+            }
+        }
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'message' => "Đã dọn dẹp {$success} đơn nghỉ phép đã chọn."
+        ]);
     }
 }

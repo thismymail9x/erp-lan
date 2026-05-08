@@ -189,7 +189,17 @@
         // Dự phòng lấy từ Cookie nếu localStorage bị mất (Dành cho Logic JS)
         if (!officeToken) {
             const match = document.cookie.match(new RegExp('(^| )office_security_token=([^;]+)'));
-            if (match) officeToken = match[2];
+            if (match) {
+                officeToken = match[2];
+                localStorage.setItem('office_security_token', officeToken); // Phục hồi lại localStorage
+            }
+        }
+
+        // Tự động gia hạn Cookie lên 10 năm mỗi khi truy cập (để không bị hết hạn như trước)
+        if (officeToken) {
+            const date = new Date();
+            date.setTime(date.getTime() + (3650 * 24 * 60 * 60 * 1000));
+            document.cookie = `office_security_token=${officeToken}; expires=${date.toUTCString()}; path=/; SameSite=Lax`;
         }
 
         // Logic hiển thị nút bấm tương ứng với quyền/thiết bị (Nếu server chưa xử lý kịp)
@@ -389,9 +399,9 @@
                     // 1. Lưu vào LocalStorage
                     localStorage.setItem('office_security_token', result.token);
                     
-                    // 2. Lưu vào Persistent Cookie (Thời hạn 1 năm - 31536000 giây)
+                    // 2. Lưu vào Persistent Cookie (Thời hạn 10 năm - 3650 ngày)
                     const date = new Date();
-                    date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
+                    date.setTime(date.getTime() + (3650 * 24 * 60 * 60 * 1000));
                     document.cookie = `office_security_token=${result.token}; expires=${date.toUTCString()}; path=/; SameSite=Lax`;
 
                     document.getElementById('auth-success-msg').style.display = 'block';

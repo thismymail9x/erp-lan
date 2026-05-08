@@ -1,3 +1,45 @@
+<?php
+if (!function_exists('get_doc_icon')) {
+    function get_doc_icon($ext) {
+        $icons = [
+            'pdf' => 'fa-file-pdf',
+            'doc' => 'fa-file-word',
+            'docx' => 'fa-file-word',
+            'jpg' => 'fa-file-image',
+            'png' => 'fa-file-image',
+            'xls' => 'fa-file-excel',
+            'xlsx' => 'fa-file-excel',
+            'zip' => 'fa-file-archive',
+            'rar' => 'fa-file-archive'
+        ];
+        return $icons[strtolower($ext)] ?? 'fa-file-alt';
+    }
+}
+
+if (!function_exists('format_bytes')) {
+    function format_bytes($bytes) {
+        if (!is_numeric($bytes) || $bytes < 0) return '0 B';
+        if ($bytes >= 1073741824) return number_format($bytes / 1073741824, 2) . ' GB';
+        if ($bytes >= 1048576) return number_format($bytes / 1048576, 1) . ' MB';
+        if ($bytes >= 1024) return number_format($bytes / 1024, 0) . ' KB';
+        return $bytes . ' B';
+    }
+}
+
+if (!function_exists('translate_category')) {
+    function translate_category($cat) {
+        $map = [
+            'client_intake' => 'Hồ sơ KH',
+            'case_file' => 'Hồ sơ vụ việc',
+            'correspondence' => 'Thư từ',
+            'financial' => 'Tài chính',
+            'template' => 'Biểu mẫu',
+            'internal' => 'Nội bộ'
+        ];
+        return $map[$cat] ?? 'Khác';
+    }
+}
+?>
 <table class="premium-table" id="documents-table">
     <thead>
         <tr>
@@ -34,7 +76,18 @@
                                 <i class="fas <?= get_doc_icon($doc['file_type'] ?? 'bin') ?>"></i>
                             </div>
                             <div class="file-meta">
-                                <div class="file-name"><?= esc($doc['file_name'] ?? 'Undefined') ?></div>
+                                <div class="font-weight-500 text-apple-main clickable-edit-name" onclick="openEditModal(<?= $doc['id'] ?>)"><?= esc($doc['file_name'] ?? 'Tài liệu') ?></div>
+                        <?php if (!empty($doc['tags'])) { 
+                            $tagList = [];
+                            if (strpos($doc['tags'], '[') === 0) {
+                                $tagList = json_decode($doc['tags'], true) ?: [];
+                            } else {
+                                $tagList = explode(',', $doc['tags']);
+                            }
+                            foreach ($tagList as $tag) { ?>
+                                <span class="tag-badge-mini"><?= esc(trim($tag)) ?></span>
+                            <?php } 
+                        } ?>
                                 <div class="file-size"><?= format_bytes($doc['size'] ?? 0) ?> • v<?= $doc['version_number'] ?? 1 ?></div>
                             </div>
                         </div>
@@ -59,7 +112,7 @@
                             <span class="text-muted-xs italic">(Chưa liên kết)</span>
                         <?php } ?>
                     </td>
-                    <td><?= $doc['uploaded_by'] ?? 'System' ?></td>
+                    <td><?= esc($doc['uploader_name'] ?? 'System') ?></td>
                     <td><?= isset($doc['created_at']) ? date('d/m/Y H:i', strtotime($doc['created_at'])) : '--' ?></td>
                     <td style="text-align: right;">
                         <div class="action-buttons-flex">
@@ -68,6 +121,9 @@
                             </a>
                             <a href="<?= base_url('documents/view/' . ($doc['id'] ?? 0)) ?>" class="btn-icon-view" title="Tải xuống">
                                 <i class="fas fa-download"></i>
+                            </a>
+                            <a href="javascript:void(0)" class="btn-icon-share" onclick="openShareModal(<?= $doc['id'] ?>, '<?= esc($doc['file_name']) ?>')" title="Chia sẻ">
+                                <i class="fas fa-share-alt"></i>
                             </a>
                             <?php if (has_permission('sys.admin')) { ?>
                                 <a href="<?= base_url('documents/delete/' . ($doc['id'] ?? 0)) ?>" class="btn-icon-delete" onclick="return confirm('Xác nhận xóa tài liệu này?')" title="Xóa">
@@ -82,44 +138,3 @@
     </tbody>
 </table>
 
-<?php
-if (!function_exists('get_doc_icon')) {
-    function get_doc_icon($ext) {
-        $icons = [
-            'pdf' => 'fa-file-pdf',
-            'doc' => 'fa-file-word',
-            'docx' => 'fa-file-word',
-            'jpg' => 'fa-file-image',
-            'png' => 'fa-file-image',
-            'xls' => 'fa-file-excel',
-            'xlsx' => 'fa-file-excel',
-            'zip' => 'fa-file-archive',
-            'rar' => 'fa-file-archive'
-        ];
-        return $icons[strtolower($ext)] ?? 'fa-file-alt';
-    }
-}
-
-if (!function_exists('format_bytes')) {
-    function format_bytes($bytes) {
-        if ($bytes >= 1073741824) return number_format($bytes / 1073741824, 2) . ' GB';
-        if ($bytes >= 1048576) return number_format($bytes / 1048576, 1) . ' MB';
-        if ($bytes >= 1024) return number_format($bytes / 1024, 0) . ' KB';
-        return $bytes . ' B';
-    }
-}
-
-if (!function_exists('translate_category')) {
-    function translate_category($cat) {
-        $map = [
-            'client_intake' => 'Hồ sơ KH',
-            'case_file' => 'Hồ sơ vụ việc',
-            'correspondence' => 'Thư từ',
-            'financial' => 'Tài chính',
-            'template' => 'Biểu mẫu',
-            'internal' => 'Nội bộ'
-        ];
-        return $map[$cat] ?? 'Khác';
-    }
-}
-?>

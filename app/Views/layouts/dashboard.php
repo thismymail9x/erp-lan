@@ -35,7 +35,7 @@
                 </div>
                 <div class="user-mini-profile">
                     <a href="<?= base_url('employees/edit/' . session()->get('employee_id')) ?>" class="user-avatar" title="Xem hồ sơ cá nhân: <?= esc(session()->get('full_name')) ?> (<?= esc(session()->get('role_name')) ?>)" style="text-decoration: none;">
-                        <?= strtoupper(substr(session()->get('full_name') ?? 'U', 0, 1)) ?>
+                        <?= mb_strtoupper(mb_substr(session()->get('full_name') ?? 'U', 0, 1)) ?>
                     </a>
                     <a href="<?= base_url('logout') ?>" class="logout-mini" title="Kết thúc phiên làm việc và đăng xuất">
                         <i class="fas fa-power-off"></i>
@@ -125,6 +125,17 @@
                     </div>
                 <?php endif; ?>
 
+                <?php if (session()->getFlashdata('errors')) : ?>
+                    <div class="alert-premium-danger">
+                        <i class="fas fa-exclamation-triangle"></i> <strong>Lỗi dữ liệu:</strong>
+                        <ul>
+                            <?php foreach (session()->getFlashdata('errors') as $error) : ?>
+                                <li><?= esc($error) ?></li>
+                            <?php endforeach ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
                 <?php if (session()->getFlashdata('warning')) : ?>
                     <div class="alert-premium-warning">
                         <i class="fas fa-exclamation-triangle"></i> <?= session()->getFlashdata('warning') ?>
@@ -143,7 +154,8 @@
     </div>
 
     <!-- Core scripts -->
-    <script src="<?= base_url('js/dashboard.js') ?>"></script>
+    <script src="<?= base_url('js/dashboard.js') ?>?v=1.2"></script>
+    <script src="<?= base_url('js/bulk_actions.js') ?>"></script>
     <script>
     function previewImage(src) {
         document.getElementById('imgModal').style.display = "block";
@@ -174,13 +186,14 @@
                             
                             resp.latest.forEach((n, idx) => {
                                 let c = colors[idx % colors.length];
+                                let sender = n.sender_name ? n.sender_name : 'Hệ thống';
                                 tickerHtml += `
                                     <a href="javascript:void(0)" 
                                        class="ticker-item notif-item" 
                                        data-id="${n.id}" 
                                        data-link="${n.link}"
                                        style="background: ${c.bg}; color: ${c.text}; border: 1px solid ${c.bg};">
-                                       <i class="fas fa-bell"></i> <strong>${n.title}</strong>: ${n.message}
+                                       <i class="fas fa-bell"></i> <strong>[${sender}] ${n.title}</strong>: ${n.message}
                                     </a>`;
                             });
                             $('#notifTicker').html(tickerHtml);
@@ -204,11 +217,14 @@
                         resp.data.forEach(n => {
                             let icon = n.type === 'approval' ? 'fa-check-circle' : 'fa-info-circle';
                             let color = n.type === 'approval' ? '#34C759' : '#007AFF';
+                            let sender = n.sender_name ? n.sender_name : 'Hệ thống';
                             html += `
                                 <div class="notif-item" data-id="${n.id}" data-link="${n.link}" style="padding: 10px 15px; border-bottom: 1px solid #eee; display: flex; gap: 10px; cursor: pointer;">
                                     <div style="color: ${color}; font-size: 1.2rem; flex-shrink: 0;"><i class="fas ${icon}"></i></div>
                                     <div>
-                                        <div style="font-weight: 600; font-size: 0.85rem; color: #333; margin-bottom: 3px;">${n.title}</div>
+                                        <div style="font-weight: 600; font-size: 0.85rem; color: #333; margin-bottom: 3px;">
+                                            <span style="color: #8e8e93;">[${sender}]</span> ${n.title}
+                                        </div>
                                         <div style="font-size: 0.8rem; color: #666; line-height: 1.3;">${n.message}</div>
                                     </div>
                                 </div>
@@ -253,7 +269,7 @@
         });
 
         fetchUnreadCount();
-        setInterval(fetchUnreadCount, 30000); // refresh every 30s
+        setInterval(fetchUnreadCount, 10000); // refresh every 10s (Faster response)
     });
     </script>
     <!-- Page specific scripts -->

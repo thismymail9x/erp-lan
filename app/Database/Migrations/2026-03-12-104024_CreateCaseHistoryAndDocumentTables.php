@@ -56,7 +56,7 @@ class CreateCaseHistoryAndDocumentTables extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('case_id', 'cases', 'id', 'CASCADE', 'CASCADE');
         $this->forge->addForeignKey('user_id', 'users', 'id', 'SET NULL', 'CASCADE');
-        $this->forge->createTable('case_history');
+        $this->forge->createTable('case_history', true);
 
         // 2. Documents Table
         $this->forge->addField([
@@ -99,7 +99,7 @@ class CreateCaseHistoryAndDocumentTables extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('case_id', 'cases', 'id', 'CASCADE', 'CASCADE');
         $this->forge->addForeignKey('uploaded_by', 'users', 'id', 'SET NULL', 'CASCADE');
-        $this->forge->createTable('documents');
+        $this->forge->createTable('documents', true);
     }
 
     public function down()

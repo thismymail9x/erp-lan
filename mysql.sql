@@ -648,3 +648,140 @@ CREATE TABLE IF NOT EXISTS `leave_requests` (
     CONSTRAINT `fk_leave_emp` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_leave_approver` FOREIGN KEY (`approver_id`) REFERENCES `employees` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ----------------------------
+-- UPDATE LOG: 07/04/2026 - Module Cẩm nang tri thức: Cấu trúc 3 vùng (Problem/Solution/Red Flags)
+-- Quy tắc 2: Không sửa CREATE TABLE gốc, chỉ ALTER TABLE tại đây.
+-- ----------------------------
+ALTER TABLE `knowledge_base`
+ADD COLUMN `summary` VARCHAR(500) DEFAULT NULL COMMENT 'Tóm tắt nhanh (Quick Summary) trong 1 câu' AFTER `title`,
+ADD COLUMN `problem` TEXT DEFAULT NULL COMMENT 'Phần mô tả Vấn đề - dạng Bullet points' AFTER `summary`,
+ADD COLUMN `solution` TEXT DEFAULT NULL COMMENT 'Phần Cách giải quyết chi tiết' AFTER `problem`,
+ADD COLUMN `red_flags` TEXT DEFAULT NULL COMMENT 'Phần Lưu ý quan trọng (Red Flags) - cảnh báo rủi ro' AFTER `solution`;
+
+-- Di chuyển dữ liệu cũ vào cột problem để không mất nội dung (Tùy chọn)
+UPDATE `knowledge_base` SET `problem` = `content` WHERE `problem` IS NULL AND `content` IS NOT NULL;
+
+ALTER TABLE cases MODIFY COLUMN status VARCHAR(50);
+-- 1. Chuyển đổi sang Chờ tiếp nhận
+UPDATE cases SET status = 'cho_tiep_nhan' WHERE status IN ('moi_tiep_nhan', 'open', 'pending', '');
+
+-- 2. Chuyển đổi sang Đang xử lý
+UPDATE cases SET status = 'dang_xu_ly' WHERE status IN ('in_progress', 'cho_tham_tam', 'dang_xu_ly');
+
+-- 3. Chuyển đổi sang Đã hoàn thành
+UPDATE cases SET status = 'da_hoan_thanh' WHERE status IN ('da_giai_quyet', 'dong_ho_so', 'closed', 'da_hoan_thanh');
+
+-- 4. Chuyển đổi sang Hủy
+UPDATE cases SET status = 'huy' WHERE status IN ('cancelled', 'huy');
+
+
+ALTER TABLE leave_requests ADD COLUMN handover_to INT NULL COMMENT 'ID nhân viên nhận bàn giao (Liên kết bảng employees)' AFTER reason;  
+ALTER TABLE leave_requests ADD COLUMN handover_content TEXT NULL COMMENT 'Chi tiết các nội dung cần bàn giao' AFTER handover_to;  
+
+-- ----------------------------
+-- UPDATE LOG: 13/04/2026 - Mở rộng Module Nghỉ phép (Quản trị)
+-- ----------------------------
+ALTER TABLE `leave_requests` ADD COLUMN `is_emergency` TINYINT(1) DEFAULT 0 COMMENT 'Trạng thái nghỉ khẩn cấp: 1-Có, 0-Không' AFTER `leave_type`;
+
+ALTER TABLE cases ADD contract_value BIGINT NULL DEFAULT NULL COMMENT 'Giá trị hợp đồng (VND) - Chỉ Hành chính / Admin xem';
+ALTER TABLE cases ADD payment_progress TEXT NULL DEFAULT NULL COMMENT 'Ghi chú tiến độ thanh toán';
+
+-- ----------------------------
+-- UPDATE LOG: 21/04/2026 - Module Vụ việc: Cơ chế Bàn giao & KPI chi tiết (Handover & KPI Integration)
+-- Quy tắc 4 & 5: Đồng bộ hóa cấu trúc để theo dõi KPI chính xác khi có luân chuyển nhân sự.
+-- ----------------------------
+ALTER TABLE `case_steps` 
+ADD COLUMN `assigned_to` INT(11) UNSIGNED DEFAULT NULL COMMENT 'Nhân viên được giao phụ trách bước này (Để tính KPI tiềm năng)' AFTER `case_id`,
+ADD COLUMN `completed_by` INT(11) UNSIGNED DEFAULT NULL COMMENT 'Nhân viên thực tế đã hoàn thành/nộp bước này (Để chốt KPI thực nhận)' AFTER `completed_at`;
+
+-- Đồng bộ dữ liệu ban đầu cho các bước cũ để tránh trống báo cáo KPI
+UPDATE `case_steps` cs
+INNER JOIN `cases` c ON c.id = cs.case_id
+SET cs.assigned_to = COALESCE(c.assigned_lawyer_id, c.assigned_staff_id)
+WHERE cs.assigned_to IS NULL;
+
+UPDATE `case_steps` cs
+INNER JOIN `cases` c ON c.id = cs.case_id
+SET cs.completed_by = COALESCE(c.assigned_lawyer_id, c.assigned_staff_id)
+WHERE cs.completed_by IS NULL AND cs.status = 'completed';
+
+-- Feature: Nghỉ phép nửa ngày
+ALTER TABLE leave_requests ADD COLUMN leave_duration ENUM('full_day', 'morning_half', 'afternoon_half') DEFAULT 'full_day' COMMENT 'Thời lượng nghỉ: Cả ngày (full_day), Sáng (morning_half), Chiều (afternoon_half)' AFTER end_date;
+
+-- UPDATE LOG: 29/04/2026 - Đồng bộ KPI từ bảng case_members (Kiến trúc mới)
+-- Đảm bảo dữ liệu KPI được điền đầy đủ khi hệ thống chuyển sang dùng bảng trung gian case_members
+UPDATE `case_steps` cs
+INNER JOIN (
+    SELECT case_id, MIN(employee_id) as emp_id 
+    FROM case_members 
+    WHERE role_in_case IN ('assignee', 'main') 
+    GROUP BY case_id
+) cm ON cs.case_id = cm.case_id
+SET cs.assigned_to = cm.emp_id
+WHERE cs.assigned_to IS NULL;
+
+UPDATE `case_steps` cs
+INNER JOIN (
+    SELECT case_id, MIN(employee_id) as emp_id 
+    FROM case_members 
+    WHERE role_in_case IN ('assignee', 'main') 
+    GROUP BY case_id
+) cm ON cs.case_id = cm.case_id
+SET cs.completed_by = cm.emp_id
+WHERE cs.completed_by IS NULL AND cs.status = 'completed';
+
+-- CÂU LỆNH NÂNG CẤP DATABASE CHO HỆ THỐNG ERP L.A.N
+-- Mục tiêu: Bổ sung trạng thái 'pending' cho bước công việc
+ALTER TABLE case_steps MODIFY COLUMN status VARCHAR(30) DEFAULT 'pending';
+UPDATE case_steps SET status = 'pending' WHERE status = '' OR status IS NULL;
+
+-- ----------------------------
+-- UPDATE LOG: 06/05/2026 - Module Quản lý Lương (Payroll Management)
+-- Quy tắc 4 & 5: Đồng bộ hóa cấu trúc bảng lương và cấu hình ngày công.
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS `payroll_configs` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `month` VARCHAR(7) NOT NULL COMMENT 'Tháng tính lương (Định dạng YYYY-MM)',
+    `working_days_json` TEXT COMMENT 'Danh sách các ngày đi làm (JSON array)',
+    `holidays_json` TEXT COMMENT 'Danh sách các ngày lễ (JSON array: date => lý do)',
+    `total_standard_days` FLOAT DEFAULT 0 COMMENT 'Tổng ngày công chuẩn của tháng',
+    `is_closed` TINYINT(1) DEFAULT 0 COMMENT 'Cờ hiệu đã chốt sổ lương (1: Đã chốt, 0: Đang mở)',
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `deleted_at` DATETIME DEFAULT NULL COMMENT 'Thời gian xóa mềm',
+    UNIQUE KEY `idx_month` (`month`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Cấu hình lịch làm việc và ngày công chuẩn hàng tháng';
+
+CREATE TABLE IF NOT EXISTS `payrolls` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `employee_id` INT NOT NULL COMMENT 'ID nhân viên sở hữu bảng lương',
+    `month` VARCHAR(7) NOT NULL COMMENT 'Tháng nhận lương (YYYY-MM)',
+    `salary_base` DECIMAL(15,2) DEFAULT 0 COMMENT 'Mức lương cơ bản tại thời điểm chốt',
+    `salary_kpi` DECIMAL(15,2) DEFAULT 0 COMMENT 'Mức thưởng KPI thi đua (nhập thủ công)',
+    `salary_allowance` DECIMAL(15,2) DEFAULT 0 COMMENT 'Tổng các khoản phụ cấp cố định',
+    `salary_bonus` DECIMAL(15,2) DEFAULT 0 COMMENT 'Tiền thưởng thêm ngoài KPI',
+    `salary_deduction` DECIMAL(15,2) DEFAULT 0 COMMENT 'Tổng tiền phạt hoặc khấu trừ',
+    `total_standard_days` FLOAT DEFAULT 0 COMMENT 'Số ngày công chuẩn của tháng',
+    `actual_working_days` FLOAT DEFAULT 0 COMMENT 'Số ngày công thực tế (Chấm công + Nghỉ phép có lương)',
+    `attendance_violations` INT DEFAULT 0 COMMENT 'Số lần vi phạm điểm danh (muộn/về sớm)',
+    `net_salary` DECIMAL(15,2) DEFAULT 0 COMMENT 'Lương thực lĩnh (Tổng cộng sau thuế/khấu trừ)',
+    `status` ENUM('pending', 'approved', 'paid') DEFAULT 'pending' COMMENT 'Trạng thái thanh toán',
+    `notes` TEXT COMMENT 'Ghi chú hoặc giải trình chi tiết về lương',
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `deleted_at` DATETIME DEFAULT NULL COMMENT 'Thời gian xóa mềm',
+    UNIQUE KEY `idx_emp_month` (`employee_id`, `month`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng lương chi tiết nhân sự hàng tháng';
+
+ALTER TABLE `employees` ADD COLUMN IF NOT EXISTS `allowance_base` DECIMAL(15,2) DEFAULT 0 COMMENT 'Mức phụ cấp cố định hàng tháng' AFTER `salary_base`;
+
+-- Cập nhật thêm cột Khác và Ghi chú JSON cho bảng lương
+ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `salary_other` DECIMAL(15,2) DEFAULT 0 COMMENT 'Khoản điều chỉnh khác (+ hoặc -)' AFTER `salary_deduction`;
+ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `notes_json` TEXT COMMENT 'Danh sách ghi chú dạng JSON' AFTER `salary_other`;
+
+-- ----------------------------
+-- UPDATE LOG: 06/05/2026 - Tối ưu nhắc nhở quá hạn (Workflow Escalation Enhancement)
+-- Quy tắc 4 & 5: Bổ sung cột theo dõi ngày nhắc nhở để tránh spam và hỗ trợ nhắc nhở hàng ngày.
+-- ----------------------------
+ALTER TABLE `case_steps` ADD COLUMN IF NOT EXISTS `last_overdue_notified_at` DATE NULL DEFAULT NULL COMMENT 'Ngày cuối cùng hệ thống gửi thông báo nhắc nhở quá hạn cho bước này' AFTER `overdue_notified`;

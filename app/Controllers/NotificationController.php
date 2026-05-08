@@ -222,4 +222,31 @@ class NotificationController extends BaseController
         $this->notificationModel->markAllAsRead($userId);
         return $this->response->setJSON(['status' => 'success']);
     }
+
+    /**
+     * Xóa chọn thông báo (Bulk Action) - Chỉ Admin.
+     */
+    public function bulkDelete()
+    {
+        if (!has_permission('sys.admin')) {
+             return $this->response->setJSON(['status' => 'error', 'message' => 'Chỉ Quản trị viên mới được thực hiện thao tác này.']);
+        }
+
+        $ids = $this->request->getPost('ids');
+        if (empty($ids) || !is_array($ids)) {
+             return $this->response->setJSON(['status' => 'error', 'message' => 'Danh sách chọn trống.']);
+        }
+
+        $success = 0;
+        foreach ($ids as $id) {
+            if ($this->notificationModel->delete($id)) {
+                $success++;
+            }
+        }
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'message' => "Đã dọn dẹp {$success} thông báo được chọn."
+        ]);
+    }
 }

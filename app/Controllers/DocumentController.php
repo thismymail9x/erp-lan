@@ -60,6 +60,7 @@ class DocumentController extends BaseController
             'category'    => $this->request->getGet('category'),
             'customer_id' => $this->request->getGet('customer_id'),
             'case_id'     => $this->request->getGet('case_id'),
+            'tag_id'      => $this->request->getGet('tag_id'), // Lọc theo nhãn dán cụ thể
             'sort'        => $this->request->getGet('sort') ?: 'created_at',
             'order'       => $this->request->getGet('order') ?: 'DESC',
         ];
@@ -73,29 +74,44 @@ class DocumentController extends BaseController
             $myEmpId = session()->get('employee_id');
             
             // Chỉ lấy các vụ việc nhân viên này tham gia
+            $caseMemberModel = new \App\Models\CaseMemberModel();
+            $involvedCaseIds = $caseMemberModel->where('employee_id', $myEmpId)->findColumn('case_id') ?: [-1];
+
             $cases = $this->caseModel->groupStart()
                 ->where('assigned_lawyer_id', $myEmpId)
                 ->orWhere('assigned_staff_id', $myEmpId)
-                ->orWhereIn('id', model('CaseMemberModel')->where('employee_id', $myEmpId)->findColumn('case_id') ?: [-1])
+                ->orWhereIn('id', $involvedCaseIds)
                 ->groupEnd()
                 ->findAll();
                 
             $customerIds = array_column($cases, 'customer_id') ?: [-1];
             $customers = $this->customerModel->whereIn('id', array_unique($customerIds))->findAll();
         } else {
-            // Admin/Quản lý: Xem toàn bộ - Thay bằng hàm Core để đồng nhất dữ liệu
-            $customers = get_active_customers();
-            $cases = get_active_cases();
+            // Admin/Quản lý: Xem toàn bộ - Chỉ nạp cho trang chính (không nạp cho AJAX để tối ưu)
+            if (!$this->request->isAJAX()) {
+                $customers = get_active_customers();
+                $cases = get_active_cases();
+            }
         }
 
         // 3. Thực hiện truy vấn danh sách tài liệu (Scoped search)
         $documents = $this->docModel->searchDocuments($filters, $myEmpId);
 
+        $allUsers = [];
+        if (!$this->request->isAJAX()) {
+            $userModel = new \App\Models\UserModel();
+            $allUsers = $userModel->select('users.id, employees.full_name')
+                                 ->join('employees', 'employees.user_id = users.id')
+                                 ->where('users.active_status', 1)
+                                 ->findAll();
+        }
+
         $data = [
             'documents'     => $documents,
             'customers'     => $customers,
             'cases'         => $cases,
-            'availableTags' => get_available_tags('documents'), // Nạp danh mục tag từ Core Function
+            'allUsers'      => $allUsers,
+            'availableTags' => get_available_tags('documents'), 
             'filters'       => $filters,
             'title'         => 'Quản lý Tài liệu Số | L.A.N ERP'
         ];
@@ -205,6 +221,7 @@ class DocumentController extends BaseController
     public function getVaultDocuments()
     {
         $filters = [
+            'keyword'  => $this->request->getGet('keyword'),
             'category' => $this->request->getGet('category') ?: 'internal'
         ];
         
@@ -213,6 +230,69 @@ class DocumentController extends BaseController
         $documents = $this->docModel->searchDocuments($filters);
 
         return $this->response->setJSON($documents);
+    }
+
+    /**
+     * API: Lấy thông tin tài liệu để chỉnh sửa (JSON).
+     */
+    public function edit($id)
+    {
+        $doc = $this->docModel->find($id);
+        if (!$doc) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Tài liệu không tồn tại.']);
+        }
+
+        // Lấy danh sách ID các tag hiện tại
+        $tagService = new \App\Services\TagService();
+        $tags = $tagService->getTagsByEntity($id, 'documents');
+        $doc['tag_names'] = array_column($tags, 'name');
+
+        return $this->response->setJSON($doc);
+    }
+
+    /**
+     * XỬ LÝ CẬP NHẬT METADATA.
+     */
+    public function update($id)
+    {
+        $doc = $this->docModel->find($id);
+        if (!$doc) return redirect()->back()->with('error', 'Tài liệu không tồn tại.');
+
+        // Kiểm tra quyền (Admin hoặc người upload)
+        if (!has_permission('sys.admin') && $doc['uploaded_by'] != session()->get('user_id')) {
+            return redirect()->back()->with('error', 'Bạn không có quyền chỉnh sửa tài liệu của người khác.');
+        }
+
+        $input = $this->request->getPost();
+        
+        // Chuẩn hóa dữ liệu
+        $updateData = [
+            'file_name'         => $input['file_name'],
+            'document_category' => $input['document_category'],
+            'description'       => $input['description'],
+            'is_confidential'   => $input['is_confidential'] ?? 0,
+            'case_id'           => !empty($input['case_id']) ? $input['case_id'] : null,
+            'customer_id'       => !empty($input['customer_id']) ? $input['customer_id'] : null,
+        ];
+
+        if ($this->docModel->update($id, $updateData)) {
+            // Cập nhật nhãn dán
+            if (isset($input['tags_raw'])) {
+                $tagIds = is_array($input['tags_raw']) ? $input['tags_raw'] : explode(',', $input['tags_raw']);
+                $tagService = new \App\Services\TagService();
+                $tagService->syncTags($id, 'documents', $tagIds);
+                
+                // Cập nhật chuỗi tags cache để tìm kiếm nhanh
+                $tags = $tagService->getTagsByEntity($id, 'documents');
+                $tagNames = array_column($tags, 'name');
+                $this->docModel->update($id, ['tags' => json_encode($tagNames)]);
+            }
+
+            $this->docService->logAccess($id, 'update');
+            return redirect()->back()->with('success', 'Thông tin tài liệu đã được cập nhật.');
+        }
+
+        return redirect()->back()->with('error', 'Cập nhật thất bại.');
     }
 
     /**
@@ -238,5 +318,36 @@ class DocumentController extends BaseController
         }
 
         return redirect()->back()->with('success', "Đã dọn dẹp thành công {$successCount} tài liệu khỏi danh sách.");
+    }
+
+    /**
+     * CHIA SẺ TÀI LIỆU (Gửi thông báo).
+     */
+    public function share($id)
+    {
+        $doc = $this->docModel->find($id);
+        if (!$doc) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Tài liệu không tồn tại.']);
+        }
+
+        $userIds = $this->request->getPost('user_ids');
+        $message = $this->request->getPost('message');
+
+        if (empty($userIds)) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Vui lòng chọn người nhận.']);
+        }
+
+        $notifService = new \App\Services\NotificationService();
+        $title = "Tài liệu được chia sẻ: " . $doc['file_name'];
+        $content = "Bạn nhận được một tài liệu chia sẻ từ " . session()->get('full_name') . ".\n\nNội dung: " . ($message ?: 'Không có ghi chú.');
+        $link = base_url('documents/view/' . $id);
+
+        $sentCount = $notifService->sendToMultiple((array)$userIds, $title, $content, 'system', $link);
+
+        if ($sentCount > 0) {
+            return $this->response->setJSON(['status' => 'success', 'message' => "Đã chia sẻ tài liệu đến {$sentCount} người dùng."]);
+        }
+
+        return $this->response->setJSON(['status' => 'error', 'message' => 'Không thể gửi thông báo.']);
     }
 }

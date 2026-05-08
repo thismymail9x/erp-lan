@@ -31,21 +31,111 @@
     </div>
 <?php } ?>
 
-<div class="stats-grid">
-    <?php if ($isAdmin || $isLegalDept): ?>
-        <!-- WIDGETS PHÁP LÝ (ADMIN & PHÒNG PHÁP LÝ) -->
-        <div class="stat-card">
-            <div class="stat-icon"><i class="fas fa-scale-balanced"></i></div>
-            <div class="stat-value"><?= number_format($stats['cases'] ?? 0) ?></div>
-            <div class="stat-label">Vụ việc <?= ($isAdmin) ? 'tổng' : 'bộ phận' ?></div>
+<div class="motivation-widget premium-card m-b-24">
+    <div class="motivation-header">
+        <div class="motivation-title">
+            <h3><i class="fas fa-coins text-gold"></i> KPI năm 
+                <form action="<?= base_url('dashboard') ?>" method="GET" style="display: inline-block;">
+                    <select name="year" onchange="this.form.submit()" style="border: none; background: transparent; font-size: 1.1rem; font-weight: 700; color: #1d1d1f; cursor: pointer; outline: none;">
+                        <?php 
+                        $startYear = 2026;
+                        $endYear = max(date('Y') + 1, 2027);
+                        for ($y = $startYear; $y <= $endYear; $y++) { ?>
+                            <option value="<?= $y ?>" <?= $kpiYear == $y ? 'selected' : '' ?>>Năm <?= $y ?></option>
+                        <?php } ?>
+                    </select>
+                </form>
+            </h3>
+            <p class="text-muted">Hoàn thành các bước trong hồ sơ để tối ưu hóa thu nhập.</p>
         </div>
-        <div class="stat-card">
+        <div class="motivation-total">
+            <span class="total-label">Tổng mục tiêu:</span>
+            <span class="total-value text-blue"><?= number_format($kpiStats['total']) ?> vnđ</span>
+        </div>
+    </div>
+    
+    <div class="motivation-body">
+        <div class="kpi-progress-container">
+            <div class="kpi-progress-info">
+                <span>Tiến độ mục tiêu</span>
+                <span><?= $kpiStats['percent'] ?>%</span>
+            </div>
+            <div class="kpi-progress-bar-bg">
+                <div class="kpi-progress-bar-fill" style="width: <?= $kpiStats['percent'] ?>%;"></div>
+            </div>
+        </div>
+        
+        <div class="kpi-stats-row">
+            <div class="kpi-stat-item">
+                <div class="kpi-stat-label">KPI nhận</div>
+                <div class="kpi-stat-val text-green">+ <?= number_format($kpiStats['earned']) ?> vnđ</div>
+            </div>
+            <div class="kpi-stat-item">
+                <div class="kpi-stat-label">KPI còn</div>
+                <div class="kpi-stat-val text-orange">~ <?= number_format($kpiStats['potential']) ?> vnđ</div>
+            </div>
+            <div class="kpi-stat-item" onclick="window.location.href='<?= base_url('cases?status=overdue') ?>'" style="cursor: pointer;" title="Xem các vụ việc quá hạn khiến bạn mất KPI">
+                <div class="kpi-stat-label">KPI bỏ lỡ <i class="fas fa-external-link-alt" style="font-size: 0.6rem;"></i></div>
+                <div class="kpi-stat-val text-red">- <?= number_format($kpiStats['lost']) ?> vnđ</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <?php 
+    $canSeeAllStats = ($isAdmin || $isManager || $isLegalDept || has_permission('case.view_all')); 
+    ?>
+
+    <?php if ($canSeeAllStats): ?>
+        <!-- WIDGETS TỔNG QUAN (ADMIN, MANAGER, LEGAL) -->
+        <div class="stat-card" onclick="window.location.href='<?= base_url('cases') ?>'" style="cursor: pointer;">
+            <div class="stat-icon"><i class="fas fa-folder-open"></i></div>
+            <div class="stat-value"><?= number_format($stats['total_cases'] ?? 0) ?></div>
+            <div class="stat-label">Tổng vụ việc</div>
+        </div>
+    <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=cho_tiep_nhan') ?>'" style="cursor: pointer;">
+        <div class="stat-icon text-orange"><i class="fas fa-hourglass-start"></i></div>
+        <div class="stat-value"><?= number_format($stats['waiting_cases'] ?? 0) ?></div>
+        <div class="stat-label">Chờ tiếp nhận</div>
+    </div>
+        <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=dang_xu_ly') ?>'" style="cursor: pointer;">
+            <div class="stat-icon text-blue"><i class="fas fa-spinner fa-spin"></i></div>
+            <div class="stat-value"><?= number_format($stats['processing_cases'] ?? 0) ?></div>
+            <div class="stat-label">Đang xử lý</div>
+        </div>
+        <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=da_hoan_thanh') ?>'" style="cursor: pointer;">
+            <div class="stat-icon text-green"><i class="fas fa-check-double"></i></div>
+            <div class="stat-value"><?= number_format($stats['completed_cases'] ?? 0) ?></div>
+            <div class="stat-label">Đã hoàn thành</div>
+        </div>
+        <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=overdue') ?>'" style="cursor: pointer;">
+            <div class="stat-icon text-red"><i class="fas fa-clock"></i></div>
+            <div class="stat-value text-red"><?= number_format($stats['overdue_cases'] ?? 0) ?></div>
+            <div class="stat-label">Quá hạn</div>
+        </div>
+        <div class="stat-card" onclick="window.location.href='<?= base_url('customers') ?>'" style="cursor: pointer;">
             <div class="stat-icon"><i class="fas fa-user-friends"></i></div>
             <div class="stat-value"><?= number_format($stats['customers'] ?? 0) ?></div>
             <div class="stat-label">Khách hàng</div>
         </div>
+
+        <!-- Thống kê bộ phận bổ sung cho Manager (nếu không phải Legal) -->
+        <?php if ($isManager && !$isLegalDept && !$isAdmin): ?>
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-users-viewfinder"></i></div>
+                <div class="stat-value"><?= number_format($deptStats['total_members'] ?? 0) ?></div>
+                <div class="stat-label">Nhân sự team</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
+                <div class="stat-value"><?= $deptStats['attendance_percent'] ?? 0 ?>%</div>
+                <div class="stat-label">Tỷ lệ công team</div>
+            </div>
+        <?php endif; ?>
+
     <?php elseif ($isHRDept): ?>
-        <!-- WIDGETS HÀNH CHÍNH (HR/ADMIN) -->
+        <!-- WIDGETS HÀNH CHÍNH (HR) -->
         <div class="stat-card">
             <div class="stat-icon"><i class="fas fa-users"></i></div>
             <div class="stat-value"><?= number_format($deptStats['total_company_employees'] ?? 0) ?></div>
@@ -61,31 +151,32 @@
             <div class="stat-value"><?= $deptStats['attendance_percent'] ?? 0 ?>%</div>
             <div class="stat-label">Tỷ lệ đi làm</div>
         </div>
-    <?php elseif ($isManager): ?>
-        <!-- WIDGETS QUẢN TRỊ (CÁC TRƯỞNG PHÒNG KHÁC) -->
-        <div class="stat-card">
-            <div class="stat-icon"><i class="fas fa-users-viewfinder"></i></div>
-            <div class="stat-value"><?= number_format($deptStats['total_members'] ?? 0) ?></div>
-            <div class="stat-label">Nhân sự team</div>
-        </div>
-        <?php if ($isSaleDept): ?>
-        <div class="stat-card">
-            <div class="stat-icon"><i class="fas fa-user-tag"></i></div>
-            <div class="stat-value"><?= number_format($deptStats['dept_customers'] ?? 0) ?></div>
-            <div class="stat-label">Khách hàng team</div>
-        </div>
-        <?php endif; ?>
-        <div class="stat-card">
-            <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
-            <div class="stat-value"><?= $deptStats['attendance_percent'] ?? 0 ?>%</div>
-            <div class="stat-label">Tỷ lệ công team</div>
-        </div>
     <?php else: ?>
         <!-- WIDGETS NHÂN VIÊN (STAFF) -->
-        <div class="stat-card">
+        <div class="stat-card" onclick="window.location.href='<?= base_url('cases') ?>'" style="cursor: pointer;">
             <div class="stat-icon"><i class="fas fa-briefcase"></i></div>
-            <div class="stat-value"><?= number_format($stats['cases'] ?? 0) ?></div>
-            <div class="stat-label">Vụ việc phụ trách</div>
+            <div class="stat-value"><?= number_format($stats['total_cases'] ?? 0) ?></div>
+            <div class="stat-label">Vụ việc của tôi</div>
+        </div>
+        <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=cho_tiep_nhan') ?>'" style="cursor: pointer;">
+            <div class="stat-icon text-orange"><i class="fas fa-hourglass-start"></i></div>
+            <div class="stat-value"><?= number_format($stats['waiting_cases'] ?? 0) ?></div>
+            <div class="stat-label">Chờ tiếp nhận</div>
+        </div>
+        <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=dang_xu_ly') ?>'" style="cursor: pointer;">
+            <div class="stat-icon text-blue"><i class="fas fa-spinner fa-spin"></i></div>
+            <div class="stat-value"><?= number_format($stats['processing_cases'] ?? 0) ?></div>
+            <div class="stat-label">Đang làm</div>
+        </div>
+        <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=da_hoan_thanh') ?>'" style="cursor: pointer;">
+            <div class="stat-icon text-green"><i class="fas fa-check-double"></i></div>
+            <div class="stat-value"><?= number_format($stats['completed_cases'] ?? 0) ?></div>
+            <div class="stat-label">Đã xong</div>
+        </div>
+        <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=overdue') ?>'" style="cursor: pointer;">
+            <div class="stat-icon text-red"><i class="fas fa-clock"></i></div>
+            <div class="stat-value text-red"><?= number_format($stats['overdue_cases'] ?? 0) ?></div>
+            <div class="stat-label">Trễ hạn</div>
         </div>
         <div class="stat-card">
             <div class="stat-icon"><i class="fas fa-calendar-day"></i></div>
@@ -101,7 +192,6 @@
             <h3 class="m-0"><i class="fas fa-calendar-alt color-primary"></i> Lịch nghỉ</h3>
             <p class="text-muted m-0">Tháng <?= $currentMonthDisplay ?> - Biết ai đang nghỉ để tối ưu phối hợp.</p>
         </div>
-        <div class="tag-premium tag-info">Approved Only</div>
     </div>
     
     <div class="company-calendar-grid">
@@ -278,7 +368,7 @@
 
 @media (max-width: 768px) {
     .cal-day-cell {
-        min-height: 70px;
+        min-height: 75px;
         padding: 6px;
     }
     .absent-name {
@@ -297,6 +387,62 @@
         width: 8px;
         height: 8px;
     }
+}
+/* KPI Motivation Widget */
+.motivation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 25px;
+}
+.motivation-title h3 { margin: 0; font-size: 1.15rem; }
+.motivation-total { text-align: right; }
+.total-label { display: block; font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
+.total-value { font-size: 1.5rem; font-weight: 800; }
+
+.kpi-progress-container { margin-bottom: 25px; }
+.kpi-progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #334155;
+}
+.kpi-progress-bar-bg {
+    height: 14px;
+    background: #f1f5f9;
+    border-radius: 50px;
+    overflow: hidden;
+}
+.kpi-progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6 0%, #10b981 100%);
+    border-radius: 50px;
+    transition: width 1s ease-in-out;
+}
+
+.kpi-stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+}
+.kpi-stat-item {
+    background: #f8fafc;
+    padding: 15px;
+    border-radius: 12px;
+}
+.kpi-stat-label { font-size: 0.75rem; color: #64748b; margin-bottom: 5px; font-weight: 600; }
+.kpi-stat-val { font-size: 1.1rem; font-weight: 800; }
+
+.text-gold { color: #f59e0b; }
+.text-green { color: #10b981; }
+.text-orange { color: #f97316; }
+
+@media (max-width: 768px) {
+    .motivation-header { flex-direction: column; gap: 10px; }
+    .motivation-total { text-align: left; }
+    .kpi-stats-row { grid-template-columns: 1fr; }
 }
 </style>
 

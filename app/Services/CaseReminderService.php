@@ -23,6 +23,7 @@ class CaseReminderService
     protected $stepModel;
     protected $logModel;
     protected $employeeModel;
+    protected $notificationService;
 
     public function __construct()
     {
@@ -31,6 +32,7 @@ class CaseReminderService
         $this->stepModel = new CaseStepModel();
         $this->logModel = new SystemLogModel();
         $this->employeeModel = new EmployeeModel();
+        $this->notificationService = new NotificationService();
     }
 
     /**
@@ -89,10 +91,14 @@ class CaseReminderService
         ]);
 
         // 2. Tương tác đa phương tiện (Mục tiêu tương lai)
-        // Ghi lại vào error_log của server để SysAdmin theo dõi tiến độ Cronjob
         error_log("REMINDER LOG: $message - Case ID: " . $case['id']);
         
-        // TODO: Tích hợp Send email hoặc đẩy thông báo qua Zalo OA tại đây.
+        // 3. Gửi thông báo UI cho các thành viên vụ việc
+        $link = base_url('cases/show/' . $case['id']);
+        $title = $isUrgent ? "🚨 Nhắc hẹn khẩn cấp" : "📅 Nhắc hẹn công việc";
+        
+        $workflowService = new \App\Services\WorkflowService();
+        $workflowService->notifyCaseMembers($case['id'], $title, $message, $isUrgent ? 'warning' : 'task', $link);
     }
 
     /**
@@ -115,7 +121,14 @@ class CaseReminderService
         ]);
 
         // 4. Leo thang thông báo (Escalation Path)
-        // Ghi nhận lỗi hệ thống để Trưởng phòng có thể xem trong Dashboard quản trị.
         error_log("CRITICAL OVERDUE: " . $case['code'] . " - Step ID: " . $step['id']);
+        
+        $link = base_url('cases/show/' . $case['id']);
+        // Thông báo cho Ban quản trị/Trưởng phòng
+        $this->notificationService->notifyManagement("🚨 CẢNH BÁO QUÁ HẠN", $message, 'alert', $link);
+        
+        // Thông báo cho các thành viên vụ việc
+        $workflowService = new \App\Services\WorkflowService();
+        $workflowService->notifyCaseMembers($case['id'], "🚨 CẢNH BÁO QUÁ HẠN", $message, 'alert', $link);
     }
 }

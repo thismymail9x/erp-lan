@@ -26,13 +26,62 @@ $(document).ready(function() {
         });
     });
 
+    function validateCurrentStep() {
+        const activeStep = steps[currentStep-1];
+        let isValid = true;
+        
+        // 1. Kiểm tra các trường Bắt buộc (Bổ sung thêm sau nếu cần)
+        const requiredFields = activeStep.querySelectorAll('input[required], select[required]');
+        requiredFields.forEach(field => {
+            if (!field.value.trim()) {
+                field.style.borderColor = '#ff3b30';
+                isValid = false;
+            } else {
+                field.style.borderColor = '';
+            }
+        });
+
+        // Đặc biệt: Bước 1 bắt buộc Tên và SĐT
+        if (currentStep === 1) {
+            const name = activeStep.querySelector('input[name="name"]');
+            if (name && !name.value.trim()) {
+                name.style.borderColor = '#ff3b30';
+                isValid = false;
+            }
+            const phone = document.getElementById('phone_check');
+            if (phone && !phone.value.trim()) {
+                phone.style.borderColor = '#ff3b30';
+                isValid = false;
+            }
+        }
+
+        // 2. Kiểm tra các thông báo lỗi hiện hữu (Đỏ)
+        const activeAlters = activeStep.querySelectorAll('.date-error-label, [id$="_alert"]');
+        activeAlters.forEach(alert => {
+            if (alert.style.display === 'block' && alert.innerText.trim() !== '') {
+                isValid = false;
+                // Làm nổi bật ô đang lỗi
+                const input = alert.previousElementSibling;
+                if(input) input.style.borderColor = '#ff3b30';
+            }
+        });
+
+        if (!isValid) {
+            alert("Vui lòng hoàn thành thông tin và sửa các lỗi đang báo đỏ trước khi đi tiếp.");
+        }
+
+        return isValid;
+    }
+
     if (nextBtn) {
         nextBtn.addEventListener('click', () => {
-            if(currentStep < totalSteps) {
-                steps[currentStep-1].style.display = 'none';
-                currentStep++;
-                steps[currentStep-1].style.display = 'block';
-                updateWizard();
+            if (validateCurrentStep()) {
+                if(currentStep < totalSteps) {
+                    steps[currentStep-1].style.display = 'none';
+                    currentStep++;
+                    steps[currentStep-1].style.display = 'block';
+                    updateWizard();
+                }
             }
         });
     }
@@ -86,9 +135,35 @@ $(document).ready(function() {
         }
     }
 
+    // --- HELPER: VALIDATE ĐỊNH DẠNG ---
+    function isValidPhone(phone) {
+        return /^0\d{9}$/.test(phone); // Bắt đầu bằng 0 và đủ 10 số
+    }
+
+    function isValidEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
     async function checkDuplicate(field, value, alertId) {
-        if(!value) return;
         const alertDiv = document.getElementById(alertId);
+        if(!value) {
+            alertDiv.style.display = 'none';
+            return;
+        }
+
+        // Bước 1: Kiểm tra định dạng cục bộ trước khi gửi lên Server
+        if (field === 'phone' && !isValidPhone(value)) {
+            alertDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> SĐT không hợp lệ (Phải bắt đầu bằng 0 và đủ 10 chữ số).`;
+            alertDiv.style.display = 'block';
+            return;
+        }
+        if (field === 'email' && !isValidEmail(value)) {
+            alertDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Định dạng Email không đúng.`;
+            alertDiv.style.display = 'block';
+            return;
+        }
+        
+        // Bước 2: Kiểm tra trùng lặp trên Database
         try {
             const response = await fetch(`${baseUrl}/customers/check-duplicate?${field}=${value}`);
             const result = await response.json();
@@ -132,5 +207,48 @@ $(document).ready(function() {
             allowClear: true,
             width: 'resolve'
         });
+    }
+
+    // --- CHỐT CHẶN SUBMIT CUỐI CÙNG ---
+    const form = document.getElementById('customerWizardForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (!validateCurrentStep()) {
+                e.preventDefault();
+            }
+        });
+    }
+
+    // --- VALIDATE NGÀY SINH (Cụ thể cho Form này) ---
+    const dobInput = document.getElementById('date_of_birth');
+    if (dobInput) {
+        const handleDobError = function() {
+            let errorLabel = dobInput.nextElementSibling;
+            if (!errorLabel || !errorLabel.classList.contains('date-error-label')) {
+                errorLabel = document.createElement('div');
+                errorLabel.classList.add('date-error-label');
+                errorLabel.style.color = '#ff3b30';
+                errorLabel.style.fontSize = '12px';
+                errorLabel.style.marginTop = '6px';
+                errorLabel.style.fontWeight = '600';
+                dobInput.parentNode.insertBefore(errorLabel, dobInput.nextSibling);
+            }
+
+            // badInput xảy ra khi người dùng gõ nội dung rác hoặc ngày không tồn tại
+            if (!dobInput.validity.valid) {
+                 dobInput.style.borderColor = '#ff3b30';
+                 dobInput.style.backgroundColor = 'rgba(255, 59, 48, 0.05)';
+                 errorLabel.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Lỗi: Ngày nhập vào không tồn tại hoặc sai định dạng.';
+                 errorLabel.style.display = 'block';
+            } else {
+                 dobInput.style.borderColor = '';
+                 dobInput.style.backgroundColor = '';
+                 errorLabel.style.display = 'none';
+            }
+        };
+
+        dobInput.addEventListener('input', handleDobError);
+        dobInput.addEventListener('change', handleDobError);
+        dobInput.addEventListener('blur', handleDobError);
     }
 });
