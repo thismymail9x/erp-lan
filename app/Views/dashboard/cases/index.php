@@ -91,6 +91,7 @@
                     <option value="<?= $val ?>" <?= $currentStatus == $val ? 'selected' : '' ?>><?= $label ?></option>
                 <?php } ?>
                 <option value="overdue" <?= $currentStatus == 'overdue' ? 'selected' : '' ?>>Có bước quá hạn</option>
+                <option value="missed_kpi" <?= $currentStatus == 'missed_kpi' ? 'selected' : '' ?>>KPI bị bỏ lỡ</option>
             </select>
         </div>
 

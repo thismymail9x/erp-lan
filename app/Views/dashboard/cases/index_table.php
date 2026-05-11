@@ -164,19 +164,28 @@
                 <?php } ?>
             </td>
             <td data-label="Phụ trách">
-                <?php if (!empty($case['assigned_lawyer_id'])) { ?>
-                    <a href="<?= base_url('employees/edit/' . $case['assigned_lawyer_id']) ?>"
-                       class="link-premium flex-item-center">
-                       <?= esc($case['lawyer_name'] ?: 'N/A') ?>
-                    </a>
+                <?php if (!empty($case['assignees_data'])) { ?>
+                    <div class="flex-column gap-5">
+                        <?php foreach ($case['assignees_data'] as $idx => $assignee) { ?>
+                            <a href="<?= base_url('employees/edit/' . $assignee['id']) ?>"
+                               class="link-premium text-sm font-weight-600">
+                                <?= esc($assignee['name']) ?><?= ($idx < count($case['assignees_data']) - 1) ? ',' : '' ?>
+                            </a>
+                        <?php } ?>
+                    </div>
                 <?php } else { ?>
-                    <div class="font-weight-500"><?= esc($case['lawyer_name'] ?: 'Chưa phân công') ?></div>
+                    <div class="font-weight-500 text-muted-dark text-sm"><?= esc($case['lawyer_name'] ?: 'Chưa phân công') ?></div>
                 <?php } ?>
             </td>
             <td data-label="Người duyệt">
-                <?php if (!empty($case['approvers'])) { ?>
-                    <div class="font-weight-500 text-sm text-muted-dark">
-                        <?= esc(implode(', ', $case['approvers'])) ?>
+                <?php if (!empty($case['approvers_data'])) { ?>
+                    <div class="flex-column gap-5">
+                        <?php foreach ($case['approvers_data'] as $idx => $approver) { ?>
+                            <a href="<?= base_url('employees/edit/' . $approver['id']) ?>"
+                               class="text-sm font-weight-600 text-muted-dark hover-blue" style="text-decoration: none;">
+                                <?= esc($approver['name']) ?><?= ($idx < count($case['approvers_data']) - 1) ? ',' : '' ?>
+                            </a>
+                        <?php } ?>
                     </div>
                 <?php } else { ?>
                     <div class="font-weight-500 text-muted-dark text-sm">--</div>

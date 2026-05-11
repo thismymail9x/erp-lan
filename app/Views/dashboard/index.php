@@ -74,7 +74,7 @@
                 <div class="kpi-stat-label">KPI còn</div>
                 <div class="kpi-stat-val text-orange">~ <?= number_format($kpiStats['potential']) ?> vnđ</div>
             </div>
-            <div class="kpi-stat-item" onclick="window.location.href='<?= base_url('cases?status=overdue') ?>'" style="cursor: pointer;" title="Xem các vụ việc quá hạn khiến bạn mất KPI">
+            <div class="kpi-stat-item" onclick="window.location.href='<?= base_url('cases?status=missed_kpi' . ($isAdmin ? '' : '&lawyer_id[]=' . session()->get('employee_id'))) ?>'" style="cursor: pointer;" title="Xem các vụ việc khiến bạn bị mất KPI">
                 <div class="kpi-stat-label">KPI bỏ lỡ <i class="fas fa-external-link-alt" style="font-size: 0.6rem;"></i></div>
                 <div class="kpi-stat-val text-red">- <?= number_format($kpiStats['lost']) ?> vnđ</div>
             </div>
@@ -173,7 +173,7 @@
             <div class="stat-value"><?= number_format($stats['completed_cases'] ?? 0) ?></div>
             <div class="stat-label">Đã xong</div>
         </div>
-        <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=overdue') ?>'" style="cursor: pointer;">
+        <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=overdue' . ($isAdmin ? '' : '&lawyer_id[]=' . session()->get('employee_id'))) ?>'" style="cursor: pointer;">
             <div class="stat-icon text-red"><i class="fas fa-clock"></i></div>
             <div class="stat-value text-red"><?= number_format($stats['overdue_cases'] ?? 0) ?></div>
             <div class="stat-label">Trễ hạn</div>
@@ -233,6 +233,80 @@
         <?php } ?>
     </div>
 </div>
+
+<?php if (!empty($upcomingTrips)): ?>
+<div class="premium-card m-b-24" style="border-left: 4px solid #e74c3c;">
+    <div class="archive-header d-flex justify-content-between align-items-center m-b-15">
+        <div>
+            <h3 class="m-0" style="color: #e74c3c;"><i class="fas fa-plane-departure"></i> Lịch công tác sắp tới</h3>
+            <p class="text-muted m-0">Thông tin di chuyển của nhân sự trong 30 ngày tới.</p>
+        </div>
+        <a href="<?= base_url('work-schedules') ?>" class="btn-attendance-main" style="padding: 5px 12px; font-size: 0.75rem; background: #fef2f2; color: #e74c3c; border: 1px solid #fee2e2;">
+            Xem tất cả
+        </a>
+    </div>
+    <div class="trip-list-grid">
+        <?php foreach ($upcomingTrips as $trip): ?>
+            <div class="trip-item">
+                <div class="trip-date">
+                    <span class="day"><?= date('d', strtotime($trip['start_at'])) ?></span>
+                    <span class="month">Th<?= date('m', strtotime($trip['start_at'])) ?></span>
+                </div>
+                <div class="trip-info">
+                    <div class="trip-title"><?= esc($trip['title']) ?></div>
+                    <div class="trip-meta">
+                        <span class="trip-person"><i class="fas fa-user"></i> <?= esc($trip['employee_name']) ?></span>
+                        <span class="trip-loc"><i class="fas fa-map-marker-alt"></i> <?= esc($trip['location'] ?: 'N/A') ?></span>
+                    </div>
+                </div>
+                <div class="trip-badge">
+                    <?= date('H:i', strtotime($trip['start_at'])) ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+
+<style>
+.trip-list-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.trip-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px;
+    background: #fff5f5;
+    border-radius: 12px;
+    transition: transform 0.2s;
+}
+.trip-item:hover {
+    transform: translateX(5px);
+    background: #fff0f0;
+}
+.trip-date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #e74c3c;
+    color: #fff;
+    width: 45px;
+    height: 45px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+.trip-date .day { font-size: 1.1rem; font-weight: 800; line-height: 1; }
+.trip-date .month { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; }
+.trip-info { flex: 1; min-width: 0; }
+.trip-title { font-weight: 700; font-size: 0.9rem; color: #1d1d1f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+.trip-meta { display: flex; gap: 15px; font-size: 0.75rem; color: #64748b; }
+.trip-meta span { display: flex; align-items: center; gap: 5px; }
+.trip-badge { font-size: 0.8rem; font-weight: 700; color: #e74c3c; background: #fff; padding: 4px 8px; border-radius: 6px; border: 1px solid #fee2e2; }
+</style>
+<?php endif; ?>
 
 <div class="premium-card">
     <h3 class="m-t-0">Hoạt động gần đây</h3>

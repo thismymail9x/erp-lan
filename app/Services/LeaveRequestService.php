@@ -310,6 +310,22 @@ class LeaveRequestService
                                               ->first();
             
             $statusStr = 'LEAVE_' . strtoupper($type);
+            
+            // Xử lý logic nghỉ nửa ngày
+            $leaveDuration = $this->model->where('employee_id', $employeeId)
+                                         ->where('start_date <=', $dateStr)
+                                         ->where('end_date >=', $dateStr)
+                                         ->where('status', 'approved')
+                                         ->select('leave_duration')
+                                         ->first();
+            
+            if ($leaveDuration) {
+                if ($leaveDuration['leave_duration'] === 'morning_half') {
+                    $statusStr = 'LEAVE_MORNING';
+                } elseif ($leaveDuration['leave_duration'] === 'afternoon_half') {
+                    $statusStr = 'LEAVE_AFTERNOON';
+                }
+            }
 
             if ($existing) {
                 // Cập nhật trạng thái nếu đã có check-in rồi (vd: nghỉ bù nửa ngày hoặc đổi trạng thái)

@@ -168,7 +168,7 @@ class PayrollController extends BaseController
     }
 
     /**
-     * Xuất file bảng lương (CSV).
+     * Xuất file bảng lương (Excel-HTML format).
      */
     public function export($month)
     {
@@ -180,17 +180,66 @@ class PayrollController extends BaseController
             ->where('payrolls.month', $month)
             ->findAll();
 
-        $filename = "BangLuong_" . $month . ".csv";
-        header('Content-Type: text/csv; charset=utf-8');
+        $filename = "BangLuong_" . $month . ".xls";
+        header('Content-Type: application/vnd.ms-excel');
         header('Content-Disposition: attachment; filename=' . $filename);
-        
-        $output = fopen('php://output', 'w');
-        fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
-        fputcsv($output, [
-            'Nhân viên', 'Phòng ban', 'Lương cơ bản', 'Lương KPI', 'Phụ cấp', 
-            'Thưởng thêm', 'Khấu trừ', 'Phát sinh', 'Công chuẩn', 'Công thực', 'Vi phạm', 'Thực lĩnh', 'Ghi chú'
-        ]);
-        
+        header('Cache-Control: max-age=0');
+
+        // Khởi tạo HTML cho Excel
+        echo '<meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8">';
+        echo '<style>
+                table { border-collapse: collapse; width: 100%; font-family: "Times New Roman", serif; font-size: 11pt; }
+                th, td { border: 1px solid black; padding: 5px; text-align: center; }
+                .text-right { text-align: right; }
+                .text-left { text-align: left; }
+                .header-title { font-size: 16pt; font-weight: bold; border: none; }
+                .no-border { border: none; }
+                .bold { font-weight: bold; }
+                .footer-sign { border: none; padding-top: 30px; }
+              </style>';
+
+        echo '<table>';
+        // Tiêu đề
+        echo '<tr><td colspan="21" class="header-title no-border">BẢNG THANH TOÁN TIỀN LƯƠNG THÁNG ' . date('m/Y', strtotime($month . '-01')) . '</td></tr>';
+        echo '<tr><td colspan="21" class="no-border"></td></tr>';
+
+        // Header
+        echo '<thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th rowspan="2">STT</th>
+                    <th rowspan="2">Họ và tên</th>
+                    <th rowspan="2">Chức vụ</th>
+                    <th rowspan="2">Lương đóng BH</th>
+                    <th rowspan="2">Lương tháng</th>
+                    <th rowspan="2">Ngày công chuẩn</th>
+                    <th rowspan="2">Lương 1 ngày công</th>
+                    <th colspan="2">Lương theo ngày công làm việc</th>
+                    <th rowspan="2">Phụ cấp CC</th>
+                    <th rowspan="2">Phụ cấp Xăng</th>
+                    <th rowspan="2">Lương trách nhiệm</th>
+                    <th rowspan="2">Khác</th>
+                    <th rowspan="2">Tổng lương</th>
+                    <th colspan="5">Các khoản giảm trừ</th>
+                    <th rowspan="2">Lương thực lĩnh</th>
+                    <th rowspan="2">Ghi chú</th>
+                </tr>
+                <tr style="background-color: #f2f2f2;">
+                    <th>Số công</th>
+                    <th>Số tiền (TNCT)</th>
+                    <th>BHXH vào CP (21.5%)</th>
+                    <th>BHXH trừ lương (10.5%)</th>
+                    <th>Giảm trừ PT</th>
+                    <th>Thuế TNCN</th>
+                    <th>Tổng cộng</th>
+                </tr>
+              </thead>';
+
+        echo '<tbody>';
+        $stt = 1;
+        $totalNet = 0;
+        $totalGross = 0;
+        $totalDeduction = 0;
+
         foreach ($payrolls as $p) {
             $notes = json_decode($p['notes_json'] ?? '[]', true);
             $notesText = '';
@@ -199,23 +248,65 @@ class PayrollController extends BaseController
                 $notesText = implode('; ', array_filter($notesTexts));
             }
 
-            fputcsv($output, [
-                $p['full_name'],
-                $p['dept_name'],
-                number_format($p['salary_base']),
-                number_format($p['salary_kpi']),
-                number_format($p['salary_allowance']),
-                number_format($p['salary_bonus']),
-                number_format($p['salary_deduction']),
-                number_format($p['salary_other'] ?? 0),
-                $p['total_standard_days'],
-                $p['actual_working_days'],
-                $p['attendance_violations'],
-                number_format($p['net_salary']),
-                $notesText
-            ]);
+            $gross = $p['taxable_income'] + $p['diligence_allowance'] + $p['petrol_allowance'] + $p['salary_kpi'] + ($p['salary_bonus'] ?? 0);
+            
+            echo '<tr>';
+            echo '<td>' . $stt++ . '</td>';
+            echo '<td class="text-left">' . esc($p['full_name']) . '</td>';
+            echo '<td>' . esc($p['position'] ?? 'Nhân viên') . '</td>';
+            echo '<td class="text-right">' . number_format($p['insurance_salary']) . '</td>';
+            echo '<td class="text-right">' . number_format($p['salary_base']) . '</td>';
+            echo '<td>' . $p['total_standard_days'] . '</td>';
+            echo '<td class="text-right">' . number_format($p['salary_per_day']) . '</td>';
+            echo '<td>' . $p['actual_working_days'] . '</td>';
+            echo '<td class="text-right">' . number_format($p['taxable_income']) . '</td>';
+            echo '<td class="text-right">' . number_format($p['diligence_allowance']) . '</td>';
+            echo '<td class="text-right">' . number_format($p['petrol_allowance']) . '</td>';
+            echo '<td class="text-right">' . number_format($p['salary_kpi']) . '</td>';
+            echo '<td class="text-right">' . number_format($p['salary_bonus'] ?? 0) . '</td>';
+            echo '<td class="text-right bold">' . number_format($gross) . '</td>';
+            echo '<td class="text-right">' . number_format($p['si_employer']) . '</td>';
+            echo '<td class="text-right">' . number_format($p['si_employee']) . '</td>';
+            echo '<td class="text-right">' . number_format($p['dependent_deduction']) . '</td>';
+            echo '<td class="text-right">' . number_format($p['pit_tax']) . '</td>';
+            echo '<td class="text-right bold">' . number_format($p['total_deductions']) . '</td>';
+            echo '<td class="text-right bold">' . number_format($p['net_salary']) . '</td>';
+            echo '<td class="text-left">' . esc($notesText) . '</td>';
+            echo '</tr>';
+
+            $totalNet += $p['net_salary'];
+            $totalGross += $gross;
+            $totalDeduction += $p['total_deductions'];
         }
-        fclose($output);
+
+        // Dòng tổng kết
+        echo '<tr class="bold" style="background-color: #f9f9f9;">';
+        echo '<td colspan="13" class="text-right">TỔNG CỘNG</td>';
+        echo '<td class="text-right">' . number_format($totalGross) . '</td>';
+        echo '<td colspan="4"></td>';
+        echo '<td class="text-right">' . number_format($totalDeduction) . '</td>';
+        echo '<td class="text-right">' . number_format($totalNet) . '</td>';
+        echo '<td></td>';
+        echo '</tr>';
+
+        echo '</tbody>';
+        echo '</table>';
+
+        // Phần chữ ký
+        echo '<br><br>';
+        echo '<table>';
+        echo '<tr class="no-border">';
+        echo '<td colspan="4" class="no-border footer-sign bold">Người lập bảng</td>';
+        echo '<td colspan="4" class="no-border footer-sign bold">Kế toán trưởng</td>';
+        echo '<td colspan="7" class="no-border footer-sign bold">Giám đốc duyệt</td>';
+        echo '</tr>';
+        echo '<tr class="no-border">';
+        echo '<td colspan="4" class="no-border">(Ký, họ tên)</td>';
+        echo '<td colspan="4" class="no-border">(Ký, họ tên)</td>';
+        echo '<td colspan="7" class="no-border">(Ký, họ tên, đóng dấu)</td>';
+        echo '</tr>';
+        echo '</table>';
+
         exit();
     }
 
@@ -232,26 +323,39 @@ class PayrollController extends BaseController
         $bonus = (float)$this->request->getPost('salary_bonus');
         $kpi   = (float)$this->request->getPost('salary_kpi');
         $deduction = (float)$this->request->getPost('salary_deduction');
-        $other = (float)$this->request->getPost('salary_other');
-        $notes = $this->request->getPost('notes');
+        $pitTax = (float)$this->request->getPost('pit_tax');
+        $petrol = $this->request->getPost('petrol_allowance');
+        $diligence = $this->request->getPost('diligence_allowance');
 
         $data = [
             'salary_bonus' => $bonus,
             'salary_kpi'   => $kpi,
             'salary_deduction' => $deduction,
-            'salary_other' => $other,
-            'notes'        => $notes
+            'pit_tax'      => $pitTax
         ];
 
-        // Recalculate net_salary: (Base / Std) * Actual + Bonus (includes KPI) + Allowance - Deduction (Penalty) + Other
-        $salaryByWork = ($payroll['total_standard_days'] > 0) ? ($payroll['salary_base'] / $payroll['total_standard_days']) * $payroll['actual_working_days'] : 0;
-        $netSalary = $salaryByWork + $bonus + $kpi + $payroll['salary_allowance'] - $deduction + $other;
+        if ($petrol !== null) $data['petrol_allowance'] = (float)$petrol;
+        if ($diligence !== null) $data['diligence_allowance'] = (float)$diligence;
+
+        // Fetch again to have full data for recalculation if some fields were not sent
+        $currentData = array_merge($payroll, $data);
+
+        // Recalculate net_salary
+        $totalSalary = $currentData['taxable_income'] + $currentData['diligence_allowance'] + $currentData['petrol_allowance'] + $currentData['salary_kpi'] + $currentData['salary_bonus'];
+        $totalDeductions = $currentData['si_employee'] + $currentData['dependent_deduction'] + $currentData['pit_tax'] + $currentData['salary_deduction'];
+        $netSalary = $totalSalary - $totalDeductions;
         
+        $data['total_deductions'] = $totalDeductions;
         $data['net_salary'] = $netSalary;
 
         $this->payrollModel->update($id, $data);
-
-        return $this->response->setJSON(['code' => 0, 'message' => 'Updated', 'net_salary' => number_format($netSalary)]);
+        
+        return $this->response->setJSON([
+            'code' => 0, 
+            'net_salary' => number_format($netSalary),
+            'total_deductions' => number_format($totalDeductions),
+            'total_gross' => number_format($totalSalary)
+        ]);
     }
 
     /**
@@ -285,9 +389,33 @@ class PayrollController extends BaseController
         if (json_last_error() !== JSON_ERROR_NONE) {
             $notesJson = '[]';
         }
+        $petrol = $this->request->getPost('petrol_allowance');
+        
+        $data = [
+            'notes_json' => $notesJson
+        ];
 
-        $this->payrollModel->update($id, ['notes_json' => $notesJson]);
+        if ($petrol !== null) {
+            $data['petrol_allowance'] = (float)$petrol;
+        }
 
-        return $this->response->setJSON(['code' => 0, 'msg' => 'Đã lưu ghi chú']);
+        $this->payrollModel->update($id, $data);
+
+        // Recalculate net_salary if petrol changed
+        if ($petrol !== null) {
+            $payroll = $this->payrollModel->find($id);
+            $totalSalary = $payroll['taxable_income'] + $payroll['diligence_allowance'] + $payroll['petrol_allowance'] + $payroll['salary_kpi'];
+            $totalDeductions = $payroll['si_employee'] + $payroll['dependent_deduction'] + $payroll['pit_tax'] + $payroll['salary_deduction'];
+            $netSalary = $totalSalary + $payroll['salary_bonus'] + $payroll['salary_other'] - $totalDeductions;
+            
+            $this->payrollModel->update($id, ['net_salary' => $netSalary]);
+        }
+
+        return $this->response->setJSON([
+            'code' => 0, 
+            'msg' => 'Đã lưu ghi chú và cập nhật phụ cấp',
+            'net_salary' => isset($netSalary) ? number_format($netSalary) : null,
+            'total_deductions' => isset($totalDeductions) ? number_format($totalDeductions) : null
+        ]);
     }
 }

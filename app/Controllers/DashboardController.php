@@ -191,6 +191,17 @@ class DashboardController extends BaseController
                 }
             }
         }
+
+        // --- F. Danh sách lịch công tác sắp tới (Work Schedules) ---
+        $workScheduleService = new \App\Services\WorkScheduleService();
+        $upcomingTrips = $workScheduleService->getList([
+            'type' => 'business_trip',
+            'start_date' => date('Y-m-d'),
+            'end_date' => date('Y-m-d', strtotime('+30 days'))
+        ]);
+        // Giới hạn 5 bản ghi cho Dashboard
+        $upcomingTrips = array_slice($upcomingTrips, 0, 5);
+
         $data = [
             'title'            => 'Bảng điều khiển | L.A.N ERP',
             'attendanceStatus' => $attendanceStatus,
@@ -207,6 +218,7 @@ class DashboardController extends BaseController
             'kpiYear'          => $kpiYear,
             'daysInMonth'      => (int)date('t'),
             'firstDayOfWeek'   => (int)date('w', strtotime($currentMonthStart)),
+            'upcomingTrips'    => $upcomingTrips,
             'user'  => [
                 'email' => session()->get('email'),
                 'role'  => $role

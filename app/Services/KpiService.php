@@ -91,18 +91,33 @@ class KpiService extends BaseService
         $earnedAll = (float)($earnedBase->get()->getRow()->total ?? 0);
 
         // 3. TÍNH KPI BỊ MẤT (Lost Bonus)
-        // Đây là những khoản tiền nhân viên ĐÁNG LẼ được nhận nếu không làm muộn hạn.
+        // Bao gồm: Các bước hoàn thành muộn HẬU QUẢ + Các bước đang quá hạn HIỆN TẠI
         $lostQuery = $this->db->table('case_steps')
             ->selectSum('case_steps.kpi_reward', 'total')
             ->join('cases', 'cases.id = case_steps.case_id')
-            ->where('case_steps.status', 'completed')
             ->where('cases.deleted_at', null)
             ->where('cases.status !=', 'huy')
-            ->where('case_steps.completed_at > case_steps.deadline') // Chỉ lấy bước muộn hạn
-            ->where('case_steps.completed_by', $employeeId);
+            ->groupStart()
+                // TH1: Đã xong nhưng muộn
+                ->groupStart()
+                    ->where('case_steps.status', 'completed')
+                    ->where('case_steps.completed_at > case_steps.deadline')
+                    ->where('case_steps.completed_by', $employeeId)
+                ->groupEnd()
+                // TH2: Chưa xong nhưng đã quá hạn (Dù đang active hay pending)
+                ->orGroupStart()
+                    ->whereIn('case_steps.status', ['active', 'pending', 'pending_approval'])
+                    ->where('case_steps.deadline <', date('Y-m-d H:i:s'))
+                    ->where('case_steps.assigned_to', $employeeId)
+                ->groupEnd()
+            ->groupEnd();
         
         if ($currentYear > 0) {
-            $lostQuery->where('YEAR(case_steps.completed_at)', $currentYear);
+            // Đối với TH2 (chưa xong), ta dùng YEAR(deadline) để lọc theo năm
+            $lostQuery->groupStart()
+                ->where('YEAR(case_steps.completed_at)', $currentYear)
+                ->orWhere('YEAR(case_steps.deadline)', $currentYear)
+            ->groupEnd();
         }
         $lost = (float)($lostQuery->get()->getRow()->total ?? 0);
 
@@ -112,7 +127,7 @@ class KpiService extends BaseService
             ->selectSum('case_steps.kpi_reward', 'total')
             ->join('cases', 'cases.id = case_steps.case_id')
             ->whereIn('case_steps.status', ['pending', 'active', 'pending_approval'])
-            ->where('case_steps.overdue_notified', 0) // Chỉ tính các bước chưa bị báo quá hạn
+            ->where('case_steps.deadline >=', date('Y-m-d H:i:s')) // Chỉ tính các bước còn trong hạn
             ->where('cases.deleted_at', null)
             ->whereNotIn('cases.status', ['da_hoan_thanh', 'huy']);
 
@@ -191,27 +206,40 @@ class KpiService extends BaseService
             ->select('cs.assigned_to as emp_id, SUM(cs.kpi_reward) as total_potential')
             ->join('cases c', 'c.id = cs.case_id')
             ->whereIn('cs.status', ['pending', 'active', 'pending_approval'])
-            ->where('cs.overdue_notified', 0)
+            ->where('cs.deadline >=', date('Y-m-d H:i:s')) // Chỉ tính các bước còn trong hạn
             ->where('c.deleted_at', null)
             ->whereNotIn('c.status', ['da_hoan_thanh', 'huy'])
             ->whereIn('cs.assigned_to', $empIds)
             ->groupBy('cs.assigned_to')
             ->get()->getResultArray();
 
-        // 4. TÍNH KPI BỊ MẤT (Lost): Nhắm thẳng vào bảng case_steps.completed_by
-        $lostData = $db->table('case_steps cs')
-            ->select('cs.completed_by as emp_id, SUM(cs.kpi_reward) as total_lost')
+        // 4. TÍNH KPI BỊ MẤT (Lost): Các bước hoàn thành muộn + Các bước đang quá hạn
+        $lostDataQuery = $db->table('case_steps cs')
+            ->select('IF(cs.status = "completed", cs.completed_by, cs.assigned_to) as emp_id', false)
+            ->selectSum('cs.kpi_reward', 'total_lost')
             ->join('cases c', 'c.id = cs.case_id')
-            ->where('cs.status', 'completed')
             ->where('c.deleted_at', null)
             ->where('c.status !=', 'huy')
-            ->where('cs.completed_at > cs.deadline') // Muộn hạn
-            ->whereIn('cs.completed_by', $empIds);
+            ->groupStart()
+                ->groupStart()
+                    ->where('cs.status', 'completed')
+                    ->where('cs.completed_at > cs.deadline')
+                    ->whereIn('cs.completed_by', $empIds)
+                ->groupEnd()
+                ->orGroupStart()
+                    ->whereIn('cs.status', ['active', 'pending', 'pending_approval'])
+                    ->where('cs.deadline <', date('Y-m-d H:i:s'))
+                    ->whereIn('cs.assigned_to', $empIds)
+                ->groupEnd()
+            ->groupEnd();
 
         if ($currentYear > 0) {
-            $lostData->where('YEAR(cs.completed_at)', $currentYear);
+            $lostDataQuery->groupStart()
+                ->where('YEAR(cs.completed_at)', $currentYear)
+                ->orWhere('YEAR(cs.deadline)', $currentYear)
+            ->groupEnd();
         }
-        $lostResults = $lostData->groupBy('cs.completed_by')->get()->getResultArray();
+        $lostResults = $lostDataQuery->groupBy('emp_id')->get()->getResultArray();
 
         // 4. MAPPING DỮ LIỆU
         $earnedMap = array_column($earnedData, 'total_earned', 'emp_id');

@@ -30,7 +30,7 @@
         <td><?= esc($row['department_name'] ?? 'N/A') ?></td>
         <td><span class="amount-earned"><?= number_format($row['earned']) ?></span></td>
         <td><span class="amount-potential"><?= number_format($row['potential']) ?></span></td>
-        <td><span class="amount-lost"><?= number_format($row['lost']) ?></span></td>
+        <td><a href="<?= base_url('cases?status=missed_kpi&lawyer_id[]=' . $row['id']) ?>" class="amount-lost" style="text-decoration:none;"><?= number_format($row['lost']) ?></a></td>
         <td><span class="amount-total"><?= number_format($row['total']) ?></span></td>
         <td>
             <div class="perf-progress-wrapper" title="<?= $row['percent'] ?>%">

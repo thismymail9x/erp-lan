@@ -221,3 +221,24 @@ Báº£o vá»‡ cÃ¡c dá»¯ liá»‡u nháº¡y cáº£m (LÆ°Æ¡ng, NgÃ¢n hÃ ng, CCCD) khá»i viá
 - Khi thÃªm dá»¯ liá»‡u nháº¡y cáº£m má»›i, hÃ£y bá»c chÃºng báº±ng class CSS .sensitive-masked vÃ  kiá»ƒm tra quyá»n qua Session.
 
 ---
+
+---
+
+## 10. Module L?ch làm vi?c & Công tác (Work Schedule)
+Module này du?c thi?t k? d? nhân s? toàn công ty có th? thông báo và theo dõi l?ch trình c?a nhau, tang tính ph?i h?p và minh b?ch.
+
+### **10.1. Ğ?c di?m n?i b?t:**
+- **Giao di?n L?ch (Calendar View)**: S? d?ng FullCalendar 6 v?i phong cách Apple-Minimal, h? tr? xem chi ti?t nhanh qua Tooltip (Tippy.js).
+- **Phân lo?i màu s?c**: Công vi?c t?i van phòng (Màu xanh - #3498db) và L?ch công tác (Màu d? - #e74c3c).
+- **Thông báo t? d?ng**: Khi m?t l?ch trình m?i du?c t?o, h? th?ng s? t? d?ng g?i thông báo d?n toàn th? nhân viên thông qua `NotificationService`.
+
+### **10.2. Quy t?c Phân quy?n (RBAC):**
+- **Xem l?ch trình (`work_schedule.view`)**: Toàn b? nhân viên chính th?c d?u có quy?n xem l?ch trình c?a d?ng nghi?p d? ph?i h?p công vi?c.
+- **Qu?n lı l?ch trình (`work_schedule.manage`)**: 
+    - Nhân viên du?c quy?n t?o/s?a/xóa l?ch trình c?a chính mình.
+    - Admin và Tru?ng phòng có quy?n qu?n lı l?ch trình c?a c?p du?i.
+    - H? th?ng th?c hi?n ki?m tra quy?n s? h?u nghiêm ng?t t?i Service layer (Rule #7).
+
+### **10.3. Tích h?p H? th?ng (Compliance Rule #10):**
+- **Master Sync**: Controller `WorkScheduleController` khai báo `` d? t? d?ng dang kı vào h? th?ng phân quy?n khi ch?y `/perm-fix/sync`.
+- **Audit Logs**: M?i thao tác thêm/s?a/xóa d?u du?c ghi l?i trong `system_logs` thông qua `SystemLogService`.

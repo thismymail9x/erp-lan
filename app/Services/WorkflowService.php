@@ -97,13 +97,15 @@ class WorkflowService extends BaseService
                                                ->orderBy('step_order', 'ASC')
                                                ->findAll();
 
-        // Mốc thời gian bắt đầu chính là lúc khởi tạo vụ việc
-        $currentDate = new DateTime($case['created_at'] ?? 'now');
+        // Mốc thời gian bắt đầu: Sử dụng thời điểm hiện tại để tính toán lộ trình mới
+        $currentDate = new DateTime();
         
+        $finalDeadline = null;
         foreach ($templateSteps as $index => $tStep) {
             // Thuật toán cộng dồn Deadline: Bước sau bắt đầu khi bước trước kết thúc dự kiến.
             // TimelineService xử lý việc nhảy qua ngày nghỉ lễ/cuối tuần.
             $deadline = $this->timelineService->calculateDeadline($currentDate, $tStep['duration_days']);
+            $finalDeadline = $deadline;
             
             // Hiện thực hóa bước mẫu thành bước thực thi (case_steps)
             $this->stepModel->insert([
@@ -129,7 +131,83 @@ class WorkflowService extends BaseService
             $currentDate = clone $deadline;
         }
 
+        // 5. Đồng bộ hóa toàn bộ thời hạn và trạng thái dựa trên trình tự mới (Bắt đầu từ thời điểm này)
+        $this->recalculateDeadlines($caseId, new DateTime());
+
         return $template['id'];
+    }
+
+    /**
+     * Thuật toán Tái cấu trúc Thời gian (Dynamic Timeline Recalculation).
+     * Cập nhật sort_order, trạng thái và đặc biệt là Hạn chót (Deadline) cho toàn bộ các bước.
+     * Logic: Bước sau phụ thuộc vào thời điểm hoàn thành (hoặc hạn chót) của bước trước.
+     */
+    public function recalculateDeadlines(int $caseId, ?DateTime $rootDate = null)
+    {
+        $steps = $this->stepModel->where('case_id', $caseId)->orderBy('sort_order', 'ASC')->findAll();
+        $case = $this->caseModel->find($caseId);
+        if (!$case || empty($steps)) return;
+
+        // Gốc thời gian: Ưu tiên rootDate được truyền vào, nếu không lấy ngày tạo vụ việc
+        $currentDate = $rootDate ?? new DateTime($case['created_at']);
+        $firstUncompletedFound = false;
+
+        foreach ($steps as $idx => $step) {
+            $newOrder = $idx + 1;
+            
+            // Thuật toán cộng dồn: Deadline bước này = Deadline bước trước + Duration
+            // Theo yêu cầu: "deadline của bước thêm vào phải phụ thuộc vào số ngày + deadline của bước phía trước"
+            $deadline = $this->timelineService->calculateDeadline($currentDate, $step['duration_days'] ?? 1);
+            $deadlineStr = $deadline->format('Y-m-d H:i:s');
+
+            $updateData = [
+                'sort_order' => $newOrder,
+                'deadline'   => $deadlineStr
+            ];
+
+            if ($step['status'] === 'completed') {
+                // Cập nhật lại deadline cho cả bước đã hoàn thành để đảm bảo tính nhất quán của lộ trình lý thuyết
+                if ($step['sort_order'] != $newOrder || $step['deadline'] != $deadlineStr) {
+                    $this->stepModel->update($step['id'], $updateData);
+                }
+            } else {
+                // Xử lý bước chưa hoàn thành: Cập nhật deadline và trạng thái thông minh
+                if (!$firstUncompletedFound) {
+                    $firstUncompletedFound = true;
+                    if ($step['status'] === 'pending') {
+                        $updateData['status'] = 'active';
+                    }
+                } else {
+                    if ($step['status'] === 'active') {
+                        $updateData['status'] = 'pending';
+                    }
+                }
+                
+                $this->stepModel->update($step['id'], $updateData);
+            }
+            
+            // QUAN TRỌNG: Mốc thời gian của bước tiếp theo luôn dựa trên Deadline vừa tính
+            // (Không dùng completed_at để tránh làm gãy chuỗi logic dự kiến của người dùng)
+            $currentDate = clone $deadline;
+        }
+        
+        // CHỐT CHẶN: Cập nhật deadline tổng của Vụ việc dựa trên bước cuối cùng của quy trình
+        $lastStep = end($steps);
+        if ($lastStep) {
+            $lastStepUpdated = $this->stepModel->find($lastStep['id']);
+            if ($lastStepUpdated && !empty($lastStepUpdated['deadline'])) {
+                $caseUpdateData = ['deadline' => $lastStepUpdated['deadline']];
+                
+                // Nếu phát hiện có bước chưa hoàn thành mà vụ việc đang ở trạng thái 'Đã hoàn thành'
+                // -> Tự động mở lại vụ việc để tiếp tục xử lý.
+                if ($firstUncompletedFound && $case['status'] === 'da_hoan_thanh') {
+                    $caseUpdateData['status'] = 'dang_xu_ly';
+                    $caseUpdateData['end_date'] = null;
+                }
+                
+                $this->caseModel->update($caseId, $caseUpdateData);
+            }
+        }
     }
 
     /**
@@ -143,17 +221,27 @@ class WorkflowService extends BaseService
         if (!empty($step['required_documents'])) {
             $required = json_decode($step['required_documents'], true);
             if (is_array($required) && count($required) > 0) {
-                // Lấy danh sách tài liệu thực tế đã lưu trong hệ thống
+                // Lấy danh sách tài liệu thực tế đã lưu trong hệ thống cho bước này
                 $docs = $this->documentModel->where('step_id', $step['id'])->findAll();
                 
-                // Trích xuất các loại (Type) tài liệu đã có
-                $uploadedTypes = array_column($docs, 'type');
+                // Trích xuất danh sách tên file đã tải lên
+                $uploadedNames = array_column($docs, 'file_name');
                 
                 foreach ($required as $reqDoc) {
                     $docTypeName = is_array($reqDoc) ? ($reqDoc['name'] ?? '') : $reqDoc;
-                    // Logic cơ bản: Nếu bước có yêu cầu chứng từ nhưng Folder bước đó đang trống -> Chặn.
-                    if (empty($docs)) {
-                        throw new Exception("Yêu cầu nghiệp vụ: Bạn phải tải lên tài liệu [ " . $docTypeName . " ] mới có thể kết thúc bước này.");
+                    if (empty($docTypeName)) continue;
+
+                    $found = false;
+                    foreach ($uploadedNames as $fileName) {
+                        // Kiểm tra xem tên file có chứa tên loại hồ sơ yêu cầu không (Fuzzy Match)
+                        if (mb_stripos($fileName, $docTypeName) !== false) {
+                            $found = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!$found) {
+                        throw new Exception("Thiếu hồ sơ bắt buộc: Bạn phải tải lên tài liệu [ " . $docTypeName . " ] vào danh sách tài liệu của bước này trước khi hoàn tất.");
                     }
                 }
             }

@@ -105,76 +105,110 @@ class PayrollService extends BaseService
             
             $actualDays = 0;
             $violations = 0;
-            
             $attendedDates = [];
             
             foreach ($attendances as $att) {
-                $attendedDates[] = $att['attendance_date'];
+                $status = $att['status'];
+                $date = $att['attendance_date'];
                 
-                // Đếm các lỗi vi phạm điểm danh (Muộn/Về sớm) để làm cơ sở trừ lương
-                if (in_array($att['status'], [AppConstants::ATT_STATUS_LATE, AppConstants::ATT_STATUS_EARLY_LEAVE])) {
-                    $violations++;
+                // Nếu là ngày làm việc chuẩn (hoặc thứ 7 cách tuần)
+                if (in_array($date, $workingDays)) {
+                    if ($status === 'LEAVE_MORNING' || $status === 'LEAVE_AFTERNOON') {
+                        $actualDays += 0.5;
+                    } else if (str_starts_with($status, 'LEAVE_')) {
+                        $actualDays += 1;
+                    } else {
+                        // Có đi làm thực tế
+                        $actualDays += 1;
+                        if (in_array($status, [AppConstants::ATT_STATUS_LATE, AppConstants::ATT_STATUS_EARLY_LEAVE])) {
+                            $violations++;
+                        }
+                    }
+                } else if (isset($holidays[$date])) {
+                    // Ngày lễ/nghỉ có lương
+                    $actualDays += 1;
                 }
             }
-            
-            $attendedDates = array_unique($attendedDates);
 
-            foreach ($workingDays as $wDate) {
-                if (in_array($wDate, $attendedDates)) {
-                    // Được tính công nếu có điểm danh trong ngày làm việc
-                    $actualDays += 1;
-                } else if (isset($holidays[$wDate])) {
-                    // Nếu không có điểm danh nhưng là ngày nghỉ lễ được Admin cấu hình thì vẫn tính công (hưởng nguyên lương)
-                    $actualDays += 1;
-                }
-            }
-
-            // 2. Lương KPI (KPI thi đua): Theo yêu cầu mới, phần này không tính tự động mà do Admin nhập tay.
-            // Nếu là lần đầu tính toán, mặc định sẽ là 0.
-            $kpiReward = 0; 
-
-            // 3. Tính toán dòng lương (Financial Calculation)
+            // 2. Lấy dữ liệu cấu hình từ hồ sơ nhân sự
             $salaryBase = $emp['salary_base'] ?? 0;
-            $allowance = $emp['allowance_base'] ?? 0;
-            
-            // Công thức lương theo ngày công: (Lương CB / Tổng ngày công chuẩn) * Số ngày đi làm thực tế
+            $insuranceSalary = $emp['insurance_salary'] ?? $salaryBase; // Mặc định bằng lương cơ bản nếu chưa nhập
+            $diligenceAllowance = $emp['diligence_allowance'] ?? 0;
+            $petrolAllowance = $emp['petrol_allowance'] ?? 0;
+            $dependentCount = $emp['dependent_count'] ?? 0;
+
+            // 3. Tính toán các chỉ số
             $standardDays = $config['total_standard_days'] ?: 26;
-            $salaryByWork = ($standardDays > 0) ? ($salaryBase / $standardDays) * $actualDays : 0;
             
+            // Lương 1 ngày công
+            $salaryPerDay = ($standardDays > 0) ? $salaryBase / $standardDays : 0;
+            
+            // Lương theo ngày công làm việc (Số tiền TNCT)
+            $taxableIncome = $salaryPerDay * $actualDays;
+            
+            // Bảo hiểm
+            $siEmployer = $insuranceSalary * AppConstants::SI_RATE_EMPLOYER;
+            $siEmployee = $insuranceSalary * AppConstants::SI_RATE_EMPLOYEE;
+            
+            // Giảm trừ phụ thuộc
+            $dependentDeduction = $dependentCount * AppConstants::DEPENDENT_DEDUCTION_AMOUNT;
+            
+            // KPI và Thưởng (Để mặc định là 0 nếu chưa có dữ liệu cũ)
+            $kpiReward = 0; 
+            $bonus = 0;
+            $salaryOther = 0;
+            $pitTax = 0; // Tạm thời để 0, Admin có thể nhập tay hoặc hệ thống tính sau
+
             // Khấu trừ vi phạm: Mặc định mỗi lần vi phạm trừ theo mức quy định
-            $deduction = $violations * AppConstants::PENALTY_ATTENDANCE_VIOLATION;
+            $penaltyDeduction = $violations * AppConstants::PENALTY_ATTENDANCE_VIOLATION;
             
-            // Tổng thực lĩnh ban đầu
-            $netSalary = $salaryByWork + $kpiReward + $allowance - $deduction;
+            // Kiểm tra xem đã có dữ liệu cũ chưa để bảo toàn
+            $existing = $this->payrollModel->where(['employee_id' => $emp['id'], 'month' => $month])->first();
+            if ($existing) {
+                $kpiReward = $existing['salary_kpi'] ?? 0;
+                // Merge data từ salary_other vào bonus nếu chưa được merge
+                $bonus = ($existing['salary_bonus'] ?? 0) + ($existing['salary_other'] ?? 0);
+                $pitTax = $existing['pit_tax'] ?? 0;
+                // Bảo toàn phụ cấp nếu đã được nhập tay
+                $diligenceAllowance = $existing['diligence_allowance'] ?? $diligenceAllowance;
+                $petrolAllowance = $existing['petrol_allowance'] ?? $petrolAllowance;
+            }
+
+            // Tổng lương (Theo ảnh: Lương TNCT + Phụ cấp CC + Phụ cấp Xăng + KPI)
+            $totalSalary = $taxableIncome + $diligenceAllowance + $petrolAllowance + $kpiReward;
+            
+            // Tổng cộng các khoản giảm trừ (Theo ảnh: BHXH + Giảm trừ PT + Thuế TNCN)
+            $totalDeductions = $siEmployee + $dependentDeduction + $pitTax + $penaltyDeduction;
+            
+            // Lương thực lĩnh = Tổng lương + Thưởng (đã bao gồm phát sinh) - Tổng giảm trừ
+            $netSalary = $totalSalary + $bonus - $totalDeductions;
 
             $payrollData = [
                 'employee_id' => $emp['id'],
                 'month' => $month,
                 'salary_base' => $salaryBase,
+                'insurance_salary' => $insuranceSalary,
                 'salary_kpi' => $kpiReward, 
-                'salary_allowance' => $allowance,
-                'salary_deduction' => $deduction,
+                'diligence_allowance' => $diligenceAllowance,
+                'petrol_allowance' => $petrolAllowance,
+                'salary_bonus' => $bonus,
+                'salary_deduction' => $penaltyDeduction,
                 'total_standard_days' => $standardDays,
+                'salary_per_day' => $salaryPerDay,
                 'actual_working_days' => $actualDays,
+                'taxable_income' => $taxableIncome,
                 'attendance_violations' => $violations,
+                'si_employer' => $siEmployer,
+                'si_employee' => $siEmployee,
+                'dependent_deduction' => $dependentDeduction,
+                'pit_tax' => $pitTax,
+                'total_deductions' => $totalDeductions,
                 'net_salary' => $netSalary,
                 'status' => 'pending'
             ];
 
-            // Xử lý cập nhật: Nếu đã có bản ghi bảng lương, ta phải giữ lại các cột dữ liệu nhập tay (KPI, Thưởng, Ghi chú, Phát sinh)
-            // Cột 'Khấu trừ' (salary_deduction) sẽ được tính lại dựa trên dữ liệu vi phạm điểm danh mới nhất.
-            // Nếu Admin muốn phạt thêm, nên sử dụng cột 'Phát sinh' (salary_other) với giá trị âm.
-            $existing = $this->payrollModel->where(['employee_id' => $emp['id'], 'month' => $month])->first();
             if ($existing) {
-                $payrollData['salary_kpi'] = $existing['salary_kpi'];
-                $payrollData['salary_bonus'] = $existing['salary_bonus'];
-                $payrollData['salary_other'] = $existing['salary_other'] ?? 0;
                 $payrollData['notes_json'] = $existing['notes_json'] ?? '[]';
-                $payrollData['notes'] = $existing['notes'];
-                
-                // Tính lại thực lĩnh (sử dụng $deduction mới được tính từ vi phạm điểm danh)
-                $payrollData['net_salary'] = $salaryByWork + $existing['salary_kpi'] + $allowance + $existing['salary_bonus'] - $deduction + $payrollData['salary_other'];
-                
                 $this->payrollModel->update($existing['id'], $payrollData);
             } else {
                 $this->payrollModel->insert($payrollData);

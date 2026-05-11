@@ -47,54 +47,84 @@
 
                 <div class="payroll-details">
                     <div class="row m-b-15">
-                        <div class="col-6"><strong>Lương cơ bản:</strong></div>
-                        <div class="col-6 text-right"><?= number_format($payroll['salary_base']) ?> đ</div>
+                        <div class="col-6"><strong>Lương đóng BH:</strong></div>
+                        <div class="col-6 text-right"><?= number_format($payroll['insurance_salary'] ?? 0) ?> đ</div>
                     </div>
                     <div class="row m-b-15">
-                        <div class="col-6"><strong>Lương KPI (Thành tích):</strong></div>
-                        <div class="col-6 text-right text-green">+ <?= number_format($payroll['salary_kpi']) ?> đ</div>
+                        <div class="col-6"><strong>Lương tháng:</strong></div>
+                        <div class="col-6 text-right"><?= number_format($payroll['salary_base'] ?? 0) ?> đ</div>
                     </div>
-                    <div class="row m-b-15">
-                        <div class="col-6"><strong>Phụ cấp:</strong></div>
-                        <div class="col-6 text-right">+ <?= number_format($payroll['salary_allowance']) ?> đ</div>
-                    </div>
-                    <?php if ($payroll['salary_bonus'] > 0) { ?>
-                    <div class="row m-b-15">
-                        <div class="col-6"><strong>Thưởng thêm:</strong></div>
-                        <div class="col-6 text-right text-blue">+ <?= number_format($payroll['salary_bonus']) ?> đ</div>
-                    </div>
-                    <?php } ?>
-                    <div class="row m-b-15">
-                        <div class="col-6"><strong>Khấu trừ / Phạt:</strong></div>
-                        <div class="col-6 text-right text-red">- <?= number_format($payroll['salary_deduction']) ?> đ</div>
-                    </div>
-                    <?php if (isset($payroll['salary_other']) && $payroll['salary_other'] != 0) { ?>
-                    <div class="row m-b-15">
-                        <div class="col-6"><strong>Phát sinh:</strong></div>
-                        <div class="col-6 text-right <?= $payroll['salary_other'] > 0 ? 'text-green' : 'text-red' ?>">
-                            <?= $payroll['salary_other'] > 0 ? '+' : '' ?> <?= number_format($payroll['salary_other']) ?> đ
-                        </div>
-                    </div>
-                    <?php } ?>
                     <hr>
                     <div class="row m-b-15">
                         <div class="col-6"><strong>Ngày công chuẩn:</strong></div>
-                        <div class="col-6 text-right"><?= $payroll['total_standard_days'] ?> ngày</div>
+                        <div class="col-6 text-right"><?= $payroll['total_standard_days'] ?? 26 ?> ngày</div>
                     </div>
                     <div class="row m-b-15">
-                        <div class="col-6"><strong>Ngày công thực tế:</strong></div>
-                        <div class="col-6 text-right"><?= $payroll['actual_working_days'] ?> ngày</div>
+                        <div class="col-6"><strong>Lương 1 ngày công:</strong></div>
+                        <div class="col-6 text-right"><?= number_format($payroll['salary_per_day'] ?? 0) ?> đ</div>
                     </div>
                     <div class="row m-b-15">
-                        <div class="col-6"><strong>Vi phạm điểm danh:</strong></div>
-                        <div class="col-6 text-right <?= $payroll['attendance_violations'] > 0 ? 'text-red' : '' ?>">
-                            <?= $payroll['attendance_violations'] ?> lần
-                        </div>
+                        <div class="col-6"><strong>Số công thực tế:</strong></div>
+                        <div class="col-6 text-right"><?= $payroll['actual_working_days'] ?? 0 ?> ngày</div>
+                    </div>
+                    <div class="row m-b-15">
+                        <div class="col-6"><strong>Lương theo ngày công (TNCT):</strong></div>
+                        <div class="col-6 text-right"><strong><?= number_format($payroll['taxable_income'] ?? 0) ?> đ</strong></div>
                     </div>
                     <hr>
-                    <div class="row" style="font-size: 1.25rem;">
+                    <div class="row m-b-15">
+                        <div class="col-6"><strong>Phụ cấp chuyên cần:</strong></div>
+                        <div class="col-6 text-right text-green">+ <?= number_format($payroll['diligence_allowance'] ?? 0) ?> đ</div>
+                    </div>
+                    <div class="row m-b-15">
+                        <div class="col-6"><strong>Phụ cấp xăng xe:</strong></div>
+                        <div class="col-6 text-right text-green">+ <span id="petrol-display"><?= number_format($payroll['petrol_allowance'] ?? 0) ?></span> đ</div>
+                    </div>
+                    <div class="row m-b-15">
+                        <div class="col-6"><strong>Lương KPI (Tháng):</strong></div>
+                        <div class="col-6 text-right text-green">+ <?= number_format($payroll['salary_kpi'] ?? 0) ?> đ</div>
+                    </div>
+                    <?php if (($payroll['salary_bonus'] ?? 0) > 0) { ?>
+                    <div class="row m-b-15">
+                        <div class="col-6"><strong>Thưởng khác:</strong></div>
+                        <div class="col-6 text-right text-blue">+ <?= number_format($payroll['salary_bonus'] ?? 0) ?> đ</div>
+                    </div>
+                    <?php } ?>
+                    <hr>
+                    <div class="row m-b-15 text-muted">
+                        <div class="col-6"><strong>BHXH (10.5%):</strong></div>
+                        <div class="col-6 text-right text-red">- <?= number_format($payroll['si_employee'] ?? 0) ?> đ</div>
+                    </div>
+                    <?php if (($payroll['dependent_deduction'] ?? 0) > 0) { ?>
+                    <div class="row m-b-15 text-muted">
+                        <div class="col-6"><strong>Giảm trừ phụ thuộc:</strong></div>
+                        <div class="col-6 text-right text-red">- <?= number_format($payroll['dependent_deduction'] ?? 0) ?> đ</div>
+                    </div>
+                    <?php } ?>
+                    <?php if (($payroll['pit_tax'] ?? 0) > 0) { ?>
+                    <div class="row m-b-15 text-muted">
+                        <div class="col-6"><strong>Thuế TNCN:</strong></div>
+                        <div class="col-6 text-right text-red">- <?= number_format($payroll['pit_tax'] ?? 0) ?> đ</div>
+                    </div>
+                    <?php } ?>
+                    <?php if (($payroll['salary_deduction'] ?? 0) > 0) { ?>
+                    <div class="row m-b-15 text-muted">
+                        <div class="col-6"><strong>Khấu trừ vi phạm:</strong></div>
+                        <div class="col-6 text-right text-red">- <?= number_format($payroll['salary_deduction'] ?? 0) ?> đ</div>
+                    </div>
+                    <?php } ?>
+                    <?php if (isset($payroll['salary_other']) && $payroll['salary_other'] != 0) { ?>
+                    <div class="row m-b-15">
+                        <div class="col-6"><strong>Điều chỉnh khác:</strong></div>
+                        <div class="col-6 text-right <?= ($payroll['salary_other'] ?? 0) > 0 ? 'text-green' : 'text-red' ?>">
+                            <?= ($payroll['salary_other'] ?? 0) > 0 ? '+' : '' ?> <?= number_format($payroll['salary_other'] ?? 0) ?> đ
+                        </div>
+                    </div>
+                    <?php } ?>
+                    <hr>
+                    <div class="row" style="font-size: 1.5rem; color: var(--apple-blue);">
                         <div class="col-6"><strong>THỰC LĨNH:</strong></div>
-                        <div class="col-6 text-right text-blue"><strong><?= number_format($payroll['net_salary']) ?> đ</strong></div>
+                        <div class="col-6 text-right"><strong><span id="net-salary-display"><?= number_format($payroll['net_salary'] ?? 0) ?></span> đ</strong></div>
                     </div>
 
                     <div class="m-t-20 p-15" style="background: #f9f9fb; border-radius: 8px; border: 1px dashed #d2d2d7;">
@@ -121,6 +151,14 @@
                         </div>
 
                         <div class="notes-editor-container m-t-15" data-id="<?= $payroll['id'] ?>" style="display: none; padding-top: 15px; border-top: 1px dashed #e5e5ea;">
+                            <div class="form-group mb-3 d-flex align-items-center gap-10" style="padding-left: 20px;">
+                                <label style="min-width: 150px; font-weight: 600;">Phụ cấp xăng xe (đ):</label>
+                                <input type="text" class="form-control form-control-sm format-vnd petrol-allowance-input" 
+                                       value="<?= number_format($payroll['petrol_allowance']) ?>" 
+                                       style="max-width: 200px;" <?= $config['is_closed'] ? 'disabled' : '' ?>>
+                                <small class="text-muted italic">* Nhập số tiền xăng xe phát sinh trong tháng</small>
+                            </div>
+                            
                             <div class="notes-inputs-list">
                                 <?php 
                                     if (!empty($notes)) {
@@ -174,6 +212,24 @@
 <?= $this->section('scripts') ?>
 <script>
 $(document).ready(function() {
+    // Hàm định dạng số có dấu phẩy
+    function formatNumber(n) {
+        let isNegative = String(n).trim().startsWith('-');
+        let numberStr = String(n).replace(/\D/g, "");
+        if (!numberStr) return isNegative ? '-' : '';
+        return (isNegative ? '-' : '') + numberStr.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
+    // Sự kiện khi gõ vào các ô có class format-vnd
+    $(document).on('input', '.format-vnd', function() {
+        var selection = window.getSelection().toString();
+        if (selection !== '') return;
+        var $this = $(this);
+        var input = $this.val();
+        var formatted = formatNumber(input);
+        $this.val(formatted);
+    });
+
     // Toggle hiển thị editor
     $(document).on('click', '.btn-toggle-notes', function() {
         const $container = $(this).closest('.p-15');
@@ -259,15 +315,21 @@ $(document).ready(function() {
         });
         
         const notesJsonStr = JSON.stringify(notes);
+        const petrolVal = $container.find('.petrol-allowance-input').val().replace(/,/g, '');
         
         const origHtml = $btn.html();
         $btn.html('<i class="fas fa-spinner fa-spin"></i> Đang lưu...').prop('disabled', true);
         
         $.post('<?= base_url('payroll/save-notes/') ?>' + id, {
-            notes_json: notesJsonStr
+            notes_json: notesJsonStr,
+            petrol_allowance: petrolVal
         }, function(res) {
             $btn.html(origHtml).prop('disabled', false);
             if (res.code === 0) {
+                // Update displays
+                if (res.net_salary) $('#net-salary-display').text(res.net_salary);
+                $('#petrol-display').text(formatNumber(petrolVal));
+
                 // Update display list
                 let displayHtml = '';
                 if (notes.length > 0) {

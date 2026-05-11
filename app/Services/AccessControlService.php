@@ -54,6 +54,11 @@ class AccessControlService extends BaseService
             $menu[] = ['title' => 'Đơn nghỉ phép', 'url' => 'leave-requests', 'icon' => 'fas fa-calendar-minus'];
         }
 
+        // 1.2.1 LỊCH TRÌNH (Work Schedule):
+        if (session()->get('employee_id')) {
+            $menu[] = ['title' => 'Lịch trình', 'url' => 'work-schedules', 'icon' => 'fas fa-calendar-alt'];
+        }
+
         // 1.3 BẢNG LƯƠNG (Payroll):
         if (has_permission('payroll.view') || has_permission('payroll.manage') || session()->get('employee_id')) {
             $menu[] = ['title' => 'Bảng lương', 'url' => 'payroll', 'icon' => 'fas fa-money-check-alt'];

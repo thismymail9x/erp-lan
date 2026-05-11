@@ -132,7 +132,7 @@ class CaseController extends BaseController
         $data = [
             'cases'         => $cases,
             'pager'         => $caseService->getPager(),
-            'stats'         => $this->getStats(),
+            'stats'         => $this->getStats($search, $lawyerIds, $tagId, $month, $year),
             'search'        => $search,
             'lawyerIds'     => $lawyerIds,
             'currentStatus' => $status,
@@ -199,9 +199,9 @@ class CaseController extends BaseController
     /**
      * Thu thập bộ số liệu thống kê (Stats Hub).
      */
-    private function getStats()
+    private function getStats($search = '', $lawyerIds = [], $tagId = 0, $month = 0, $year = 0)
     {
-        return $this->caseService->getStats();
+        return $this->caseService->getStats($search, $lawyerIds, $tagId, $month, $year);
     }
 
     /**
@@ -494,7 +494,7 @@ class CaseController extends BaseController
                     $userId = substr($item, 5);
                     foreach ($data['staffs'] as $s) {
                         if ($s['id'] == $userId) {
-                            $responsible[] = '<span class="badge-secondary-minimal"><i class="fas fa-user"></i> ' . esc($s['full_name']) . '</span>';
+                            $responsible[] = '<a href="' . base_url('employees/edit/' . $s['id']) . '" class="badge-secondary-minimal" style="text-decoration:none;"><i class="fas fa-user"></i> ' . esc($s['full_name']) . '</a>';
                             break;
                         }
                     }
@@ -884,6 +884,129 @@ class CaseController extends BaseController
     }
 
     /**
+     * Thêm bước phát sinh trực tiếp vào vụ việc
+     */
+    public function addStep($id)
+    {
+        if (!has_permission('sys.admin') && !has_permission('case.edit_all')) {
+            return redirect()->back()->with('error', 'Bạn không có quyền thêm bước phát sinh.');
+        }
+
+        $case = $this->caseModel->find($id);
+        if (!$case) {
+            return redirect()->back()->with('error', 'Hồ sơ không tồn tại.');
+        }
+
+        $input = $this->request->getPost();
+        
+        $stepName = $input['step_name'] ?? 'Bước phát sinh';
+        $durationDays = (int)($input['duration_days'] ?? 1);
+        $kpiReward = (int)str_replace(['.', ','], '', $input['kpi_reward'] ?? '0');
+        
+        $insertAfterId = isset($input['insert_after_step_id']) ? (int)$input['insert_after_step_id'] : -1;
+        
+        // --- RÀO CHẮN BẢO MẬT (Integrity Barrier) ---
+        // Không cho phép chèn bước xen kẽ vào giữa các công đoạn đã hoàn thành
+        if ($insertAfterId == 0) {
+            $firstStep = $this->stepModel->where('case_id', $id)->orderBy('sort_order', 'ASC')->first();
+            if ($firstStep && $firstStep['status'] === 'completed') {
+                return redirect()->back()->with('error', 'Không thể chèn bước vào trước các công đoạn đã hoàn tất.');
+            }
+        } elseif ($insertAfterId > 0) {
+            $targetStep = $this->stepModel->find($insertAfterId);
+            if ($targetStep && $targetStep['status'] === 'completed') {
+                // Kiểm tra xem có bước nào hoàn thành SAU bước này không
+                $hasCompletedAfter = $this->stepModel->where('case_id', $id)
+                                            ->where('sort_order >', $targetStep['sort_order'])
+                                            ->where('status', 'completed')
+                                            ->countAllResults() > 0;
+                if ($hasCompletedAfter) {
+                    return redirect()->back()->with('error', 'Vị trí chèn không hợp lệ: Không thể chèn bước vào giữa các công đoạn đã hoàn thành.');
+                }
+            }
+        }
+
+        $steps = $this->stepModel->where('case_id', $id)->orderBy('sort_order', 'ASC')->findAll();
+        
+        $newSortOrder = 1;
+        if ($insertAfterId === -1 || empty($steps)) {
+            // Chèn vào cuối
+            $maxOrderStep = end($steps);
+            $newSortOrder = $maxOrderStep ? $maxOrderStep['sort_order'] + 1 : 1;
+        } elseif ($insertAfterId > 0) {
+            foreach ($steps as $s) {
+                if ($s['id'] == $insertAfterId) {
+                    $newSortOrder = $s['sort_order'] + 1;
+                    break;
+                }
+            }
+        }
+        
+        // Đẩy sort_order của các bước sau
+        $this->stepModel->where('case_id', $id)->where('sort_order >=', $newSortOrder)
+             ->set('sort_order', 'sort_order + 1', false)->update();
+
+        $requiredDocsRaw = $input['required_documents_raw'] ?? '';
+        $requiredDocs = [];
+        if (!empty($requiredDocsRaw)) {
+            $requiredDocs = array_map('trim', explode(',', $requiredDocsRaw));
+            $requiredDocs = array_filter($requiredDocs);
+        }
+
+        $this->stepModel->save([
+            'case_id' => $id,
+            'step_name' => $stepName,
+            'duration_days' => $durationDays,
+            'status' => 'pending', // Trạng thái sẽ được recalculateDeadlines cập nhật lại cho chuẩn
+            'sort_order' => $newSortOrder,
+            'kpi_reward' => $kpiReward,
+            'required_documents' => !empty($requiredDocs) ? json_encode($requiredDocs, JSON_UNESCAPED_UNICODE) : null,
+            'assigned_to' => $case['assigned_lawyer_id'] ?: $case['assigned_staff_id']
+        ]);
+
+        $this->logHistory($id, 'add_step', null, $stepName, 'Đã thêm bước phát sinh vào quy trình.');
+
+        $this->workflowService->recalculateDeadlines($id);
+
+        return redirect()->back()->with('success', 'Đã thêm bước phát sinh thành công.');
+    }
+
+    /**
+     * Xóa một bước khỏi vụ việc
+     */
+    public function deleteStep($stepId)
+    {
+        if (!has_permission('sys.admin') && !has_permission('case.edit_all')) {
+            return redirect()->back()->with('error', 'Bạn không có quyền xóa bước.');
+        }
+
+        $step = $this->stepModel->find($stepId);
+        if (!$step) {
+            return redirect()->back()->with('error', 'Bước không tồn tại.');
+        }
+
+        if ($step['status'] === 'completed') {
+            return redirect()->back()->with('error', 'Không thể xóa bước đã hoàn thành.');
+        }
+
+        $caseId = $step['case_id'];
+
+        // Hủy liên kết tài liệu
+        $docModel = new \App\Models\DocumentModel();
+        $docModel->where('step_id', $stepId)->set(['step_id' => null])->update();
+
+        $this->stepModel->delete($stepId);
+
+        $this->logHistory($caseId, 'delete_step', $step['step_name'], null, 'Đã xóa bước khỏi quy trình.');
+
+        $this->workflowService->recalculateDeadlines($caseId);
+
+        return redirect()->back()->with('success', 'Đã xóa bước thành công.');
+    }
+
+
+
+    /**
      * Quản lý Phân công nhân sự tham gia (Resource Management).
      * Cho phép Quản trị viên thay đổi cơ cấu nhân sự xử lý hồ sơ.
      */
@@ -1049,16 +1172,15 @@ class CaseController extends BaseController
                                     ->first();
 
         if ($nextStep) {
-            // Cài đặt Deadline mới cho bước tiếp theo dựa trên ngày bắt đầu hiện tại
-            $newDeadline = $this->timelineService->calculateDeadline(new \DateTime(), $nextStep['duration_days']);
-            $this->stepModel->update($nextStep['id'], [
-                'status' => 'active',
-                'deadline' => $newDeadline->format('Y-m-d H:i:s')
-            ]);
+            // Đồng bộ hóa toàn bộ lộ trình và cập nhật hạn chót tổng vụ việc
+            $this->workflowService->recalculateDeadlines((int)$step['case_id']);
         } else {
             // HOÀN TẤT TOÀN BỘ (Project Completion):
             // Nếu không còn bước nào, tự động đóng vụ việc với trạng thái "Đã giải quyết".
-            $this->caseModel->update($step['case_id'], ['status' => 'da_hoan_thanh']);
+            $this->caseModel->update($step['case_id'], [
+                'status' => 'da_hoan_thanh',
+                'end_date' => date('Y-m-d H:i:s')
+            ]);
         }
     }
 

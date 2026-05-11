@@ -88,12 +88,65 @@ class CaseService extends BaseService
             ->join('employees', 'employees.id = cases.assigned_lawyer_id', 'left')
             ->groupBy('cases.id');
 
-        // 4. Lọc theo trạng thái hồ sơ cụ thể (Nếu được yêu cầu)
+        // 4. Áp dụng cơ chế Phân quyền dữ liệu (Security Scoping)
+        $this->applyAccessLimit($query);
+
+        // 5. Lọc theo trạng thái hồ sơ cụ thể (Nếu được yêu cầu)
         if (!empty($status)) {
             if ($status === 'overdue') {
                 // Lọc các vụ việc ĐANG HOẠT ĐỘNG có bước công việc bị quá hạn
-                $query->whereIn('cases.status', ['cho_tiep_nhan', 'dang_xu_ly'])
-                      ->where('cases.id IN (SELECT DISTINCT case_id FROM case_steps WHERE completed_at IS NULL AND deadline < "'.date('Y-m-d H:i:s').'")');
+                $query->whereIn('cases.status', ['cho_tiep_nhan', 'dang_xu_ly']);
+                
+                if (!empty($lawyerIds)) {
+                    $idsStr = implode(',', array_map('intval', $lawyerIds));
+                    $query->where("cases.id IN (SELECT DISTINCT case_id FROM case_steps WHERE status = 'active' AND deadline < '".date('Y-m-d H:i:s')."' AND assigned_to IN ($idsStr))");
+                } else {
+                    $query->where("cases.id IN (SELECT DISTINCT case_id FROM case_steps WHERE status = 'active' AND deadline < '".date('Y-m-d H:i:s')."')");
+                }
+            } elseif ($status === 'missed_kpi') {
+                // Lọc vụ việc có bước bị muộn (đã xong hoặc chưa xong)
+                $targetIds = !empty($lawyerIds) ? $lawyerIds : [];
+                $now = date('Y-m-d H:i:s');
+                
+                if (empty($targetIds)) {
+                    // Nếu không truyền lawyer_id: Kiểm tra quyền để quyết định xem "tất cả bị muộn" hay "chỉ mình bị muộn"
+                    $isAdminView = ($this->accessControl->canViewAllData($roleName) || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
+                    
+                    if ($isAdminView) {
+                        $query->where("cases.id IN (
+                            SELECT DISTINCT case_id FROM case_steps 
+                            WHERE (
+                                (status = 'completed' AND completed_at > deadline)
+                                OR 
+                                (status IN ('active') AND deadline < '$now')
+                            )
+                        )");
+                    } else {
+                        $myEmpId = (int)session()->get('employee_id');
+                        if ($myEmpId > 0) {
+                            $query->where("cases.id IN (
+                                SELECT DISTINCT case_id FROM case_steps 
+                                WHERE (
+                                    (status = 'completed' AND completed_at > deadline AND completed_by = $myEmpId)
+                                    OR 
+                                    (status IN ('active') AND deadline < '$now' AND assigned_to = $myEmpId)
+                                )
+                            )");
+                        }
+                    }
+                } else {
+                    $idsStr = implode(',', array_map('intval', array_filter($targetIds)));
+                    if (!empty($idsStr)) {
+                        $query->where("cases.id IN (
+                            SELECT DISTINCT case_id FROM case_steps 
+                            WHERE (
+                                (status = 'completed' AND completed_at > deadline AND completed_by IN ($idsStr))
+                                OR 
+                                (status IN ('active') AND deadline < '$now' AND assigned_to IN ($idsStr))
+                            )
+                        )");
+                    }
+                }
             } elseif ($status === 'completed_month') {
                 // Lọc vụ việc hoàn thành trong tháng
                 $query->where('cases.status', 'da_hoan_thanh')
@@ -104,54 +157,9 @@ class CaseService extends BaseService
             }
         }
 
-        // 5. Lọc theo nhân viên phụ trách nếu có yêu cầu (Hỗ trợ lọc nhiều người cùng lúc)
-        if (!empty($lawyerIds)) {
-            $query->groupStart()
-                ->whereIn('cases.assigned_lawyer_id', $lawyerIds)
-                ->orWhereIn('cases.assigned_staff_id', $lawyerIds)
-                ->orWhereIn('cases.id', function($builder) use ($lawyerIds) {
-                    return $builder->select('case_id')->from('case_members')->whereIn('employee_id', $lawyerIds);
-                })
-            ->groupEnd();
-        }
-
-        // 6. Lọc theo nhãn dán (Tags)
-        if ($tagId > 0) {
-            $query->whereIn('cases.id', function($builder) use ($tagId) {
-                return $builder->select('entity_id')
-                               ->from('entity_tags')
-                               ->where('tag_id', $tagId)
-                               ->where('entity_type', 'cases');
-            });
-        }
-
-        // 7. Lọc theo tháng/năm tiếp nhận
-        if ($month > 0) {
-            $query->where('MONTH(cases.created_at)', $month);
-            // Nếu có tháng mà không có năm -> Mặc định lấy năm hiện tại
-            if ($year <= 0) {
-                $year = (int)date('Y');
-            }
-        }
-        
-        if ($year > 0) {
-            $query->where('YEAR(cases.created_at)', $year);
-        }
-
-        // 5. Tìm kiếm đa năng (Mã, Tên, Khách hàng, Luật sư)
-        if (!empty($search)) {
-            $query->groupStart()
-                ->like('cases.code', $search)
-                ->orLike('cases.title', $search)
-                ->orLike('customers.name', $search)
-                ->orLike('employees.full_name', $search)
-            ->groupEnd();
-        }
-
-        // --- CƠ CHẾ PHÂN QUYỀN DỮ LIỆU (Security Scoping) ---
-        $this->applyAccessLimit($query);
-
-        // 4. Thực thi truy vấn kèm theo Phân trang
+        // 6. Áp dụng các bộ lọc chung (Search, Lawyers, Tags, Time)
+        $this->applyFilters($query, $search, $lawyerIds, $tagId, $month, $year);
+        // 7. Thực thi truy vấn kèm theo Phân trang
         // Ưu tiên các vụ việc đang làm ('dang_xu_ly') lên đầu khi xem danh sách mặc định (Sắp xếp theo ID)
         if ($sort === 'id') {
             $query->orderBy('CASE WHEN cases.status = "dang_xu_ly" THEN 0 ELSE 1 END', 'ASC', false);
@@ -164,7 +172,7 @@ class CaseService extends BaseService
             
             // 1. Lấy danh sách nhân sự tham gia (Các Member)
             $members = $this->caseModel->db->table('case_members')
-                ->select('case_id, role_in_case, employees.full_name')
+                ->select('case_id, role_in_case, employees.id as employee_id, employees.full_name')
                 ->join('employees', 'employees.id = case_members.employee_id')
                 ->whereIn('case_id', $caseIds)
                 ->get()->getResultArray();
@@ -180,21 +188,26 @@ class CaseService extends BaseService
             // Ánh xạ dữ liệu vào từng vụ việc
             foreach ($cases as &$case) {
                 // Tách riêng Người phụ trách (assignee)
-                $case['assignees'] = array_column(
-                    array_filter($members, fn($m) => $m['case_id'] == $case['id'] && in_array($m['role_in_case'], ['assignee', 'main'])),
-                    'full_name'
-                );
+                $case['assignees_data'] = array_values(array_map(function($m) {
+                    return ['id' => $m['employee_id'], 'name' => $m['full_name']];
+                }, array_filter($members, function($m) use ($case) {
+                    return $m['case_id'] == $case['id'] && in_array($m['role_in_case'], ['assignee', 'main']);
+                })));
 
                 // Lọc Người duyệt (approver)
-                $case['approvers'] = array_column(
-                    array_filter($members, fn($m) => $m['case_id'] == $case['id'] && $m['role_in_case'] === 'approver'),
-                    'full_name'
-                );
-                $case['tags'] = array_filter($tags, fn($t) => $t['entity_id'] == $case['id']);
+                $case['approvers_data'] = array_values(array_map(function($m) {
+                    return ['id' => $m['employee_id'], 'name' => $m['full_name']];
+                }, array_filter($members, function($m) use ($case) {
+                    return $m['case_id'] == $case['id'] && $m['role_in_case'] === 'approver';
+                })));
+                
+                $case['tags'] = array_filter($tags, function($t) use ($case) {
+                    return $t['entity_id'] == $case['id'];
+                });
                 
                 // Ghi đè thông tin hiển thị Lawyer cho đẹp trên giao diện danh sách
-                if (!empty($case['assignees'])) {
-                    $case['lawyer_name'] = implode(', ', $case['assignees']);
+                if (!empty($case['assignees_data'])) {
+                    $case['lawyer_name'] = implode(', ', array_column($case['assignees_data'], 'name'));
                 } else {
                     $case['lawyer_name'] = 'Trống';
                 }
@@ -269,23 +282,97 @@ class CaseService extends BaseService
     /**
      * Tính toán bộ chỉ số thống kê (Stats) dựa trên quyền hạn của người dùng.
      */
-    public function getStats()
+    /**
+     * Tính toán bộ chỉ số thống kê (Stats) dựa trên quyền hạn và bộ lọc hiện tại.
+     */
+    public function getStats(string $search = '', array $lawyerIds = [], int $tagId = 0, int $month = 0, int $year = 0)
     {
-        $db = \Config\Database::connect();
-        $baseQuery = $db->table('cases')->where('cases.deleted_at', null);
-
+        $session = session();
+        $roleName = $session->get('role_name');
+        
+        // Query cơ sở bao gồm cả phân quyền và bộ lọc người dùng chọn
+        $baseQuery = $this->caseModel->select('cases.id');
+        
+        // 1. Phân quyền
         $this->applyAccessLimit($baseQuery);
+        
+        // 2. Bộ lọc (Sync với danh sách)
+        $this->applyFilters($baseQuery, $search, $lawyerIds, $tagId, $month, $year);
+        
+        $now = date('Y-m-d H:i:s');
+        $overdueSubquery = "SELECT DISTINCT case_id FROM case_steps WHERE status = 'active' AND deadline < '$now'";
+        
+        // Nếu không phải Admin, chỉ đếm những vụ việc mà CHÍNH HỌ đang làm trễ
+        $isAdminView = ($this->accessControl->canViewAllData($roleName) || $session->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
+        if (!$isAdminView) {
+            $myEmpId = (int)$session->get('employee_id');
+            if ($myEmpId > 0) {
+                $overdueSubquery .= " AND assigned_to = $myEmpId";
+            }
+        }
 
         return [
-            'total'      => (clone $baseQuery)->select('cases.id')->countAllResults(),
-            'processing' => (clone $baseQuery)->select('cases.id')->where('cases.status', 'dang_xu_ly')->countAllResults(),
-            'waiting'    => (clone $baseQuery)->select('cases.id')->where('cases.status', 'cho_tiep_nhan')->countAllResults(),
-            'completed'  => (clone $baseQuery)->select('cases.id')->where('cases.status', 'da_hoan_thanh')->countAllResults(),
-            'overdue'    => (clone $baseQuery)->select('cases.id')
+            'total'      => (clone $baseQuery)->countAllResults(),
+            'processing' => (clone $baseQuery)->where('cases.status', 'dang_xu_ly')->countAllResults(),
+            'waiting'    => (clone $baseQuery)->where('cases.status', 'cho_tiep_nhan')->countAllResults(),
+            'completed'  => (clone $baseQuery)->where('cases.status', 'da_hoan_thanh')->countAllResults(),
+            'overdue'    => (clone $baseQuery)
                                 ->whereIn('cases.status', ['cho_tiep_nhan', 'dang_xu_ly'])
-                                ->where('cases.id IN (SELECT DISTINCT case_id FROM case_steps WHERE completed_at IS NULL AND deadline < "'.date('Y-m-d H:i:s').'")')
+                                ->where("cases.id IN ($overdueSubquery)")
                                 ->countAllResults()
         ];
+    }
+
+    /**
+     * Áp dụng tập hợp các bộ lọc tìm kiếm và phân loại.
+     * Phương thức này dùng để đồng bộ hóa Query giữa danh sách và bộ chỉ số thống kê.
+     */
+    private function applyFilters(&$query, $search, $lawyerIds, $tagId, $month, $year)
+    {
+        // 1. Lọc theo nhân sự phụ trách
+        if (!empty($lawyerIds)) {
+            $query->groupStart()
+                  ->whereIn('cases.assigned_lawyer_id', $lawyerIds)
+                  ->orWhereIn('cases.assigned_staff_id', $lawyerIds)
+                  ->orWhereIn('cases.id', function($builder) use ($lawyerIds) {
+                      return $builder->select('case_id')->from('case_members')->whereIn('employee_id', $lawyerIds);
+                  })
+            ->groupEnd();
+        }
+
+        // 2. Lọc theo tháng/năm tạo
+        if ($month > 0) {
+            $query->where('MONTH(cases.created_at)', $month);
+            if ($year <= 0) $year = (int)date('Y');
+        }
+        if ($year > 0) {
+            $query->where('YEAR(cases.created_at)', $year);
+        }
+
+        // 3. Lọc theo Nhãn dán
+        if ($tagId > 0) {
+            $query->whereIn('cases.id', function($builder) use ($tagId) {
+                return $builder->select('entity_id')
+                               ->from('entity_tags')
+                               ->where('tag_id', $tagId)
+                               ->where('entity_type', 'cases');
+            });
+        }
+
+        // 4. Tìm kiếm đa năng
+        if (!empty($search)) {
+            $query->groupStart();
+            if (is_numeric($search)) {
+                $query->where('cases.id', (int)$search);
+                $query->orLike('cases.code', $search);
+            } else {
+                $query->like('cases.code', $search);
+            }
+            $query->orLike('cases.title', $search)
+                  ->orLike('customers.name', $search)
+                  ->orLike('employees.full_name', $search)
+            ->groupEnd();
+        }
     }
 
     /**

@@ -9,10 +9,12 @@ class PayrollModel extends BaseModel
     protected $useAutoIncrement = true;
     protected $returnType       = 'array';
     protected $allowedFields    = [
-        'employee_id', 'month', 'salary_base', 'salary_kpi', 'salary_allowance', 
-        'salary_bonus', 'salary_deduction', 'salary_other', 'notes_json',
-        'total_standard_days', 'actual_working_days', 'attendance_violations', 
-        'net_salary', 'status', 'notes'
+        'employee_id', 'month', 'salary_base', 'insurance_salary', 'salary_kpi', 
+        'diligence_allowance', 'petrol_allowance',
+        'salary_bonus', 'salary_deduction', 'notes_json',
+        'total_standard_days', 'salary_per_day', 'actual_working_days', 'taxable_income',
+        'attendance_violations', 'si_employer', 'si_employee', 'dependent_deduction',
+        'pit_tax', 'total_deductions', 'net_salary', 'status'
     ];
     protected $useTimestamps = true;
 }

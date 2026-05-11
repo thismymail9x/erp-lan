@@ -138,6 +138,9 @@
                                 <h3 class="section-header-title m-0" style="display: flex; align-items: center; gap: 12px;">
                                     <i class="fas fa-tasks"></i> 
                                     <span>Bước: <?= esc($active_step['step_name']) ?></span>
+                                    <span class="badge-secondary-minimal text-xs m-l-5" style="font-weight: 600;">
+                                        <i class="fas fa-clock m-r-4"></i> Quy định: <?= $active_step['duration_days'] ?> ngày
+                                    </span>
                                     <?php if (($active_step['kpi_reward'] ?? 0) > 0) { ?>
                                         <div class="badge-reward-vibrant" title="Thưởng KPI">
                                             <i class="fas fa-gift"></i>
@@ -381,9 +384,11 @@
                                                 <span class="badge-secondary-minimal text-xs"
                                                       style="min-width: 85px; text-align: center; background: rgba(0,0,0,0.05);">Người duyệt</span>
                                                 <div style="flex:1; line-height:1.5;">
-                                                    <?= implode(', ', array_map(function ($m) {
-                                                        return esc($m['full_name'] ?? 'N/A');
-                                                    }, $memberGroups['approver'])) ?>
+                                                    <?php foreach ($memberGroups['approver'] as $idx => $m) { ?>
+                                                        <a href="<?= base_url('employees/edit/' . $m['employee_id']) ?>" class="link-premium text-sm font-weight-600">
+                                                            <?= esc($m['full_name'] ?? 'N/A') ?><?= ($idx < count($memberGroups['approver']) - 1) ? ',' : '' ?>
+                                                        </a>
+                                                    <?php } ?>
                                                 </div>
                                             </div>
                                         <?php } ?>
@@ -392,9 +397,11 @@
                                                 <span class="badge-info-minimal text-xs"
                                                       style="min-width: 85px; text-align: center;">Chuyên môn</span>
                                                 <div style="flex:1; line-height:1.5;">
-                                                    <?= implode(', ', array_map(function ($m) {
-                                                        return esc($m['full_name'] ?? 'N/A');
-                                                    }, $memberGroups['assignee'])) ?>
+                                                    <?php foreach ($memberGroups['assignee'] as $idx => $m) { ?>
+                                                        <a href="<?= base_url('employees/edit/' . $m['employee_id']) ?>" class="link-premium text-sm font-weight-600">
+                                                            <?= esc($m['full_name'] ?? 'N/A') ?><?= ($idx < count($memberGroups['assignee']) - 1) ? ',' : '' ?>
+                                                        </a>
+                                                    <?php } ?>
                                                 </div>
                                             </div>
                                         <?php } ?>
@@ -403,9 +410,11 @@
                                                 <span class="text-muted-dark text-xs"
                                                       style="min-width: 85px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px;">Hỗ trợ</span>
                                                 <div style="flex:1; line-height:1.5; font-weight:500;">
-                                                    <?= implode(', ', array_map(function ($m) {
-                                                        return esc($m['full_name'] ?? 'N/A');
-                                                    }, $memberGroups['supporter'])) ?>
+                                                    <?php foreach ($memberGroups['supporter'] as $idx => $m) { ?>
+                                                        <a href="<?= base_url('employees/edit/' . $m['employee_id']) ?>" class="link-premium text-sm font-weight-600">
+                                                            <?= esc($m['full_name'] ?? 'N/A') ?><?= ($idx < count($memberGroups['supporter']) - 1) ? ',' : '' ?>
+                                                        </a>
+                                                    <?php } ?>
                                                 </div>
                                             </div>
                                         <?php } ?>
@@ -420,13 +429,18 @@
                         <div class="flex-row justify-between align-center m-b-20">
                             <h3 class="section-header-title m-0">Lộ trình & Định mức thưởng</h3>
                             
-                            <?php if (has_permission('sys.admin')) { ?>
-                                <a href="<?= base_url('cases/sync-rewards/' . $case['id']) ?>" 
-                                   class="btn-secondary-sm text-xs" 
-                                   onclick="return confirm('Hệ thống sẽ cập nhật lại định mức thưởng mới nhất từ Quy trình gốc cho tất cả các bước của vụ việc này. Tiếp tục?')"
-                                   style="padding: 4px 10px; border-radius: 6px; font-weight: 600;">
-                                    <i class="fas fa-sync-alt m-r-5"></i> Đồng bộ thưởng từ Template
-                                </a>
+                            <?php if (has_permission('sys.admin') || has_permission('case.edit_all')) { ?>
+                                <div style="display: flex; gap: 8px;">
+                                    <button type="button" onclick="document.getElementById('addStepModal').style.display='flex'" class="btn-secondary-sm flex-item-center" style="padding: 4px 12px; font-size: 12px; font-weight: 600; height: 32px;cursor: pointer">
+                                        <i class="fas fa-plus text-apple-blue m-r-5"></i> Thêm bước
+                                    </button>
+                                    <a href="<?= base_url('cases/sync-rewards/' . $case['id']) ?>" 
+                                       class="btn-secondary-sm flex-item-center" 
+                                       onclick="return confirm('Hệ thống sẽ cập nhật lại định mức thưởng mới nhất từ Quy trình gốc cho tất cả các bước của vụ việc này. Tiếp tục?')"
+                                       style="padding: 4px 12px; font-size: 12px; font-weight: 600; height: 32px;">
+                                        <i class="fas fa-sync-alt text-muted m-r-5"></i> Đồng bộ thưởng
+                                    </a>
+                                </div>
                             <?php } ?>
                         </div>
                         <div class="roadmap-timeline m-t-20">
@@ -443,19 +457,53 @@
                                         <div class="flex-column">
                                             <div class="roadmap-step-name">
                                                 Bước <?= $idx + 1 ?>: <?= esc($s['step_name']) ?>
+                                                <span class="badge-secondary-minimal text-xxs m-l-5" style="vertical-align: middle; padding: 2px 8px; font-weight: 600;">
+                                                    <i class="fas fa-hourglass-start m-r-4"></i><?= $s['duration_days'] ?> ngày
+                                                </span>
                                                 <?php if ($isCompleted) { ?> <i class="fas fa-check-circle text-green m-l-5"></i> <?php } ?>
                                             </div>
                                             <div class="text-xs text-muted-dark m-t-4">
-                                                <?= $isCompleted ? 'Đã hoàn thành lúc ' . date('d/m/Y H:i', strtotime($s['completed_at'])) : 'Hạn xử lý: ' . date('d/m/Y', strtotime($s['deadline'])) ?>
+                                                <?php if ($isCompleted) { 
+                                                    $isLate = strtotime($s['completed_at']) > strtotime($s['deadline']);
+                                                ?>
+                                                    Hạn quy định: <span class="text-apple-main font-weight-600"><?= date('d/m/Y', strtotime($s['deadline'])) ?></span> 
+                                                    - Thực tế: <span class="<?= $isLate ? 'text-apple-red' : 'text-apple-main' ?> font-weight-600"><?= date('d/m/Y H:i', strtotime($s['completed_at'])) ?></span>
+                                                <?php } else { 
+                                                    $isOverdue = strtotime($s['deadline']) < time();
+                                                ?>
+                                                    Hạn xử lý: <span class="<?= $isOverdue ? 'text-apple-red' : 'text-apple-main' ?> font-weight-700"><?= date('d/m/Y', strtotime($s['deadline'])) ?></span>
+                                                <?php } ?>
                                             </div>
+                                            <?php 
+                                            $sDocs = !empty($s['required_documents']) ? json_decode($s['required_documents'], true) : [];
+                                            if (!empty($sDocs)) { ?>
+                                                <div class="roadmap-docs-list m-t-8" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                    <?php foreach ($sDocs as $docName) { ?>
+                                                        <span class="badge-secondary-minimal text-xxs" style="padding: 2px 8px; border-radius: 4px; background: rgba(0,0,0,0.03); color: var(--apple-text-muted); font-weight: 500;">
+                                                            <i class="fas fa-file-alt m-r-4"></i> <?= esc($docName) ?>
+                                                        </span>
+                                                    <?php } ?>
+                                                </div>
+                                            <?php } ?>
                                         </div>
-                                        <?php if (($s['kpi_reward'] ?? 0) > 0) { ?>
-                                            <div class="<?= $isActive ? 'badge-reward-vibrant' : 'reward-label-mini' ?>" style="font-size: 14px;">
-                                                <i class="fas fa-gift"></i> +<?= number_format($s['kpi_reward'], 0, ',', '.') ?> VNĐ
-                                            </div>
-                                        <?php } else { ?>
-                                            <div class="text-xs text-muted-dark italic" style="opacity: 0.5;">0đ</div>
-                                        <?php } ?>
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <?php if (($s['kpi_reward'] ?? 0) > 0) { ?>
+                                                <div class="<?= $isActive ? 'badge-reward-vibrant' : 'reward-label-mini' ?>" style="font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 20px;">
+                                                    <i class="fas fa-gift"></i> +<?= number_format($s['kpi_reward'], 0, ',', '.') ?> VNĐ
+                                                </div>
+                                            <?php } else { ?>
+                                                <div class="text-xs text-muted-dark italic" style="opacity: 0.5;">0đ</div>
+                                            <?php } ?>
+                                            
+                                            <?php if (has_permission('sys.admin') || has_permission('case.edit_all')) { ?>
+                                                <a href="<?= base_url('cases/delete-step/' . $s['id']) ?>" 
+                                                   onclick="return confirm('Xác nhận xóa bỏ bước này khỏi quy trình? Lưu ý: Hành động này không thể hoàn tác.')"
+                                                   class="btn-secondary-sm flex-item-center text-apple-red" title="Xóa bước này" 
+                                                   style="padding: 0; width: 28px; height: 28px; justify-content: center; border-radius: 6px; background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.2);">
+                                                    <i class="fas fa-trash-alt" style="font-size: 12px;"></i>
+                                                </a>
+                                            <?php } ?>
+                                        </div>
                                     </div>
                                 </div>
                             <?php } ?>
@@ -966,6 +1014,67 @@
                 </form>
             </div>
         <?php } ?>
+    </div>
+</div>
+
+<!-- Add Step Modal -->
+<div id="addStepModal" class="modal-overlay"
+     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1100; align-items:center; justify-content:center;">
+    <div class="premium-card p-20" style="width:500px; position:relative;">
+        <h3 class="section-header-title">Thêm bước phát sinh</h3>
+        <p class="text-xs text-muted-dark m-b-20">Bước mới sẽ được thêm vào cuối quy trình (hoặc tự động sắp xếp theo thời hạn).</p>
+        
+        <form action="<?= base_url('cases/add-step/' . $case['id']) ?>" method="POST">
+            <?= csrf_field() ?>
+            <div class="form-group-premium m-b-15">
+                <label class="info-list-label m-b-5" style="display:block;">Tên bước công việc <span class="text-apple-red">*</span></label>
+                <input type="text" name="step_name" class="form-control-premium" required placeholder="Ví dụ: Bổ sung hồ sơ tài chính phụ">
+            </div>
+
+            <div class="form-group-premium m-b-15">
+                <label class="info-list-label m-b-5" style="display:block;">Tài liệu bắt buộc (Cách nhau bằng dấu phẩy)</label>
+                <input type="text" name="required_documents_raw" class="form-control-premium" placeholder="Ví dụ: CCCD, Hợp đồng lao động, Giấy xác nhận...">
+            </div>
+
+            <div class="form-group-premium m-b-15">
+                <label class="info-list-label m-b-5" style="display:block;">Vị trí chèn <span class="text-apple-red">*</span></label>
+                <select name="insert_after_step_id" class="form-control-premium" required>
+                    <?php 
+                        $lastCompletedOrder = 0;
+                        foreach($steps as $s) {
+                            if ($s['status'] === 'completed') $lastCompletedOrder = $s['sort_order'];
+                        }
+                    ?>
+                    <option value="0" <?= $lastCompletedOrder > 0 ? 'disabled' : '' ?>>-- Chèn vào đầu quy trình --</option>
+                    <?php foreach ($steps as $idx => $s) { 
+                        $isCompleted = ($s['status'] === 'completed');
+                        $isDisabled = ($isCompleted && $s['sort_order'] < $lastCompletedOrder);
+                    ?>
+                        <option value="<?= $s['id'] ?>" <?= $isDisabled ? 'disabled' : '' ?>>
+                            Sau bước <?= $idx + 1 ?>: <?= esc($s['step_name']) ?> <?= $isCompleted ? '(Đã xong)' : '' ?>
+                        </option>
+                    <?php } ?>
+                    <option value="-1" selected>-- Chèn vào cuối quy trình --</option>
+                </select>
+            </div>
+            
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group-premium m-b-15">
+                    <label class="info-list-label m-b-5" style="display:block;">Thời gian dự kiến (Ngày)</label>
+                    <input type="number" name="duration_days" class="form-control-premium" min="1" value="3" required>
+                </div>
+                <div class="form-group-premium m-b-15">
+                    <label class="info-list-label m-b-5" style="display:block;">Thưởng KPI (VNĐ)</label>
+                    <input type="text" name="kpi_reward" class="form-control-premium" value="0" onkeyup="this.value=this.value.replace(/[^\d]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
+                </div>
+            </div>
+            
+            <div class="form-actions-row m-t-20 text-center" style="justify-content: flex-end; gap: 12px;">
+                <button type="button" class="btn-secondary-sm" onclick="document.getElementById('addStepModal').style.display='none'">Hủy</button>
+                <button type="submit" class="btn-premium"><i class="fas fa-save m-r-8"></i> Thêm bước</button>
+            </div>
+        </form>
     </div>
 </div>
 

@@ -29,10 +29,10 @@ class Database extends Config
         'hostname'     => 'localhost',
         'username'     => 'luatanborqy7_erp', // live
         'password'     => '4EkhR7pvQUSJpxbxaLZV', // live
-//        'username'     => 'luatanborqy7_dev',// dev
-//        'password'     => 'YYXWTvGJSssB3aPWuWQ3', // dev
+ //       'username'     => 'luatanborqy7_dev',// dev
+ //       'password'     => 'YYXWTvGJSssB3aPWuWQ3', // dev
         'database'     => 'luatanborqy7_erp',
-//        'database'     => 'luatanborqy7_dev',
+ //       'database'     => 'luatanborqy7_dev',
         'DBDriver'     => 'MySQLi',
         'DBPrefix'     => '',
         'pConnect'     => false,

@@ -77,5 +77,11 @@ class AppConstants
     // IP mạng LAN nội bộ được phép điểm danh không cần camera
     public const ATT_LAN_IPS = ['1.55.89.247', '::1', '255.255.255.0', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.2', '172.3', '192.168.'];
 
+    // === BẢO HIỂM & THUẾ (INSURANCE & TAX) ===
+    public const SI_RATE_EMPLOYER = 0.215; // 21.5%
+    public const SI_RATE_EMPLOYEE = 0.105; // 10.5%
+    public const PERSONAL_TAX_THRESHOLD = 11000000; // 11tr
+    public const DEPENDENT_DEDUCTION_AMOUNT = 4400000; // 4.4tr
+
     // === PHÂN LOẠI VỤ VIỆC (CASE TYPES CATEGORIES) ===
 }

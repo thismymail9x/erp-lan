@@ -164,12 +164,32 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="salary_base">Mức lương cơ bản (VNĐ)</label>
+                    <label for="salary_base">Mức lương tháng (Lương CB)</label>
                     <input type="number" name="salary_base" id="salary_base" required value="<?= (int)$employee['salary_base'] ?>" <?= $restrictedAttr ?>>
                 </div>
 
-                <div class="form-group form-group-full">
-                    <label for="allowance_base">Phụ cấp cố định (VNĐ)</label>
+                <div class="form-group">
+                    <label for="insurance_salary">Lương đóng Bảo hiểm</label>
+                    <input type="number" name="insurance_salary" id="insurance_salary" value="<?= (int)($employee['insurance_salary'] ?? $employee['salary_base']) ?>" <?= $restrictedAttr ?>>
+                </div>
+
+                <div class="form-group">
+                    <label for="diligence_allowance">Phụ cấp chuyên cần</label>
+                    <input type="number" name="diligence_allowance" id="diligence_allowance" value="<?= (int)($employee['diligence_allowance'] ?? 0) ?>" <?= $restrictedAttr ?>>
+                </div>
+
+                <div class="form-group">
+                    <label for="petrol_allowance">Phụ cấp xăng xe</label>
+                    <input type="number" name="petrol_allowance" id="petrol_allowance" value="<?= (int)($employee['petrol_allowance'] ?? 0) ?>" <?= $restrictedAttr ?>>
+                </div>
+
+                <div class="form-group">
+                    <label for="dependent_count">Số người phụ thuộc (Giảm trừ thuế)</label>
+                    <input type="number" name="dependent_count" id="dependent_count" value="<?= (int)($employee['dependent_count'] ?? 0) ?>" <?= $restrictedAttr ?>>
+                </div>
+
+                <div class="form-group">
+                    <label for="allowance_base">Phụ cấp khác (VNĐ)</label>
                     <input type="number" name="allowance_base" id="allowance_base" value="<?= (int)($employee['allowance_base'] ?? 0) ?>" <?= $restrictedAttr ?> placeholder="Ví dụ: 500000">
                 </div>
             </div>

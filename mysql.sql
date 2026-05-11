@@ -785,3 +785,56 @@ ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `notes_json` TEXT COMMENT 'Danh 
 -- Quy tắc 4 & 5: Bổ sung cột theo dõi ngày nhắc nhở để tránh spam và hỗ trợ nhắc nhở hàng ngày.
 -- ----------------------------
 ALTER TABLE `case_steps` ADD COLUMN IF NOT EXISTS `last_overdue_notified_at` DATE NULL DEFAULT NULL COMMENT 'Ngày cuối cùng hệ thống gửi thông báo nhắc nhở quá hạn cho bước này' AFTER `overdue_notified`;
+
+-- ----------------------------
+-- UPDATE LOG: 09/05/2026 - Cập nhật cấu trúc bảng lương (Payroll Engine v2)
+-- Quy tắc 4 & 5: Đồng bộ hóa cấu trúc chi tiết bảo hiểm, thuế và phụ cấp.
+-- ----------------------------
+ALTER TABLE `employees` ADD COLUMN IF NOT EXISTS `insurance_salary` DECIMAL(15,2) DEFAULT 0 COMMENT 'Lương đóng bảo hiểm' AFTER `salary_base`;
+ALTER TABLE `employees` ADD COLUMN IF NOT EXISTS `diligence_allowance` DECIMAL(15,2) DEFAULT 0 COMMENT 'Phụ cấp chuyên cần' AFTER `allowance_base`;
+ALTER TABLE `employees` ADD COLUMN IF NOT EXISTS `petrol_allowance` DECIMAL(15,2) DEFAULT 0 COMMENT 'Phụ cấp xăng xe' AFTER `diligence_allowance`;
+ALTER TABLE `employees` ADD COLUMN IF NOT EXISTS `dependent_count` INT DEFAULT 0 COMMENT 'Số người phụ thuộc' AFTER `petrol_allowance`;
+
+ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `insurance_salary` DECIMAL(15,2) DEFAULT 0 COMMENT 'Lương đóng bảo hiểm' AFTER `salary_base`;
+ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `salary_per_day` DECIMAL(15,2) DEFAULT 0 COMMENT 'Lương 1 ngày công' AFTER `total_standard_days`;
+ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `taxable_income` DECIMAL(15,2) DEFAULT 0 COMMENT 'Lương theo ngày công làm việc (TNCT)' AFTER `actual_working_days`;
+ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `diligence_allowance` DECIMAL(15,2) DEFAULT 0 COMMENT 'Phụ cấp chuyên cần' AFTER `salary_allowance`;
+ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `petrol_allowance` DECIMAL(15,2) DEFAULT 0 COMMENT 'Phụ cấp xăng xe' AFTER `diligence_allowance`;
+ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `si_employer` DECIMAL(15,2) DEFAULT 0 COMMENT 'BHXH vào chi phí (21.5%)' AFTER `salary_bonus`;
+ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `si_employee` DECIMAL(15,2) DEFAULT 0 COMMENT 'BHXH trừ vào lương (10.5%)' AFTER `si_employer`;
+ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `dependent_deduction` DECIMAL(15,2) DEFAULT 0 COMMENT 'Giảm trừ phụ thuộc' AFTER `si_employee`;
+ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `pit_tax` DECIMAL(15,2) DEFAULT 0 COMMENT 'Thuế TNCN' AFTER `dependent_deduction`;
+ALTER TABLE `payrolls` ADD COLUMN IF NOT EXISTS `total_deductions` DECIMAL(15,2) DEFAULT 0 COMMENT 'Tổng cộng các khoản giảm trừ' AFTER `pit_tax`;
+
+ -- ----------------------------
+ -- UPDATE LOG: 11/05/2026 - Tối ưu hóa cấu trúc bảng lương (Payroll Cleanup)
+ -- Quy tắc: Gộp các khoản thưởng/phát sinh và xóa bỏ các cột dư thừa không còn sử dụng.
+ -- ----------------------------
+ -- 1. Di chuyển dữ liệu từ Phát sinh (salary_other) sang Khác (salary_bonus) trước khi xóa
+ UPDATE `payrolls` SET `salary_bonus` = `salary_bonus` + IFNULL(`salary_other`, 0);
+
+ -- 2. Xóa bỏ các cột dư thừa
+ ALTER TABLE `payrolls` DROP COLUMN IF EXISTS `salary_other`;
+ ALTER TABLE `payrolls` DROP COLUMN IF EXISTS `salary_allowance`;
+ ALTER TABLE `payrolls` DROP COLUMN IF EXISTS `notes`;
+
+ -- ----------------------------
+ CREATE TABLE IF NOT EXISTS `work_schedules` (
+     `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+     `employee_id` int(11) unsigned NOT NULL COMMENT 'ID nhân sự sở hữu lịch trình',
+     `assigned_by_id` int(11) unsigned DEFAULT NULL COMMENT 'ID người giao việc hoặc người được đi thay',
+     `created_by` int(11) unsigned NOT NULL COMMENT 'ID nhân sự tạo bản ghi',
+     `type` enum('work', 'business_trip') NOT NULL DEFAULT 'work' COMMENT 'Loại lịch trình: work (Công việc), business_trip (Công tác)',
+     `title` varchar(255) NOT NULL COMMENT 'Tiêu đề ngắn gọn của lịch trình',
+     `location` varchar(255) DEFAULT NULL COMMENT 'Địa điểm làm việc/công tác',
+     `start_at` datetime NOT NULL COMMENT 'Thời gian bắt đầu',
+     `end_at` datetime NOT NULL COMMENT 'Thời gian kết thúc',
+     `status` enum('pending', 'active', 'completed', 'cancelled') DEFAULT 'active' COMMENT 'Trạng thái lịch trình',
+     `created_at` datetime DEFAULT NULL,
+     `updated_at` datetime DEFAULT NULL,
+     `deleted_at` datetime DEFAULT NULL,
+     PRIMARY KEY (`id`),
+     CONSTRAINT `fk_ws_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
+     CONSTRAINT `fk_ws_creator` FOREIGN KEY (`created_by`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
+     CONSTRAINT `fk_ws_assigner` FOREIGN KEY (`assigned_by_id`) REFERENCES `employees` (`id`) ON DELETE SET NULL
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Bảng lưu trữ lịch làm việc và công tác của nhân sự';
