@@ -9,10 +9,12 @@ $routes->get('/', 'AuthController::login'); // Trang chủ, chuyển hướng đ
 $routes->get('fix', 'FixController::index'); // Sửa lỗi chung (tạm thời)
 $routes->get('perm-fix', 'PermFixController::index'); // Sửa lỗi phân quyền
 $routes->get('perm-fix/sync', 'PermFixController::sync'); // Cập nhật lại hệ thống (đồng bộ quyền)
+$routes->get('perm-fix/contacts', 'PermFixController::fixContacts'); // Khởi tạo danh bạ liên hệ
 $routes->get('dump-perms', 'PermFixController::dumpPerms'); // Xem cấu trúc quyền hiện tại
 $routes->get('run-migrations', 'Migrator::index'); // Chạy migrate cơ sở dữ liệu
 $routes->get('check-db', 'Migrator::check'); // Kiểm tra cấu trúc database
 $routes->get('debug-users', 'Migrator::debug_users'); // Kiểm tra tài khoản người dùng
+$routes->get('temp-import-contacts', 'TempImportController::import'); // Import dữ liệu danh bạ từ XML
 // Auth Routes
 
 $routes->get('login', 'AuthController::login'); // Hiển thị trang đăng nhập
@@ -222,6 +224,7 @@ $routes->group('payroll', function($routes) {
 });
 
 
+
 // Work Schedule Management Routes
 $routes->group('work-schedules', function($routes) {
     $routes->get('/', 'WorkScheduleController::index'); // Giao diện lịch trình chính
@@ -231,6 +234,16 @@ $routes->group('work-schedules', function($routes) {
     $routes->post('update/(:num)', 'WorkScheduleController::update/$1'); // Cập nhật lịch trình
     $routes->post('delete/(:num)', 'WorkScheduleController::delete/$1'); // Xóa lịch trình
 });
+
+// Contact Management Routes
+$routes->group('contacts', function($routes) {
+    $routes->get('/', 'ContactController::index'); // Danh sách liên hệ
+    $routes->post('save', 'ContactController::save'); // Thêm mới
+    $routes->post('save/(:num)', 'ContactController::save/$1'); // Cập nhật
+    $routes->get('delete/(:num)', 'ContactController::delete/$1'); // Xóa
+    $routes->post('toggle-private', 'ContactController::togglePrivateBatch'); // Bật/tắt Private hàng loạt
+});
+
 
 // Utility Routes
 $routes->get('db-check', 'DbCheck::index'); // Kiểm tra kết nối database

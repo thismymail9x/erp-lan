@@ -104,7 +104,7 @@ class WorkScheduleController extends BaseController
                 'title' => "[{$typeLabel}] {$item['employee_name']}: {$item['title']}",
                 'start' => $item['start_at'],
                 'end' => $item['end_at'],
-                'color' => $color,
+                'color' => ($item['type'] === 'business_trip') ? '#10b981' : '#f59e0b', // Công tác: Green, Văn phòng: Yellow
                 'location' => $item['location'],
                 'extendedProps' => [
                     'type' => $item['type'],
@@ -118,6 +118,72 @@ class WorkScheduleController extends BaseController
                     'is_same_day' => $isSameDay
                 ]
             ];
+        }
+
+        // Lấy thêm danh sách nghỉ phép nếu được phép xem (Gộp module)
+        if (has_permission('leave.view') && (empty($filters['types']) || in_array('leave', $filters['types']))) {
+            $leaveModel = new \App\Models\LeaveRequestModel();
+            $leaveQuery = $leaveModel->getLeaveRequests([
+                'status' => 'approved'
+            ]);
+            
+            if (!empty($filters['start_date'])) {
+                $leaveQuery->groupStart()
+                            ->where('leave_requests.start_date >=', $filters['start_date'])
+                            ->orWhere('leave_requests.end_date >=', $filters['start_date'])
+                          ->groupEnd();
+            }
+            if (!empty($filters['end_date'])) {
+                $leaveQuery->groupStart()
+                            ->where('leave_requests.start_date <=', $filters['end_date'])
+                            ->orWhere('leave_requests.end_date <=', $filters['end_date'])
+                          ->groupEnd();
+            }
+
+            if (!empty($filters['employee_id'])) {
+                $leaveQuery->where('leave_requests.employee_id', $filters['employee_id']);
+            }
+            if (!empty($filters['dept_id'])) {
+                $leaveQuery->where('e.department_id', $filters['dept_id']);
+            }
+            
+            $leaves = $leaveQuery->findAll();
+            foreach ($leaves as $leave) {
+                $start = $leave['start_date'];
+                $end = $leave['end_date'];
+                $timeDisplay = 'Cả ngày';
+                
+                if ($leave['leave_duration'] === 'morning_half') {
+                    $start .= ' 08:00:00';
+                    $end .= ' 12:00:00';
+                    $timeDisplay = 'Sáng (08:00-12:00)';
+                } elseif ($leave['leave_duration'] === 'afternoon_half') {
+                    $start .= ' 13:00:00';
+                    $end .= ' 17:00:00';
+                    $timeDisplay = 'Chiều (13:00-17:00)';
+                } else {
+                    $start .= ' 08:00:00';
+                    $end .= ' 17:00:00';
+                    $timeDisplay = 'Cả ngày (08:00-17:00)';
+                }
+
+                $events[] = [
+                    'id' => 'leave_' . $leave['id'],
+                    'title' => "[Nghỉ phép] " . $leave['employee_name'],
+                    'start' => $start,
+                    'end' => $end,
+                    'color' => '#e74c3c', // Màu đỏ cho nghỉ phép
+                    'extendedProps' => [
+                        'type' => 'leave',
+                        'type_label' => 'Nghỉ cá nhân',
+                        'employee_name' => $leave['employee_name'],
+                        'location' => 'Nghỉ phép',
+                        'time_display' => $timeDisplay,
+                        'date_display' => date('d/m', strtotime($leave['start_date'])) . ' - ' . date('d/m/Y', strtotime($leave['end_date'])),
+                        'is_same_day' => ($leave['start_date'] === $leave['end_date'])
+                    ]
+                ];
+            }
         }
 
         return $this->response->setJSON($events);

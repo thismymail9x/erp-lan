@@ -1,0 +1,116 @@
+/**
+ * FINANCE MODULE STYLES - ERP L.A.N
+ */
+
+.finance-header-stats {
+    display: flex;
+    gap: 10px;
+}
+
+.finance-stat-badge {
+    padding: 8px 15px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+}
+
+.finance-stat-total {
+    background: rgba(var(--apple-blue-rgb), 0.1);
+    color: var(--apple-blue);
+}
+
+.finance-stat-paid {
+    background: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+}
+
+.finance-stat-unpaid {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+.finance-filter-container {
+    background: var(--apple-gray-light);
+    padding: 15px;
+    border-radius: 12px;
+}
+
+.finance-filter-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.finance-search-wrapper {
+    flex: 2;
+    min-width: 200px;
+    position: relative;
+}
+
+.finance-search-clear {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: var(--apple-red);
+}
+
+.finance-search-loader {
+    position: absolute;
+    right: 35px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.finance-filter-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex: 3;
+}
+
+.finance-filter-group select {
+    flex: 1;
+    min-width: 0;
+}
+
+.btn-reset-filters {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+}
+
+/* Table specific styles */
+.finance-case-title {
+    font-weight: 600;
+    color: var(--apple-main);
+}
+
+.finance-payment-item {
+    background: rgba(var(--apple-gray-rgb), 0.5);
+    padding: 5px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.finance-payment-list {
+    font-size: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.finance-payment-amount {
+    color: var(--apple-blue);
+    font-weight: 600;
+}

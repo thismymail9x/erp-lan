@@ -1,4 +1,4 @@
-# TÃ€I LIá»†U PHÃT TRIá»‚N CHI TIáº¾T (TECHNICAL DEVELOPER GUIDE)
+ï»¿# TÃ€I LIá»†U PHÃT TRIá»‚N CHI TIáº¾T (TECHNICAL DEVELOPER GUIDE)
 
 TÃ i liá»‡u nÃ y hÆ°á»›ng dáº«n cÃ¡ch há»‡ thá»‘ng váº­n hÃ nh vÃ  cÃ¡c bÆ°á»›c cá»¥ thá»ƒ Ä‘á»ƒ má»Ÿ rá»™ng tÃ­nh nÄƒng má»›i cho cáº£ **NgÆ°á»i quáº£n lÃ½ dá»¯ liá»‡u** vÃ  **Láº­p trÃ¬nh viÃªn**.
 
@@ -179,23 +179,23 @@ Module Vá»¥ viá»‡c Ä‘Æ°á»£c nÃ¢ng cáº¥p Ä‘á»ƒ giáº£i quyáº¿t bÃ i toÃ¡n luÃ¢n ch
 
 *Cáº­p nháº­t láº§n cuá»‘i: 21/04/2026 - Bá»• sung Quy táº¯c Sá»‘ 13: CÆ¡ cháº¿ BÃ n giao & KPI chi tiáº¿t.*
 
-## Tính nang Ngh? phép N?a ngày (Half-day Leave)
-- **Mô t?**: Cho phép nhân viên t?o don ngh? phép v?i kho?ng th?i gian ch? m?t n?a ngày (Sáng/Chi?u).
-- **Ğ?i tu?ng**: T?t c? nhân s? có quy?n leave.manage.
-- **Quy trình**: C?p nh?t Database (leave_duration trong b?ng leave_requests), thay d?i UI t? khóa Ngày k?t thúc trùng v?i Ngày b?t d?u, và Service t? d?ng n?i suy t?ng s? ngày là  .5.
+## Tï¿½nh nang Ngh? phï¿½p N?a ngï¿½y (Half-day Leave)
+- **Mï¿½ t?**: Cho phï¿½p nhï¿½n viï¿½n t?o don ngh? phï¿½p v?i kho?ng th?i gian ch? m?t n?a ngï¿½y (Sï¿½ng/Chi?u).
+- **ï¿½?i tu?ng**: T?t c? nhï¿½n s? cï¿½ quy?n leave.manage.
+- **Quy trï¿½nh**: C?p nh?t Database (leave_duration trong b?ng leave_requests), thay d?i UI t? khï¿½a Ngï¿½y k?t thï¿½c trï¿½ng v?i Ngï¿½y b?t d?u, vï¿½ Service t? d?ng n?i suy t?ng s? ngï¿½y lï¿½  .5.
 
 ---
 
-## 12. Phân h? Truy?n thông MKT (MKT Hub)
-- **M?c dích:** Xây d?ng quy trình khép kín gi?a nhân viên hi?n tru?ng (thu th?p tu li?u, ?nh th?c t?) và b? ph?n MKT (Ki?m duy?t, t?i uu SEO, dang bài MXH). Giúp công ty luôn có ngu?n content d?i dào, chân th?c.
+## 12. Phï¿½n h? Truy?n thï¿½ng MKT (MKT Hub)
+- **M?c dï¿½ch:** Xï¿½y d?ng quy trï¿½nh khï¿½p kï¿½n gi?a nhï¿½n viï¿½n hi?n tru?ng (thu th?p tu li?u, ?nh th?c t?) vï¿½ b? ph?n MKT (Ki?m duy?t, t?i uu SEO, dang bï¿½i MXH). Giï¿½p cï¿½ng ty luï¿½n cï¿½ ngu?n content d?i dï¿½o, chï¿½n th?c.
 - **Quy?n h?n:**
-  - Nhân viên có quy?n mkt.hub ho?c m?c d?nh du?c c?p quy?n g?i tu li?u.
-  - B? ph?n MKT ho?c Qu?n lı du?c c?p quy?n mkt.manage có th? xem toàn b? tu li?u, duy?t ?nh, và th?c hi?n xóa d?n d?p h? th?ng.
-- **Tính nang tr?ng tâm:**
-  - **Auto-Nullify & Soft Delete:** Áp d?ng cho b?ng mkt_materials (Tu li?u) d? qu?n lı l?ch s? an toàn.
-  - **SEO Naming:** T? d?ng b?t tên g?c c?a file ho?c nhân viên t? gán tên chu?n SEO (vd: 	u-van-ly-hon.jpg) ngay t? lúc upload, ph?c v? d?y m?nh t?i uu SEO Facebook/Google.
-  - **Clear Data:** Co ch? c?ng xóa các b?n nháp rác/t? ch?i d? ch?ng d?y b? nh? ? c?ng.
-  - **Data Isolation:** Nhân viên ch? xem du?c ?nh mình t? up, MKT xem du?c ?nh c?a toàn b? nhân viên.
+  - Nhï¿½n viï¿½n cï¿½ quy?n mkt.hub ho?c m?c d?nh du?c c?p quy?n g?i tu li?u.
+  - B? ph?n MKT ho?c Qu?n lï¿½ du?c c?p quy?n mkt.manage cï¿½ th? xem toï¿½n b? tu li?u, duy?t ?nh, vï¿½ th?c hi?n xï¿½a d?n d?p h? th?ng.
+- **Tï¿½nh nang tr?ng tï¿½m:**
+  - **Auto-Nullify & Soft Delete:** ï¿½p d?ng cho b?ng mkt_materials (Tu li?u) d? qu?n lï¿½ l?ch s? an toï¿½n.
+  - **SEO Naming:** T? d?ng b?t tï¿½n g?c c?a file ho?c nhï¿½n viï¿½n t? gï¿½n tï¿½n chu?n SEO (vd: 	u-van-ly-hon.jpg) ngay t? lï¿½c upload, ph?c v? d?y m?nh t?i uu SEO Facebook/Google.
+  - **Clear Data:** Co ch? c?ng xï¿½a cï¿½c b?n nhï¿½p rï¿½c/t? ch?i d? ch?ng d?y b? nh? ? c?ng.
+  - **Data Isolation:** Nhï¿½n viï¿½n ch? xem du?c ?nh mï¿½nh t? up, MKT xem du?c ?nh c?a toï¿½n b? nhï¿½n viï¿½n.
 
 ---
 
@@ -224,21 +224,25 @@ Báº£o vá»‡ cÃ¡c dá»¯ liá»‡u nháº¡y cáº£m (LÆ°Æ¡ng, NgÃ¢n hÃ ng, CCCD) khá»i viá
 
 ---
 
-## 10. Module L?ch làm vi?c & Công tác (Work Schedule)
-Module này du?c thi?t k? d? nhân s? toàn công ty có th? thông báo và theo dõi l?ch trình c?a nhau, tang tính ph?i h?p và minh b?ch.
+## 10. Module L?ch lï¿½m vi?c & Cï¿½ng tï¿½c (Work Schedule)
+Module nï¿½y du?c thi?t k? d? nhï¿½n s? toï¿½n cï¿½ng ty cï¿½ th? thï¿½ng bï¿½o vï¿½ theo dï¿½i l?ch trï¿½nh c?a nhau, tang tï¿½nh ph?i h?p vï¿½ minh b?ch.
 
-### **10.1. Ğ?c di?m n?i b?t:**
-- **Giao di?n L?ch (Calendar View)**: S? d?ng FullCalendar 6 v?i phong cách Apple-Minimal, h? tr? xem chi ti?t nhanh qua Tooltip (Tippy.js).
-- **Phân lo?i màu s?c**: Công vi?c t?i van phòng (Màu xanh - #3498db) và L?ch công tác (Màu d? - #e74c3c).
-- **Thông báo t? d?ng**: Khi m?t l?ch trình m?i du?c t?o, h? th?ng s? t? d?ng g?i thông báo d?n toàn th? nhân viên thông qua `NotificationService`.
+### **10.1. ï¿½?c di?m n?i b?t:**
+- **Giao di?n L?ch (Calendar View)**: S? d?ng FullCalendar 6 v?i phong cï¿½ch Apple-Minimal, h? tr? xem chi ti?t nhanh qua Tooltip (Tippy.js).
+- **Phï¿½n lo?i mï¿½u s?c**: Cï¿½ng vi?c t?i van phï¿½ng (Mï¿½u xanh - #3498db) vï¿½ L?ch cï¿½ng tï¿½c (Mï¿½u d? - #e74c3c).
+- **Thï¿½ng bï¿½o t? d?ng**: Khi m?t l?ch trï¿½nh m?i du?c t?o, h? th?ng s? t? d?ng g?i thï¿½ng bï¿½o d?n toï¿½n th? nhï¿½n viï¿½n thï¿½ng qua `NotificationService`.
 
-### **10.2. Quy t?c Phân quy?n (RBAC):**
-- **Xem l?ch trình (`work_schedule.view`)**: Toàn b? nhân viên chính th?c d?u có quy?n xem l?ch trình c?a d?ng nghi?p d? ph?i h?p công vi?c.
-- **Qu?n lı l?ch trình (`work_schedule.manage`)**: 
-    - Nhân viên du?c quy?n t?o/s?a/xóa l?ch trình c?a chính mình.
-    - Admin và Tru?ng phòng có quy?n qu?n lı l?ch trình c?a c?p du?i.
-    - H? th?ng th?c hi?n ki?m tra quy?n s? h?u nghiêm ng?t t?i Service layer (Rule #7).
+### **10.2. Quy t?c Phï¿½n quy?n (RBAC):**
+- **Xem l?ch trï¿½nh (`work_schedule.view`)**: Toï¿½n b? nhï¿½n viï¿½n chï¿½nh th?c d?u cï¿½ quy?n xem l?ch trï¿½nh c?a d?ng nghi?p d? ph?i h?p cï¿½ng vi?c.
+- **Qu?n lï¿½ l?ch trï¿½nh (`work_schedule.manage`)**: 
+    - Nhï¿½n viï¿½n du?c quy?n t?o/s?a/xï¿½a l?ch trï¿½nh c?a chï¿½nh mï¿½nh.
+    - Admin vï¿½ Tru?ng phï¿½ng cï¿½ quy?n qu?n lï¿½ l?ch trï¿½nh c?a c?p du?i.
+    - H? th?ng th?c hi?n ki?m tra quy?n s? h?u nghiï¿½m ng?t t?i Service layer (Rule #7).
 
-### **10.3. Tích h?p H? th?ng (Compliance Rule #10):**
-- **Master Sync**: Controller `WorkScheduleController` khai báo `` d? t? d?ng dang kı vào h? th?ng phân quy?n khi ch?y `/perm-fix/sync`.
-- **Audit Logs**: M?i thao tác thêm/s?a/xóa d?u du?c ghi l?i trong `system_logs` thông qua `SystemLogService`.
+### **10.3. Tï¿½ch h?p H? th?ng (Compliance Rule #10):**
+- **Master Sync**: Controller `WorkScheduleController` khai bï¿½o `` d? t? d?ng dang kï¿½ vï¿½o h? th?ng phï¿½n quy?n khi ch?y `/perm-fix/sync`.
+- **Audit Logs**: M?i thao tï¿½c thï¿½m/s?a/xï¿½a d?u du?c ghi l?i trong `system_logs` thï¿½ng qua `SystemLogService`.
+
+---
+
+

@@ -787,6 +787,94 @@ body {
     color: #ff9500;
 }
 
+/* New Badge for Sidebar */
+.badge-new-sidebar {
+    background: #34c759;
+    color: #ffffff;
+    font-size: 8px !important;
+    font-weight: 600;
+    padding: 2px 4px;
+    height: 14px;
+    line-height: 10px;
+    border-radius: 2px;
+    margin-left: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0;
+    position: relative;
+    top: -5px;
+    box-shadow: none;
+    animation: pulse-new 2s infinite;
+}
+
+
+@keyframes pulse-new {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Guidance Trigger Icon */
+.guidance-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 113, 227, 0.1);
+    color: var(--apple-blue);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+    margin-left: 10px;
+    vertical-align: middle;
+    transition: all 0.2s ease;
+    border: 1px solid rgba(0, 113, 227, 0.2);
+}
+
+.guidance-trigger:hover {
+    background: var(--apple-blue);
+    color: #ffffff;
+    transform: rotate(15deg) scale(1.1);
+}
+
+/* Modal Styling - Shared */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content-premium {
+    background: #fff;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 95vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    padding: 24px;
+}
+
+.guidance-modal-content {
+    max-width: 500px !important;
+}
+
+
+.guidance-text {
+    line-height: 1.6;
+    color: var(--apple-text);
+    font-size: 15px;
+}
+
 /* Pagination & Search */
 .pagination-wrapper {
     padding: 24px;

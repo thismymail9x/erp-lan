@@ -17,14 +17,10 @@ use CodeIgniter\I18n\Time;
  */
 class AttendanceController extends BaseController
 {
-    /**
-     * Khai báo metadata cho hệ thống Tự động Đồng bộ (Auto-Sync Permissions).
-     * Dùng cho cỗ máy quét tại: /perm-fix/sync
-     */
     public static $modulePermissions = [
         'group' => 'Thời gian & Chấm công',
         'permissions' => [
-            'attendance.view' => 'Xem và quản lý nhật ký chấm công (Dashboard/History)'
+            'attendance.view' => 'Xem lịch sử chấm công'
         ]
     ];
 
@@ -183,8 +179,8 @@ class AttendanceController extends BaseController
             'currentOrder'=> $order
         ];
 
-        // Nếu là nhân sự bình thường, chuyển sang View lịch sử tối giản
-        if (!in_array($role, AppConstants::PRIVILEGED_ROLES) || ($empFilterId && $viewType === 'monthly')) {
+        // Nếu là nhân sự bình thường (và không có quyền theo dõi tổng), chuyển sang View lịch sử tối giản
+        if ((!in_array($role, AppConstants::PRIVILEGED_ROLES) && !has_permission('attendance.view_all')) || ($empFilterId && $viewType === 'monthly')) {
             $historyData = [
                 'title'   => ($empFilterId && $empFilterId != $myEmployeeId) ? 'Lịch sử chấm công: ' . ($data['employeeInfo']['full_name'] ?? '...') : 'Lịch sử chấm công | L.A.N ERP',
                 'history' => $records,
@@ -287,7 +283,7 @@ class AttendanceController extends BaseController
     public function bulkUpdate()
     {
         $role = session()->get('role_name');
-        if (!in_array($role, AppConstants::PRIVILEGED_ROLES)) {
+        if (!in_array($role, AppConstants::PRIVILEGED_ROLES) && !has_permission('attendance.view_all')) {
             return $this->response->setJSON(['code' => 1, 'error' => 'Bạn không có quyền thực hiện nghiệp vụ này.']);
         }
 

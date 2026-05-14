@@ -359,6 +359,10 @@
                     <div class="legend-color" style="background: #e74c3c;"></div>
                     <span>Đi công tác</span>
                 </div>
+                <div class="legend-item active" data-type="leave">
+                    <div class="legend-color" style="background: #10b981;"></div>
+                    <span>Nghỉ phép</span>
+                </div>
             </div>
         </div>
 
@@ -512,6 +516,7 @@
                 });
             },
             eventClick: function(info) {
+                if (info.event.id.toString().startsWith('leave_')) return;
                 openModal('edit', info.event.id);
             },
             eventDidMount: function(info) {

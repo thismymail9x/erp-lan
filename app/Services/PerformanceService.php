@@ -38,6 +38,7 @@ class PerformanceService extends BaseService
         $builder->select('SUM(CASE WHEN cs.completed_at <= cs.deadline THEN cs.kpi_reward ELSE 0 END) as total_kpi, COUNT(cs.id) as completed_count');
         $builder->where('cs.completed_by', $employeeId);
         $builder->where('cs.status', 'completed');
+        $builder->where('cs.deleted_at', null);
         $builder->where('cs.completed_at IS NOT NULL');
         $builder->where('cs.completed_at >=', $startDate);
         $builder->where('cs.completed_at <=', $endDate);

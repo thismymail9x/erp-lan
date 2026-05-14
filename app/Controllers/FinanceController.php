@@ -14,20 +14,64 @@ class FinanceController extends BaseController
         }
 
         $caseService = new CaseService();
-        $cases = $caseService->getCases('updated_at', 'desc', 20, $this->request->getGet('search') ?? '');
-
-        // Tính tổng quan tài chính
-        $totalContracts = 0;
-        foreach ($cases as $c) {
-            $totalContracts += (float)($c['contract_value'] ?? 0);
+        $search = $this->request->getGet('search') ?? '';
+        $month = (int)$this->request->getGet('month');
+        
+        // Cải tiến logic lấy năm: 
+        // - Nếu không có tham số 'year' (null): mặc định năm hiện tại.
+        // - Nếu có tham số 'year' nhưng rỗng (chọn "Tất cả"): lấy giá trị 0.
+        // - Nếu có giá trị cụ thể: lấy giá trị đó.
+        $yearGet = $this->request->getGet('year');
+        if ($yearGet === null) {
+            $year = (int)date('Y');
+        } else {
+            $year = (int)$yearGet;
         }
+
+        $paymentStatus = $this->request->getGet('payment_status') ?? '';
+
+        $cases = $caseService->getCases(
+            'updated_at', 
+            'desc', 
+            20, 
+            $search, 
+            [], 
+            '', 
+            0, 
+            $month, 
+            $year, 
+            $paymentStatus,
+            true
+        );
+
+        // Tính tổng quan tài chính (Toàn bộ dữ liệu theo bộ lọc, không chỉ trang hiện tại)
+        $financeStats = $caseService->getFinanceStats($search, $month, $year, $paymentStatus);
 
         $data = [
             'cases' => $cases,
             'pager' => $caseService->getPager(),
-            'totalContracts' => $totalContracts,
-            'title' => 'Quản lý Tài chính - Kế toán vụ việc | L.A.N ERP'
+            'totalContracts' => $financeStats['total_contract'],
+            'totalPaid' => $financeStats['total_paid'],
+            'totalUnpaid' => $financeStats['total_unpaid'],
+            'title' => 'Quản lý Tài chính - Kế toán vụ việc | L.A.N ERP',
+            'filters' => [
+                'search' => $search,
+                'month' => $month,
+                'year' => $year,
+                'payment_status' => $paymentStatus
+            ]
         ];
+
+        if ($this->request->isAJAX() || $this->request->getGet('ajax') == '1') {
+            return $this->response->setJSON([
+                'html' => view('dashboard/finance/index_table', $data),
+                'stats' => [
+                    'total' => number_format($financeStats['total_contract'], 0, ',', '.') . 'đ',
+                    'paid' => number_format($financeStats['total_paid'], 0, ',', '.') . 'đ',
+                    'unpaid' => number_format($financeStats['total_unpaid'], 0, ',', '.') . 'đ'
+                ]
+            ]);
+        }
 
         return view('dashboard/finance/index', $data);
     }

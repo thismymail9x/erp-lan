@@ -140,67 +140,8 @@ class DashboardController extends BaseController
                 } else {
                     $deptStats['attendance_percent'] = 0;
                 }
-
-                // Nếu là Sale, có thể thêm thống kê khách hàng (nhưng chỉ khách của team)
-                if ($isSaleDept) {
-                    $deptStats['dept_customers'] = $stats['customers'] ?? 0;
-                }
             }
         }
-
-        // --- E. Danh sách nhân sự nghỉ phép (Calendar Data) ---
-        $currentMonthStart = date('Y-m-01');
-        $currentMonthEnd = date('Y-m-t');
-        
-        $leaveRecords = $db->table('leave_requests')
-            ->select('leave_requests.*, employees.full_name as employee_name, departments.name as department_name')
-            ->join('employees', 'employees.id = leave_requests.employee_id')
-            ->join('departments', 'departments.id = employees.department_id', 'left')
-            ->where('leave_requests.status', 'approved')
-            ->groupStart()
-                ->where('leave_requests.start_date >=', $currentMonthStart)
-                ->where('leave_requests.start_date <=', $currentMonthEnd)
-                ->orGroupStart()
-                    ->where('leave_requests.end_date >=', $currentMonthStart)
-                    ->where('leave_requests.end_date <=', $currentMonthEnd)
-                ->groupEnd()
-            ->groupEnd()
-            ->get()->getResultArray();
-
-        $absentCalendar = [];
-        foreach ($leaveRecords as $record) {
-            $start = new \DateTime($record['start_date']);
-            $end = new \DateTime($record['end_date']);
-            
-            // Lặp qua từng ngày trong khoảng nghỉ
-            $interval = new \DateInterval('P1D');
-            $period = new \DatePeriod($start, $interval, $end->modify('+1 day'));
-
-            foreach ($period as $date) {
-                $dateStr = $date->format('Y-m-d');
-                // Chỉ lấy các ngày trong tháng hiện tại
-                if ($dateStr >= $currentMonthStart && $dateStr <= $currentMonthEnd) {
-                    if (!isset($absentCalendar[$dateStr])) {
-                        $absentCalendar[$dateStr] = [];
-                    }
-                    $absentCalendar[$dateStr][] = [
-                        'name' => $record['employee_name'],
-                        'dept' => $record['department_name'],
-                        'type' => $record['leave_type']
-                    ];
-                }
-            }
-        }
-
-        // --- F. Danh sách lịch công tác sắp tới (Work Schedules) ---
-        $workScheduleService = new \App\Services\WorkScheduleService();
-        $upcomingTrips = $workScheduleService->getList([
-            'type' => 'business_trip',
-            'start_date' => date('Y-m-d'),
-            'end_date' => date('Y-m-d', strtotime('+30 days'))
-        ]);
-        // Giới hạn 5 bản ghi cho Dashboard
-        $upcomingTrips = array_slice($upcomingTrips, 0, 5);
 
         $data = [
             'title'            => 'Bảng điều khiển | L.A.N ERP',
@@ -213,12 +154,11 @@ class DashboardController extends BaseController
             'isLegalDept'      => ($myDeptId == \Config\AppConstants::DEPT_PHAP_LY),
             'isHRDept'         => $isHRDept,
             'isSaleDept'       => $isSaleDept,
-            'absentCalendar'   => $absentCalendar,
             'currentMonthDisplay' => date('m/Y'),
             'kpiYear'          => $kpiYear,
-            'daysInMonth'      => (int)date('t'),
-            'firstDayOfWeek'   => (int)date('w', strtotime($currentMonthStart)),
-            'upcomingTrips'    => $upcomingTrips,
+            'departments'      => $db->table('departments')->get()->getResultArray(),
+            'employees'        => get_available_employees(),
+            'current_employee_id' => $employeeId,
             'user'  => [
                 'email' => session()->get('email'),
                 'role'  => $role

@@ -35,7 +35,7 @@ class CaseService extends BaseService
      * @param string $search Từ khóa tìm kiếm đa năng.
      * @return array Danh sách vụ việc đã được lọc và làm sạch dữ liệu.
      */
-    public function getCases(string $sort = 'id', string $order = 'desc', int $perPage = 20, string $search = '', array $lawyerIds = [], string $status = '', int $tagId = 0, int $month = 0, int $year = 0)
+    public function getCases(string $sort = 'id', string $order = 'desc', int $perPage = 20, string $search = '', array $lawyerIds = [], string $status = '', int $tagId = 0, int $month = 0, int $year = 0, string $paymentStatus = '', bool $isFinance = false)
     {
         // 1. Phân tích bối cảnh người dùng (Authentication Context)
         $roleName = session()->get('role_name');
@@ -80,10 +80,10 @@ class CaseService extends BaseService
 
         // 3. Xây dựng Query Builder cốt lõi
         $query = $this->caseModel->select($selectData)
-            ->select('(SELECT SUM(kpi_reward) FROM case_steps WHERE case_id = cases.id AND status = "completed") as kpi_earned')
-            ->select('(SELECT SUM(kpi_reward) FROM case_steps WHERE case_id = cases.id AND status IN ("pending", "active", "pending_approval", "overdue")) as kpi_remaining')
-            ->select('(SELECT MIN(deadline) FROM case_steps WHERE case_id = cases.id AND status IN ("active", "pending_approval") AND deadline IS NOT NULL) as step_deadline')
-            ->select('(SELECT step_name FROM case_steps WHERE case_id = cases.id AND status IN ("active", "pending_approval") ORDER BY deadline ASC LIMIT 1) as current_step_name')
+            ->select('(SELECT SUM(kpi_reward) FROM case_steps WHERE case_id = cases.id AND status = "completed" AND deleted_at IS NULL) as kpi_earned')
+            ->select('(SELECT SUM(kpi_reward) FROM case_steps WHERE case_id = cases.id AND status IN ("pending", "active", "pending_approval", "overdue") AND deleted_at IS NULL) as kpi_remaining')
+            ->select('(SELECT MIN(deadline) FROM case_steps WHERE case_id = cases.id AND status IN ("active", "pending_approval") AND deadline IS NOT NULL AND deleted_at IS NULL) as step_deadline')
+            ->select('(SELECT step_name FROM case_steps WHERE case_id = cases.id AND status IN ("active", "pending_approval") AND deleted_at IS NULL ORDER BY deadline ASC LIMIT 1) as current_step_name')
             ->join('customers', 'customers.id = cases.customer_id', 'left')
             ->join('employees', 'employees.id = cases.assigned_lawyer_id', 'left')
             ->groupBy('cases.id');
@@ -99,9 +99,9 @@ class CaseService extends BaseService
                 
                 if (!empty($lawyerIds)) {
                     $idsStr = implode(',', array_map('intval', $lawyerIds));
-                    $query->where("cases.id IN (SELECT DISTINCT case_id FROM case_steps WHERE status = 'active' AND deadline < '".date('Y-m-d H:i:s')."' AND assigned_to IN ($idsStr))");
+                    $query->where("cases.id IN (SELECT DISTINCT case_id FROM case_steps WHERE status = 'active' AND deadline < '".date('Y-m-d H:i:s')."' AND assigned_to IN ($idsStr) AND deleted_at IS NULL)");
                 } else {
-                    $query->where("cases.id IN (SELECT DISTINCT case_id FROM case_steps WHERE status = 'active' AND deadline < '".date('Y-m-d H:i:s')."')");
+                    $query->where("cases.id IN (SELECT DISTINCT case_id FROM case_steps WHERE status = 'active' AND deadline < '".date('Y-m-d H:i:s')."' AND deleted_at IS NULL)");
                 }
             } elseif ($status === 'missed_kpi') {
                 // Lọc vụ việc có bước bị muộn (đã xong hoặc chưa xong)
@@ -115,7 +115,7 @@ class CaseService extends BaseService
                     if ($isAdminView) {
                         $query->where("cases.id IN (
                             SELECT DISTINCT case_id FROM case_steps 
-                            WHERE (
+                            WHERE deleted_at IS NULL AND (
                                 (status = 'completed' AND completed_at > deadline)
                                 OR 
                                 (status IN ('active') AND deadline < '$now')
@@ -126,7 +126,7 @@ class CaseService extends BaseService
                         if ($myEmpId > 0) {
                             $query->where("cases.id IN (
                                 SELECT DISTINCT case_id FROM case_steps 
-                                WHERE (
+                                WHERE deleted_at IS NULL AND (
                                     (status = 'completed' AND completed_at > deadline AND completed_by = $myEmpId)
                                     OR 
                                     (status IN ('active') AND deadline < '$now' AND assigned_to = $myEmpId)
@@ -139,7 +139,7 @@ class CaseService extends BaseService
                     if (!empty($idsStr)) {
                         $query->where("cases.id IN (
                             SELECT DISTINCT case_id FROM case_steps 
-                            WHERE (
+                            WHERE deleted_at IS NULL AND (
                                 (status = 'completed' AND completed_at > deadline AND completed_by IN ($idsStr))
                                 OR 
                                 (status IN ('active') AND deadline < '$now' AND assigned_to IN ($idsStr))
@@ -157,8 +157,8 @@ class CaseService extends BaseService
             }
         }
 
-        // 6. Áp dụng các bộ lọc chung (Search, Lawyers, Tags, Time)
-        $this->applyFilters($query, $search, $lawyerIds, $tagId, $month, $year);
+        // 6. Áp dụng các bộ lọc chung (Search, Lawyers, Tags, Time, Payment Status)
+        $this->applyFilters($query, $search, $lawyerIds, $tagId, $month, $year, $paymentStatus, $isFinance);
         // 7. Thực thi truy vấn kèm theo Phân trang
         // Ưu tiên các vụ việc đang làm ('dang_xu_ly') lên đầu khi xem danh sách mặc định (Sắp xếp theo ID)
         if ($sort === 'id') {
@@ -300,7 +300,7 @@ class CaseService extends BaseService
         $this->applyFilters($baseQuery, $search, $lawyerIds, $tagId, $month, $year);
         
         $now = date('Y-m-d H:i:s');
-        $overdueSubquery = "SELECT DISTINCT case_id FROM case_steps WHERE status = 'active' AND deadline < '$now'";
+        $overdueSubquery = "SELECT DISTINCT case_id FROM case_steps WHERE status = 'active' AND deadline < '$now' AND deleted_at IS NULL";
         
         // Nếu không phải Admin, chỉ đếm những vụ việc mà CHÍNH HỌ đang làm trễ
         $isAdminView = ($this->accessControl->canViewAllData($roleName) || $session->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
@@ -327,7 +327,7 @@ class CaseService extends BaseService
      * Áp dụng tập hợp các bộ lọc tìm kiếm và phân loại.
      * Phương thức này dùng để đồng bộ hóa Query giữa danh sách và bộ chỉ số thống kê.
      */
-    private function applyFilters(&$query, $search, $lawyerIds, $tagId, $month, $year)
+    private function applyFilters(&$query, $search, $lawyerIds, $tagId, $month, $year, $paymentStatus = '', $isFinance = false)
     {
         // 1. Lọc theo nhân sự phụ trách
         if (!empty($lawyerIds)) {
@@ -340,13 +340,47 @@ class CaseService extends BaseService
             ->groupEnd();
         }
 
-        // 2. Lọc theo tháng/năm tạo
+        // 2. Lọc theo tháng/năm
         if ($month > 0) {
-            $query->where('MONTH(cases.created_at)', $month);
             if ($year <= 0) $year = (int)date('Y');
+            
+            if ($isFinance) {
+                // Trong module Tài chính: Lọc vụ việc được tạo trong tháng HOẶC có đợt thanh toán trong tháng đó
+                $monthStr = str_pad($month, 2, '0', STR_PAD_LEFT);
+                $datePattern = $year . '-' . $monthStr;
+                
+                $query->groupStart()
+                      ->where('MONTH(cases.created_at)', $month)
+                      ->where('YEAR(cases.created_at)', $year)
+                      ->orLike('cases.payment_progress', $datePattern)
+                ->groupEnd();
+            } else {
+                // Module Vụ việc: Lọc theo ngày tạo (Mặc định)
+                $query->where('MONTH(cases.created_at)', $month);
+                $query->where('YEAR(cases.created_at)', $year);
+            }
+        } elseif ($year > 0) {
+            if ($isFinance) {
+                $query->groupStart()
+                      ->where('YEAR(cases.created_at)', $year)
+                      ->orLike('cases.payment_progress', (string)$year)
+                ->groupEnd();
+            } else {
+                $query->where('YEAR(cases.created_at)', $year);
+            }
         }
-        if ($year > 0) {
-            $query->where('YEAR(cases.created_at)', $year);
+
+        // 2.1. Lọc theo trạng thái thanh toán (Finance special)
+        if ($paymentStatus === 'paid') {
+            // Đã thu đủ: Không còn phần nào chưa thu (is_paid:0) và có ít nhất 1 phần đã thu (is_paid:1)
+            // Hoặc đơn giản là chuỗi JSON không chứa "is_paid":0
+            $query->where('cases.payment_progress IS NOT NULL')
+                  ->where('cases.payment_progress !=', '')
+                  ->where('cases.payment_progress NOT LIKE', '%"is_paid":0%')
+                  ->where('cases.payment_progress LIKE', '%"is_paid":1%');
+        } elseif ($paymentStatus === 'unpaid') {
+            // Chưa thu / Còn thiếu: Có ít nhất 1 phần chưa thu (is_paid:0)
+            $query->where('(cases.payment_progress LIKE \'%"is_paid":0%\' OR cases.payment_progress IS NULL OR cases.payment_progress = \'\')');
         }
 
         // 3. Lọc theo Nhãn dán
@@ -435,5 +469,135 @@ class CaseService extends BaseService
         } else {
             $query->where('1 = 0'); 
         }
+    }
+    /**
+     * Tính toán bộ chỉ số tài chính (Tổng HĐ, Đã thu, Còn lại) dựa trên bộ lọc.
+     * 
+     * Logic lọc thời gian (tháng/năm) theo quy tắc:
+     * - Tổng HĐ  : deadline đợt lần 1 (index 0). Nếu trống → dùng created_at của vụ việc.
+     * - Đã thu   : deadline đợt is_paid=1 đầu tiên. Nếu trống → dùng created_at.
+     * - Chưa thu : deadline đợt is_paid=0 đầu tiên. Nếu trống → dùng created_at.
+     */
+    public function getFinanceStats(string $search = '', int $month = 0, int $year = 0, string $paymentStatus = '')
+    {
+        // Lấy toàn bộ dữ liệu (không lọc tháng/năm ở SQL vì sẽ xử lý trong PHP)
+        // Chỉ áp dụng: phân quyền, tìm kiếm, trạng thái thanh toán
+        $query = $this->caseModel->select('contract_value, payment_progress, created_at');
+        $this->applyAccessLimit($query);
+        $this->applyFilters($query, $search, [], 0, 0, 0, $paymentStatus, true);
+        
+        $results = $query->findAll();
+        
+        $totalContract = 0;
+        $totalPaid     = 0;
+        $totalUnpaid   = 0;
+
+        // Chuẩn bị hiệu quả tháng/năm lọc
+        $filterYear  = ($year > 0) ? $year : 0;
+        $filterMonth = ($month > 0 && $filterYear > 0) ? $month : 0;
+
+        foreach ($results as $row) {
+            $createdAt = $row['created_at'] ?? null;
+            $payments  = [];
+
+            if (!empty($row['payment_progress'])) {
+                $decoded = json_decode($row['payment_progress'], true);
+                if (is_array($decoded)) {
+                    $payments = $decoded;
+                }
+            }
+
+            // ----------------------------------------------------------------
+            // Xác định "mốc thời gian đại diện" cho từng chỉ số
+            // ----------------------------------------------------------------
+
+            // --- TỔNG HĐ: Dùng deadline đợt lần 1 (index 0), fallback → created_at ---
+            $totalRepDate = null;
+            if (isset($payments[0]) && !empty($payments[0]['deadline'])) {
+                $totalRepDate = $payments[0]['deadline']; // Thời gian thu lần 1
+            } else {
+                $totalRepDate = $createdAt; // Fallback: ngày tạo vụ việc
+            }
+
+            // --- ĐÃ THU: Ưu tiên từ to đến bé (từ cuối lên). Lấy mốc cuối cùng có thời gian. Fallback → created_at ---
+            $paidRepDate = null;
+            $hasPaid = false;
+            for ($i = count($payments) - 1; $i >= 0; $i--) {
+                if (!empty($payments[$i]['is_paid']) && $payments[$i]['is_paid'] == 1) {
+                    $hasPaid = true;
+                    if ($paidRepDate === null && !empty($payments[$i]['deadline'])) {
+                        $paidRepDate = $payments[$i]['deadline'];
+                    }
+                }
+            }
+            if ($hasPaid && $paidRepDate === null) {
+                $paidRepDate = $createdAt;
+            }
+
+            // --- CHƯA THU: Thời gian lần thanh toán cuối cùng chưa thanh toán nếu có, fallback → created_at ---
+            $unpaidRepDate = null;
+            $hasUnpaid = false;
+            for ($i = count($payments) - 1; $i >= 0; $i--) {
+                if (empty($payments[$i]['is_paid']) || $payments[$i]['is_paid'] == 0) {
+                    $hasUnpaid = true;
+                    if (!empty($payments[$i]['deadline'])) {
+                        $unpaidRepDate = $payments[$i]['deadline'];
+                    }
+                    break; // Chỉ lấy mốc của lần cuối cùng chưa thanh toán
+                }
+            }
+            if ($hasUnpaid && $unpaidRepDate === null) {
+                $unpaidRepDate = $createdAt;
+            }
+
+            // ----------------------------------------------------------------
+            // Helper: Kiểm tra mốc thời gian có khớp bộ lọc tháng/năm không
+            // ----------------------------------------------------------------
+            $matchesFilter = function(?string $dateStr) use ($filterYear, $filterMonth): bool {
+                if ($filterYear <= 0) return true; // Không lọc theo năm → luôn khớp
+                if (empty($dateStr)) return false;
+                try {
+                    $dt = new \DateTime($dateStr);
+                    if ((int)$dt->format('Y') !== $filterYear) return false;
+                    if ($filterMonth > 0 && (int)$dt->format('n') !== $filterMonth) return false;
+                    return true;
+                } catch (\Exception $e) {
+                    return false;
+                }
+            };
+
+            // ----------------------------------------------------------------
+            // Cộng Tổng HĐ
+            // ----------------------------------------------------------------
+            if ($matchesFilter($totalRepDate)) {
+                $totalContract += (float)($row['contract_value'] ?? 0);
+            }
+
+            // ----------------------------------------------------------------
+            // Cộng Đã thu / Chưa thu
+            // ----------------------------------------------------------------
+            foreach ($payments as $p) {
+                $amtStr = $p['amount'] ?? '0';
+                $amt    = (float)str_replace(['.', ','], '', $amtStr);
+
+                if (!empty($p['is_paid']) && $p['is_paid'] == 1) {
+                    // Đã thu
+                    if ($matchesFilter($paidRepDate)) {
+                        $totalPaid += $amt;
+                    }
+                } else {
+                    // Chưa thu
+                    if ($matchesFilter($unpaidRepDate)) {
+                        $totalUnpaid += $amt;
+                    }
+                }
+            }
+        }
+        
+        return [
+            'total_contract' => $totalContract,
+            'total_paid'     => $totalPaid,
+            'total_unpaid'   => $totalUnpaid
+        ];
     }
 }

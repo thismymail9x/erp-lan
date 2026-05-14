@@ -72,6 +72,7 @@ class KpiService extends BaseService
             ->selectSum('case_steps.kpi_reward', 'total')
             ->join('cases', 'cases.id = case_steps.case_id')
             ->where('case_steps.status', 'completed')
+            ->where('case_steps.deleted_at', null)
             ->where('cases.deleted_at', null)
             ->where('cases.status !=', 'huy')
             ->where('case_steps.completed_at <= case_steps.deadline') // Chốt chặn: Chỉ tính nếu đúng hạn
@@ -95,6 +96,7 @@ class KpiService extends BaseService
         $lostQuery = $this->db->table('case_steps')
             ->selectSum('case_steps.kpi_reward', 'total')
             ->join('cases', 'cases.id = case_steps.case_id')
+            ->where('case_steps.deleted_at', null)
             ->where('cases.deleted_at', null)
             ->where('cases.status !=', 'huy')
             ->groupStart()
@@ -128,6 +130,7 @@ class KpiService extends BaseService
             ->join('cases', 'cases.id = case_steps.case_id')
             ->whereIn('case_steps.status', ['pending', 'active', 'pending_approval'])
             ->where('case_steps.deadline >=', date('Y-m-d H:i:s')) // Chỉ tính các bước còn trong hạn
+            ->where('case_steps.deleted_at', null)
             ->where('cases.deleted_at', null)
             ->whereNotIn('cases.status', ['da_hoan_thanh', 'huy']);
 
@@ -186,6 +189,7 @@ class KpiService extends BaseService
             ->select('cs.completed_by as emp_id, SUM(cs.kpi_reward) as total_earned')
             ->join('cases c', 'c.id = cs.case_id')
             ->where('cs.status', 'completed')
+            ->where('cs.deleted_at', null)
             ->where('c.deleted_at', null)
             ->where('c.status !=', 'huy')
             ->where('cs.completed_at <= cs.deadline') // Tuân thủ quy tắc đúng hạn
@@ -207,6 +211,7 @@ class KpiService extends BaseService
             ->join('cases c', 'c.id = cs.case_id')
             ->whereIn('cs.status', ['pending', 'active', 'pending_approval'])
             ->where('cs.deadline >=', date('Y-m-d H:i:s')) // Chỉ tính các bước còn trong hạn
+            ->where('cs.deleted_at', null)
             ->where('c.deleted_at', null)
             ->whereNotIn('c.status', ['da_hoan_thanh', 'huy'])
             ->whereIn('cs.assigned_to', $empIds)
@@ -218,6 +223,7 @@ class KpiService extends BaseService
             ->select('IF(cs.status = "completed", cs.completed_by, cs.assigned_to) as emp_id', false)
             ->selectSum('cs.kpi_reward', 'total_lost')
             ->join('cases c', 'c.id = cs.case_id')
+            ->where('cs.deleted_at', null)
             ->where('c.deleted_at', null)
             ->where('c.status !=', 'huy')
             ->groupStart()

@@ -47,25 +47,36 @@
                 $accessControl = new \App\Services\AccessControlService();
                 $menu = $accessControl->getSidebarMenu(session()->get('department_id'), session()->get('role_name'));
                 
+                $activeGuidance = null;
                 foreach ($menu as $item) { 
-                    // Tăng cường logic Nhận diện Menu Active:
-                    // Kiểm tra xem Segment đầu tiên của URL hiện tại có trùng với Segment của Menu item không.
-                    // Điều này giúp Menu vẫn "Sáng" khi người dùng vào các tác vụ con như /create, /edit, /show.
                     $currentUri = service('request')->getUri();
                     $firstSegment = $currentUri->getTotalSegments() > 0 ? $currentUri->getSegment(1) : '';
                     
-                    // Lấy segment đầu tiên của menu item
                     $menuUrl = trim($item['url'], '/');
                     $menuSegment = explode('/', $menuUrl)[0];
 
                     $isActive = ($firstSegment == $menuSegment) ? 'active' : '';
+                    
+                    // Chỉ hiển thị hướng dẫn ở màn hình danh sách chính (khớp URL menu)
+                    $currentPath = trim($currentUri->getPath(), '/');
+                    $menuPath = trim(explode('?', $item['url'])[0], '/'); // Bỏ query string nếu có
+                    
+                    if ($isActive && $currentPath == $menuPath && isset($item['guidance'])) {
+                        $activeGuidance = $item['guidance'];
+                    }
                 ?>
+
                 <li class="nav-item">
                     <a href="<?= base_url($item['url']) ?>" class="nav-link <?= $isActive ?>" title="Truy cập <?= $item['title'] ?>">
-                        <i class="<?= $item['icon'] ?>"></i> <span><?= $item['title'] ?></span>
+                        <i class="<?= $item['icon'] ?>"></i> 
+                        <span><?= $item['title'] ?></span>
+                        <?php if (isset($item['is_new']) && $item['is_new']): ?>
+                            <span class="badge-new-sidebar">New</span>
+                        <?php endif; ?>
                     </a>
                 </li>
                 <?php } ?>
+
             </nav>
             <div class="sidebar-footer">
                 &copy; 2026 L.A.N
@@ -153,6 +164,25 @@
         <img class="img-modal-content" id="imgFull">
     </div>
 
+    <!-- Guidance Modal -->
+    <?php if ($activeGuidance): ?>
+    <div id="guidanceModal" class="modal-overlay">
+        <div class="modal-content-premium guidance-modal-content">
+            <div class="flex-row justify-between align-center m-b-20">
+                <h3 class="section-header-title"><?= esc($activeGuidance['title']) ?></h3>
+                <span class="close-btn-minimal" onclick="closeGuidanceModal()">&times;</span>
+            </div>
+            <div class="guidance-text">
+                <?= nl2br(esc($activeGuidance['content'])) ?>
+            </div>
+            <div class="form-actions-row m-t-25">
+                <button type="button" class="btn-premium" onclick="closeGuidanceModal()">Đã hiểu</button>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+
     <!-- Core scripts -->
     <script src="<?= base_url('js/dashboard.js') ?>?v=1.2"></script>
     <script src="<?= base_url('js/bulk_actions.js') ?>"></script>
@@ -164,6 +194,27 @@
     function closeImgModal() {
         document.getElementById('imgModal').style.display = "none";
     }
+
+    // Guidance functions
+    function openGuidanceModal() {
+        const modal = document.getElementById('guidanceModal');
+        if (modal) modal.style.display = "flex";
+    }
+    function closeGuidanceModal() {
+        const modal = document.getElementById('guidanceModal');
+        if (modal) modal.style.display = "none";
+    }
+
+    $(document).ready(function() {
+        // Tự động tìm tiêu đề trang và gắn nút hướng dẫn nếu có data
+        <?php if ($activeGuidance): ?>
+            const $title = $('.content-title').first();
+            if ($title.length) {
+                $title.append('<span class="guidance-trigger" onclick="openGuidanceModal()" title="Xem hướng dẫn sử dụng tính năng này">!</span>');
+            }
+        <?php endif; ?>
+    });
+
 
     // Notifications Script
     $(document).ready(function() {

@@ -2,7 +2,7 @@
 ---
 
 ## 1. Comment & Code Documentation (VIỆT HÓA 100%)
-- **Luật Comment:** Mọi hàm, class, hoặc khối logic phức tạp phải có comment tiếng Việt chi tiết.
+- **Luật Comment Không được để lỗi font chữ tiếng việt :** Mọi hàm, class, hoặc khối logic phức tạp phải có comment tiếng Việt chi tiết.
 - **Tư duy giải thích:** Không chỉ comment "Hàm này làm gì", mà BẮT BUỘC giải thích "Tại sao lại tính toán như vậy" (Mô tả thuật toán rành mạch).
 - **Header:** Luôn có khối comment Header ở đầu file mô tả file này phụ trách nghiệp vụ gì.
 
@@ -30,9 +30,12 @@
 
 ---
 
-## 6. Xử lý Dữ liệu Sạch (Auto-Nullify)
+## 6. Xử lý Dữ liệu Sạch (Auto-Nullify & Soft Delete Integrity)
 - **Phòng chống lỗi Khóa ngoại (FK):** Mọi module đều phải kế thừa `BaseModel`. Nếu người dùng xóa dữ liệu form, đẩy lên chuỗi rỗng (`""`), tự động chuyển thành giá trị `NULL` để lưu Database mượt mà.
-- **Loại trừ dữ liệu đã xóa & Bắt buộc `deleted_at`:** Khi viết logic kiểm tra trùng lặp (duplication) hoặc validation, LUÔN LUÔN phải loại trừ các bản ghi đã bị xóa mềm. Mọi bảng mới BẮT BUỘC có cột `deleted_at DATETIME DEFAULT NULL` vì hệ thống dùng `BaseModel` có sẵn Soft Delete.
+- **Loại trừ dữ liệu đã xóa & Bắt buộc `deleted_at`:** 
+    - Mọi bảng mới BẮT BUỘC có cột `deleted_at DATETIME DEFAULT NULL` vì hệ thống dùng `BaseModel` có sẵn Soft Delete.
+    - **QUY TẮC VÀNG:** Khi viết bất kỳ câu lệnh truy vấn dữ liệu nào (Raw SQL, Subqueries, Query Builder), **BẮT BUỘC** phải thêm điều kiện `deleted_at IS NULL` để loại bỏ các bản ghi đã xóa mềm. 
+    - **Lưu ý:** Không tin tưởng hoàn toàn vào cơ chế tự động của Model khi viết Subqueries hoặc Join phức tạp, vì chúng thường bypass global scope của Soft Delete. Luôn kiểm tra kỹ khi tính toán KPI, doanh thu hoặc thống kê.
 
 ---
 
@@ -72,9 +75,9 @@
 - **Controller:** Luôn sử dụng `$model->paginate($perPage)` thay vì `findAll()` khi hiển thị danh sách.
 - **View:** Luôn hiển thị component `<?= $pager->links() ?>` ở cuối danh sách.
 - **AJAX:** Nếu view dùng AJAX để tải dữ liệu (như Knowledge Feed), phải hook sự kiện click vào pagination links để load nội dung mới mà không reload trang.
-- **Giá trị mặc định:** Số dòng mỗi trang: **10–15** (tùy module). Ngoại lệ: Dashboard thống kê, Modal Select2 infinite scroll.
+- **Giá trị mặc định:** Số dòng mỗi trang: **20** (tùy module). Ngoại lệ: Dashboard thống kê, Modal Select2 infinite scroll.
 - Khi xử lý thời gian khi hiển thị ra view đều hiển thị tiếng việt, thứ ngay tháng tiếng viet
 - Khong viết css inline, tạo class cho nó. Ko lẫn lộn css và js vào html, tach riêng file rồi nhúng vào
 ---
 
-*Cập nhật lần cuối: 07/04/2026 — Phiên bản đầy đủ Bộ 11 Quy tắc.*
+*Cập nhật lần cuối: 12/05/2026 — Phiên bản đầy đủ Bộ 11 Quy tắc.*

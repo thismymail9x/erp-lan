@@ -106,10 +106,10 @@
                                 <?php } ?>
                             </td>
                             <td class="table-cell-right no-wrap">
-                                <?php if(has_permission('user.manage')) { ?>
-                                <a href="javascript:void(0)" onclick="openPermissionModal(<?= $user['id'] ?>)" class="action-btn-icon text-apple-blue" title="Phân Quyền Cá Nhân">
-                                    <i class="fas fa-key"></i>
-                                </a>
+                                <?php if (has_permission('user.manage')) { ?>
+                                    <a href="javascript:void(0)" onclick="openPermissionModal(<?= $user['id'] ?>)" class="action-btn-icon text-apple-blue" title="Phân Quyền Cá Nhân">
+                                        <i class="fas fa-key"></i>
+                                    </a>
                                 <?php } ?>
                                 <a href="<?= base_url('users/edit/' . $user['id']) ?>" class="action-btn-icon" title="Chỉnh sửa">
                                     <i class="fas fa-pencil-alt"></i>

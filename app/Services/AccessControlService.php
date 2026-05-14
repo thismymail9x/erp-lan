@@ -12,6 +12,13 @@ namespace App\Services;
  */
 class AccessControlService extends BaseService
 {
+    protected $featureConfig;
+
+    public function __construct()
+    {
+        $this->featureConfig = config('FeatureGuidelines');
+    }
+
     /**
      * Kiểm tra xem User có quyền "Bao quát" toàn bộ dữ liệu hệ thống hay không.
      * Thường dùng để quyết định có hiển thị bộ lọc "Toàn công ty" hay không.
@@ -54,10 +61,12 @@ class AccessControlService extends BaseService
             $menu[] = ['title' => 'Đơn nghỉ phép', 'url' => 'leave-requests', 'icon' => 'fas fa-calendar-minus'];
         }
 
-        // 1.2.1 LỊCH TRÌNH (Work Schedule):
+        // 1.2.1 LỊCH TRÌNH (Work Schedule): Merged into Dashboard
+        /*
         if (session()->get('employee_id')) {
             $menu[] = ['title' => 'Lịch trình', 'url' => 'work-schedules', 'icon' => 'fas fa-calendar-alt'];
         }
+        */
 
         // 1.3 BẢNG LƯƠNG (Payroll):
         if (has_permission('payroll.view') || has_permission('payroll.manage') || session()->get('employee_id')) {
@@ -84,6 +93,11 @@ class AccessControlService extends BaseService
         // Tất cả nhân viên hệ thống đều xem được không giới hạn
         if (session()->get('employee_id')) {
             $menu[] = ['title' => 'Cẩm nang nội bộ', 'url' => 'knowledge', 'icon' => 'fas fa-book-open'];
+        }
+
+        // 3.3.1 DANH BẠ LIÊN HỆ (Contacts):
+        if (has_permission('contact.view') || session()->get('employee_id')) {
+            $menu[] = ['title' => 'Danh bạ liên hệ', 'url' => 'contacts', 'icon' => 'fas fa-address-book'];
         }
 
         // 3.4 QUẢN LÝ NHÃN DÁN (Tags System):
@@ -135,8 +149,45 @@ class AccessControlService extends BaseService
         }
 
         // Lọc bỏ các mục trùng lặp (nếu có lỗi logic nạp) bằng phương thức uniqueMenu
-        return $this->uniqueMenu($menu);
+        $menu = $this->uniqueMenu($menu);
+
+        // Bổ sung thông tin "New" badge và "Guidance" dựa trên config
+        return $this->enrichMenuWithFeatures($menu);
     }
+
+    /**
+     * Bổ sung thuộc tính is_new và guidance cho các mục menu
+     */
+    private function enrichMenuWithFeatures($menu)
+    {
+        $now = time();
+        $duration = ($this->featureConfig->newBadgeDurationDays ?? 14) * 86400;
+        $items = $this->featureConfig->items ?? [];
+
+        foreach ($menu as &$item) {
+            // Lấy segment đầu tiên của URL để mapping
+            $menuUrl = trim($item['url'], '/');
+            $segment = explode('/', $menuUrl)[0];
+
+            if (isset($items[$segment])) {
+                $feature = $items[$segment];
+                
+                // Kiểm tra xem có còn trong thời hạn "New" không
+                $launchDate = strtotime($feature['launch_date']);
+                $item['is_new'] = ($now - $launchDate < $duration) && ($now >= $launchDate);
+                
+                // Đính kèm hướng dẫn nếu có
+                if (isset($feature['guidance'])) {
+                    $item['guidance'] = $feature['guidance'];
+                }
+            } else {
+                $item['is_new'] = false;
+            }
+        }
+
+        return $menu;
+    }
+
 
     /**
      * Hàm hỗ trợ (Helper): Loại bỏ các mục Menu có tiêu đề giống hệt nhau.
