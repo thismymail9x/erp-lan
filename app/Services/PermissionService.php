@@ -146,21 +146,16 @@ class PermissionService extends BaseService
         // Sử dụng Transaction để an toàn khi cập nhật hàng loạt
         $db->transStart();
         foreach ($overrides as $permId => $val) {
-            // Nếu chọn 'Mặc định' (null/default) -> Xóa bỏ mọi ghi đè cũ để quay về theo Role
-            if ($val === '' || $val === null || $val === 'default') {
-                $builder->where(['user_id' => $userId, 'permission_id' => $permId])->delete();
-            } else {
-                // Nếu chọn 'Cấp' (1) hoặc 'Tước' (0) -> Cập nhật hoặc thêm mới bản ghi ghi đè
-                $existing = $builder->where(['user_id' => $userId, 'permission_id' => $permId])->countAllResults();
-                if ($existing > 0) {
-                    $builder->where(['user_id' => $userId, 'permission_id' => $permId])->update(['is_granted' => $val]);
-                } else {
-                    $builder->insert([
-                        'user_id' => $userId,
-                        'permission_id' => $permId,
-                        'is_granted' => $val
-                    ]);
-                }
+            // Xóa bỏ mọi ghi đè cũ để làm sạch trạng thái
+            $builder->where(['user_id' => $userId, 'permission_id' => $permId])->delete();
+            
+            // Nếu chọn 'Cấp' (1) hoặc 'Tước' (0) -> Thêm mới bản ghi ghi đè
+            if ($val === '1' || $val === '0' || $val === 1 || $val === 0) {
+                $builder->insert([
+                    'user_id' => $userId,
+                    'permission_id' => $permId,
+                    'is_granted' => $val
+                ]);
             }
         }
         $db->transComplete();

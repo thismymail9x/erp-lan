@@ -29,16 +29,16 @@
                                     <div class="text-xs text-muted-dark">Mã HT: <?= esc($p['name']) ?></div>
                                 </td>
                                 <td class="table-cell-center">
-                                    <input type="radio" name="permissions[<?= $p['id'] ?>]" value="default" <?= ($p['user_override'] === null) ? 'checked' : '' ?> />
+                                    <input type="radio" name="permissions[<?= $p['id'] ?>]" value="default" <?= ($p['user_override'] === null || $p['user_override'] === '') ? 'checked' : '' ?> />
                                     <div class="text-xs m-t-5 <?= $p['is_role_granted'] ? 'text-apple-green' : 'text-muted-dark' ?>">
                                         (<?= $p['is_role_granted'] ? 'Đang Mở' : 'Đang Đóng' ?>)
                                     </div>
                                 </td>
                                 <td class="table-cell-center">
-                                    <input type="radio" name="permissions[<?= $p['id'] ?>]" value="1" <?= ($p['user_override'] === '1') ? 'checked' : '' ?> />
+                                    <input type="radio" name="permissions[<?= $p['id'] ?>]" value="1" <?= ($p['user_override'] == 1 && $p['user_override'] !== null && $p['user_override'] !== '') ? 'checked' : '' ?> />
                                 </td>
                                 <td class="table-cell-center">
-                                    <input type="radio" name="permissions[<?= $p['id'] ?>]" value="0" <?= ($p['user_override'] === '0') ? 'checked' : '' ?> />
+                                    <input type="radio" name="permissions[<?= $p['id'] ?>]" value="0" <?= ($p['user_override'] == 0 && $p['user_override'] !== null && $p['user_override'] !== '') ? 'checked' : '' ?> />
                                 </td>
                             </tr>
                         <?php } ?>

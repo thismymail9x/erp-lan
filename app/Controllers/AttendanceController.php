@@ -20,7 +20,8 @@ class AttendanceController extends BaseController
     public static $modulePermissions = [
         'group' => 'Thời gian & Chấm công',
         'permissions' => [
-            'attendance.view' => 'Xem lịch sử chấm công'
+            'attendance.view' => 'Xem lịch sử chấm công',
+            'attendance.view_all' => 'Xem danh sách chấm công toàn bộ công ty'
         ]
     ];
 
@@ -148,8 +149,8 @@ class AttendanceController extends BaseController
         }
 
         // --- PHÂN TÁCH DỮ LIỆU DỰA TRÊN QUYỀN TRUY CẬP (Data Isolation) ---
-        if ($role === AppConstants::ROLE_ADMIN || $role === AppConstants::ROLE_MOD) {
-            // Admin/Giám đốc: Được phép lọc theo bất kỳ phòng ban nào
+        if ($role === AppConstants::ROLE_ADMIN || $role === AppConstants::ROLE_MOD || has_permission('attendance.view_all')) {
+            // Admin/Giám đốc/Quyền View All: Được phép lọc theo bất kỳ phòng ban nào
             if ($deptId) $builder->where('e.department_id', $deptId);
             if ($empFilterId) $builder->where('e.id', $empFilterId);
         } elseif ($role === AppConstants::ROLE_TRUONG_PHONG) {
@@ -168,7 +169,7 @@ class AttendanceController extends BaseController
             'title'       => 'Nhật ký chấm công | L.A.N ERP',
             'records'     => $records,
             'departments' => $this->deptModel->findAll(),
-            'employees'   => get_available_employees($role === AppConstants::ROLE_TRUONG_PHONG ? $myDeptId : null),
+            'employees'   => get_available_employees(($role === AppConstants::ROLE_TRUONG_PHONG && !has_permission('attendance.view_all')) ? $myDeptId : null),
             'currentDate' => $date,
             'currentDept' => $deptId,
             'currentEmployee' => $empFilterId,
