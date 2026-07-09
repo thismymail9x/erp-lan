@@ -18,6 +18,7 @@ class WorkflowTemplateModel extends BaseModel
     protected $deletedField  = 'deleted_at';
 
     protected $validationRules = [
+        'id'   => 'permit_empty|numeric',
         'code' => 'required|is_unique[workflow_templates.code,id,{id}]',
         'name' => 'required|min_length[3]',
     ];

@@ -35,6 +35,42 @@
     color: #f57e25;
 }
 
+.gift-status-col {
+    min-width: 56px;
+}
+
+.gift-status-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: #34c759;
+    cursor: pointer;
+}
+
+.gift-status-checkbox:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.gift-checkbox-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #475569;
+}
+
+.gift-checkbox-option input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #34c759;
+}
+
+.gift-checkbox-readonly {
+    color: #1d1d1f;
+}
+
 /* Profile Grid Layout */
 .profile-grid-layout {
     display: grid; 
@@ -390,4 +426,102 @@
     .vault-card {
         padding: 10px;
     }
+}
+
+/* Tùy chỉnh Quill cho hồ sơ khách hàng */
+.ql-toolbar.ql-snow {
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border: 1px solid #d2d2d7;
+    background: #fbfbfd;
+}
+
+.ql-container.ql-snow {
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    border: 1px solid #d2d2d7;
+    min-height: 200px;
+    font-family: 'Inter', sans-serif;
+}
+
+.ql-editor {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1d1d1f;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.65;
+        transform: scale(0.98);
+    }
+}
+
+.sla-overdue-alert-badge {
+    animation: pulse 1.8s infinite ease-in-out;
+}
+
+.sla-timeline-container::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 4px;
+    width: 2px;
+    background: #e5e5ea;
+    z-index: 1;
+}
+
+.sla-timeline-item {
+    z-index: 2;
+}
+
+.tab-pane {
+    display: none !important;
+}
+
+.tab-pane.active {
+    display: block !important;
+}
+
+.prof-tabs-nav {
+    display: flex;
+    background: #fbfbfd;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    border-bottom: 1px solid #d2d2d7;
+    padding: 10px 20px 0;
+}
+
+.tabs-container {
+    display: flex;
+    gap: 15px;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 12px 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #86868b;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tab-btn:hover {
+    color: #1d1d1f;
+}
+
+.tab-btn.active {
+    color: #0071e3 !important;
+    border-bottom: 2px solid #0071e3 !important;
 }

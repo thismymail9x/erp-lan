@@ -50,22 +50,50 @@ class PayrollController extends BaseController
     {
         $role = session()->get('role_name');
         $month = $this->request->getGet('month') ?: date('Y-m');
+        $departmentId = $this->request->getGet('department_id');
+        $employeeId = $this->request->getGet('employee_id');
         
         // Đảm bảo có config cho tháng này
         $config = $this->payrollService->getOrCreateConfig($month);
 
         if (has_permission('payroll.manage') || $role === AppConstants::ROLE_ADMIN || session()->get('department_id') == AppConstants::DEPT_HANH_CHINH) {
             // VIEW QUẢN TRỊ
-            $this->payrollModel->select('payrolls.*, employees.full_name, departments.name as dept_name')
+            $query = $this->payrollModel->select('payrolls.*, employees.full_name, employees.position, departments.name as dept_name')
                 ->join('employees', 'employees.id = payrolls.employee_id')
+                ->join('users', 'users.id = employees.user_id', 'inner')
                 ->join('departments', 'departments.id = employees.department_id', 'left')
-                ->where('payrolls.month', $month);
+                ->where('payrolls.month', $month)
+                ->where('users.active_status', 1)
+                ->where('users.deleted_at', null);
+
+            if (!empty($departmentId)) {
+                $query->where('employees.department_id', $departmentId);
+            }
+            if (!empty($employeeId)) {
+                $query->where('payrolls.employee_id', $employeeId);
+            }
+
+            // Lấy danh sách để filter
+            $db = \Config\Database::connect();
+            $departments = $db->table('departments')->where('deleted_at', null)->get()->getResultArray();
+            $employees = $db->table('employees')
+                ->select('employees.id, employees.full_name')
+                ->join('users', 'users.id = employees.user_id', 'inner')
+                ->where('employees.deleted_at', null)
+                ->where('users.active_status', 1)
+                ->where('users.deleted_at', null)
+                ->get()
+                ->getResultArray();
 
             $data = [
                 'title'    => 'Quản lý Bảng lương - Tháng ' . $month,
                 'month'    => $month,
+                'department_id' => $departmentId,
+                'employee_id' => $employeeId,
+                'departments' => $departments,
+                'employees' => $employees,
                 'config'   => $config,
-                'payrolls' => $this->payrollModel->paginate(15),
+                'payrolls' => $query->paginate(20),
                 'pager'    => $this->payrollModel->pager,
                 'isAdmin'  => true
             ];
@@ -99,7 +127,6 @@ class PayrollController extends BaseController
         if (!$config) return redirect()->to('/payroll');
 
         if (strtolower($this->request->getMethod()) === 'post') {
-//            die("HỆ THỐNG ĐÃ NHẬN DỮ LIỆU: " . json_encode($_POST));
             
             $workingDays = $this->request->getPost('working_days') ?: [];
             $dayNotes    = $this->request->getPost('day_notes') ?: [];
@@ -114,10 +141,6 @@ class PayrollController extends BaseController
             ];
 
             $ok = $this->configModel->update($config['id'], $updateData);
-            
-            // LOG DEBUG
-            $logMsg = date('Y-m-d H:i:s') . " | Save Config month $month | ID: " . $config['id'] . " | Status: " . ($ok ? 'OK' : 'FAIL') . " | Data: " . json_encode($updateData) . "\n";
-            file_put_contents(WRITEPATH . 'logs/payroll_debug.log', $logMsg, FILE_APPEND);
 
             if (!$ok) {
                 return redirect()->back()->with('error', 'Lỗi lưu cơ sở dữ liệu: ' . json_encode($this->configModel->errors()));
@@ -145,7 +168,9 @@ class PayrollController extends BaseController
     {
         if (!has_permission('payroll.manage')) return redirect()->to('/payroll');
         
-        $result = $this->payrollService->calculateMonthlyPayroll($month);
+        $selectedIds = $this->request->getPost('employee_ids') ?: [];
+        
+        $result = $this->payrollService->calculateMonthlyPayroll($month, $selectedIds);
         
         if ($result['status'] === 'success') {
             return redirect()->to("/payroll?month=$month")->with('success', $result['message']);
@@ -174,10 +199,13 @@ class PayrollController extends BaseController
     {
         if (!has_permission('payroll.manage')) return redirect()->to('/payroll');
 
-        $payrolls = $this->payrollModel->select('payrolls.*, employees.full_name, departments.name as dept_name')
+        $payrolls = $this->payrollModel->select('payrolls.*, employees.full_name, employees.position, departments.name as dept_name')
             ->join('employees', 'employees.id = payrolls.employee_id')
+            ->join('users', 'users.id = employees.user_id', 'inner')
             ->join('departments', 'departments.id = employees.department_id', 'left')
             ->where('payrolls.month', $month)
+            ->where('users.active_status', 1)
+            ->where('users.deleted_at', null)
             ->findAll();
 
         $filename = "BangLuong_" . $month . ".xls";
@@ -225,7 +253,7 @@ class PayrollController extends BaseController
                 </tr>
                 <tr style="background-color: #f2f2f2;">
                     <th>Số công</th>
-                    <th>Số tiền (TNCT)</th>
+                    <th>Thu nhập chịu thuế</th>
                     <th>BHXH vào CP (21.5%)</th>
                     <th>BHXH trừ lương (10.5%)</th>
                     <th>Giảm trừ PT</th>
@@ -248,7 +276,7 @@ class PayrollController extends BaseController
                 $notesText = implode('; ', array_filter($notesTexts));
             }
 
-            $gross = $p['taxable_income'] + $p['diligence_allowance'] + $p['petrol_allowance'] + $p['salary_kpi'] + ($p['salary_bonus'] ?? 0);
+            $gross = $p['taxable_income'] + $p['diligence_allowance'] + $p['petrol_allowance'] + $p['salary_kpi'] + ($p['salary_bonus'] ?? 0) + ($p['salary_other'] ?? 0);
             
             echo '<tr>';
             echo '<td>' . $stt++ . '</td>';
@@ -263,7 +291,7 @@ class PayrollController extends BaseController
             echo '<td class="text-right">' . number_format($p['diligence_allowance']) . '</td>';
             echo '<td class="text-right">' . number_format($p['petrol_allowance']) . '</td>';
             echo '<td class="text-right">' . number_format($p['salary_kpi']) . '</td>';
-            echo '<td class="text-right">' . number_format($p['salary_bonus'] ?? 0) . '</td>';
+            echo '<td class="text-right">' . number_format(($p['salary_bonus'] ?? 0) + ($p['salary_other'] ?? 0)) . '</td>';
             echo '<td class="text-right bold">' . number_format($gross) . '</td>';
             echo '<td class="text-right">' . number_format($p['si_employer']) . '</td>';
             echo '<td class="text-right">' . number_format($p['si_employee']) . '</td>';
@@ -312,6 +340,8 @@ class PayrollController extends BaseController
 
     /**
      * Cập nhật nhanh Thưởng/Ghi chú cho 1 dòng lương.
+     * Tích hợp xử lý manual_adjust_days: khi Admin điều chỉnh ngày công bù,
+     * hệ thống tự tính lại taxable_income = (actual_working_days + manual_adjust_days) × salary_per_day.
      */
     public function updateItem($id)
     {
@@ -320,41 +350,63 @@ class PayrollController extends BaseController
         $payroll = $this->payrollModel->find($id);
         if (!$payroll) return $this->response->setJSON(['code' => 1, 'error' => 'Not found']);
 
-        $bonus = (float)$this->request->getPost('salary_bonus');
-        $kpi   = (float)$this->request->getPost('salary_kpi');
-        $deduction = (float)$this->request->getPost('salary_deduction');
-        $pitTax = (float)$this->request->getPost('pit_tax');
-        $petrol = $this->request->getPost('petrol_allowance');
+        $bonus     = (float)$this->request->getPost('salary_bonus');
+        $kpi       = (float)$this->request->getPost('salary_kpi');
+        $pitTax    = (float)$this->request->getPost('pit_tax');
+        $petrol    = $this->request->getPost('petrol_allowance');
         $diligence = $this->request->getPost('diligence_allowance');
+        $other     = $this->request->getPost('salary_other');
+        // Nhận ngày công bù thủ công từ Admin
+        $manualAdjustDays = $this->request->getPost('manual_adjust_days');
 
         $data = [
-            'salary_bonus' => $bonus,
-            'salary_kpi'   => $kpi,
-            'salary_deduction' => $deduction,
-            'pit_tax'      => $pitTax
+            'salary_bonus'     => $bonus,
+            'salary_kpi'       => $kpi,
+            'salary_deduction' => 0.0,
+            'pit_tax'          => $pitTax
         ];
 
-        if ($petrol !== null) $data['petrol_allowance'] = (float)$petrol;
-        if ($diligence !== null) $data['diligence_allowance'] = (float)$diligence;
+        if ($petrol !== null)    { $data['petrol_allowance']    = (float)$petrol; }
+        if ($diligence !== null) { $data['diligence_allowance'] = (float)$diligence; }
+        if ($other !== null)     { $data['salary_other']        = (float)$other; }
 
-        // Fetch again to have full data for recalculation if some fields were not sent
+        // Khi Admin thay đổi ngày công bù → tính lại taxable_income
+        if ($manualAdjustDays !== null) {
+            $manualAdjustDays = (float)$manualAdjustDays;
+            $data['manual_adjust_days'] = $manualAdjustDays;
+
+            // Lương 1 ngày × (ngày công thực từ chấm công + ngày bù thủ công)
+            // Lưu ý: salary_per_day đã được tính theo probation_rate trong PayrollService
+            $salaryPerDay  = (float)($payroll['salary_per_day'] ?? 0);
+            $actualDays    = (float)($payroll['actual_working_days'] ?? 0);
+            $data['taxable_income'] = $salaryPerDay * ($actualDays + $manualAdjustDays);
+        }
+
+        // Tổng hợp dữ liệu để tính lại net_salary
         $currentData = array_merge($payroll, $data);
 
-        // Recalculate net_salary
-        $totalSalary = $currentData['taxable_income'] + $currentData['diligence_allowance'] + $currentData['petrol_allowance'] + $currentData['salary_kpi'] + $currentData['salary_bonus'];
-        $totalDeductions = $currentData['si_employee'] + $currentData['dependent_deduction'] + $currentData['pit_tax'] + $currentData['salary_deduction'];
-        $netSalary = $totalSalary - $totalDeductions;
+        $totalSalary     = $currentData['taxable_income']
+            + $currentData['diligence_allowance']
+            + $currentData['petrol_allowance']
+            + $currentData['salary_kpi']
+            + $currentData['salary_bonus'];
+        $totalDeductions = $currentData['si_employee']
+            + $currentData['pit_tax'];
+        $netSalary = $totalSalary + ($currentData['salary_other'] ?? 0) - $totalDeductions;
         
         $data['total_deductions'] = $totalDeductions;
-        $data['net_salary'] = $netSalary;
+        $data['net_salary']       = $netSalary;
 
         $this->payrollModel->update($id, $data);
         
         return $this->response->setJSON([
-            'code' => 0, 
-            'net_salary' => number_format($netSalary),
+            'code'             => 0, 
+            'net_salary'       => number_format($netSalary),
             'total_deductions' => number_format($totalDeductions),
-            'total_gross' => number_format($totalSalary)
+            'total_gross'      => number_format($totalSalary),
+            'taxable_income'   => number_format($currentData['taxable_income']),
+            'actual_working_days' => (float)($currentData['actual_working_days'] ?? 0),
+            'manual_adjust_days'  => (float)($currentData['manual_adjust_days'] ?? 0),
         ]);
     }
 
@@ -405,7 +457,7 @@ class PayrollController extends BaseController
         if ($petrol !== null) {
             $payroll = $this->payrollModel->find($id);
             $totalSalary = $payroll['taxable_income'] + $payroll['diligence_allowance'] + $payroll['petrol_allowance'] + $payroll['salary_kpi'];
-            $totalDeductions = $payroll['si_employee'] + $payroll['dependent_deduction'] + $payroll['pit_tax'] + $payroll['salary_deduction'];
+            $totalDeductions = $payroll['si_employee'] + $payroll['pit_tax'];
             $netSalary = $totalSalary + $payroll['salary_bonus'] + $payroll['salary_other'] - $totalDeductions;
             
             $this->payrollModel->update($id, ['net_salary' => $netSalary]);

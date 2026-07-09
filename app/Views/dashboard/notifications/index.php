@@ -2,19 +2,21 @@
 
 <?= $this->section('styles') ?>
 <link rel="stylesheet" href="<?= base_url('css/notifications.css') ?>">
-<?= $this->endSection() ?><?= $this->section('content') ?>
+<?= $this->endSection() ?>
+
+<?= $this->section('content') ?>
 <div class="notifications-container">
     <div class="dashboard-header-wrapper notif-header m-b-24">
         <div class="header-title-container">
-            <h2 class="content-title">Thông báo</h2>
-            <p class="text-xs text-muted-dark italic">Nhắc nhở & Chỉ đạo.</p>
+            <h2 class="content-title">Th&#244;ng b&#225;o</h2>
+            <p class="text-xs text-muted-dark italic">Nh&#7855;c nh&#7903; &amp; Ch&#7881; &#273;&#7841;o.</p>
         </div>
         <div class="flex-item-center gap-12">
             <a href="<?= base_url('notifications/create') ?>" class="btn-premium">
-                <i class="fas fa-edit m-r-8"></i> Soạn mới
+                <i class="fas fa-edit m-r-8"></i> So&#7841;n m&#7899;i
             </a>
             <button id="markAllReadPage" class="btn-secondary-sm">
-                <i class="fas fa-check-double m-r-8"></i> Đã đọc hết
+                <i class="fas fa-check-double m-r-8"></i> &#272;&#227; &#273;&#7885;c h&#7871;t
             </button>
         </div>
     </div>
@@ -22,14 +24,14 @@
     <!-- Tab Navigation -->
     <div class="tabs-premium m-b-24">
         <a href="<?= base_url('notifications?tab=inbox') ?>" class="tab-item <?= ($tab === 'inbox') ? 'active' : '' ?>">
-            <i class="fas fa-inbox"></i> Đến
+            <i class="fas fa-inbox"></i> &#272;&#7871;n
         </a>
         <a href="<?= base_url('notifications?tab=sent') ?>" class="tab-item <?= ($tab === 'sent') ? 'active' : '' ?>">
-            <i class="fas fa-paper-plane"></i> Đi
+            <i class="fas fa-paper-plane"></i> &#272;i
         </a>
         <?php if (has_permission('sys.admin')) { ?>
             <a href="<?= base_url('notifications?tab=all') ?>" class="tab-item <?= ($tab === 'all') ? 'active' : '' ?>" style="border-left: 2px solid #ddd; padding-left: 20px; margin-left: 10px;">
-                <i class="fas fa-shield-alt"></i> Hệ thống
+                <i class="fas fa-shield-alt"></i> H&#7879; th&#7889;ng
             </a>
         <?php } ?>
     </div>
@@ -39,19 +41,19 @@
         <input type="hidden" name="tab" value="<?= esc($tab) ?>">
         <div class="search-input-group">
             <i class="fas fa-search"></i>
-            <input type="text" name="q" placeholder="Tìm tiêu đề hoặc nội dung..." value="<?= esc(service('request')->getGet('q')) ?>" class="ajax-filter-search">
+            <input type="text" name="q" placeholder="T&#236;m ti&#234;u &#273;&#7873; ho&#7863;c n&#7897;i dung..." value="<?= esc(service('request')->getGet('q')) ?>" class="ajax-filter-search">
         </div>
 
         <select name="type" class="filter-select ajax-filter">
-            <option value="">Tất cả loại tin</option>
-            <option value="system" <?= service('request')->getGet('type') === 'system' ? 'selected' : '' ?>>Hệ thống</option>
-            <option value="approval" <?= service('request')->getGet('type') === 'approval' ? 'selected' : '' ?>>Phê duyệt</option>
-            <option value="reminder" <?= service('request')->getGet('type') === 'reminder' ? 'selected' : '' ?>>Nhắc nhở</option>
-            <option value="message" <?= service('request')->getGet('type') === 'message' ? 'selected' : '' ?>>Trao đổi</option>
+            <option value="">T&#7845;t c&#7843; lo&#7841;i tin</option>
+            <option value="system" <?= service('request')->getGet('type') === 'system' ? 'selected' : '' ?>>H&#7879; th&#7889;ng</option>
+            <option value="approval" <?= service('request')->getGet('type') === 'approval' ? 'selected' : '' ?>>Ph&#234; duy&#7879;t</option>
+            <option value="reminder" <?= service('request')->getGet('type') === 'reminder' ? 'selected' : '' ?>>Nh&#7855;c nh&#7903;</option>
+            <option value="message" <?= service('request')->getGet('type') === 'message' ? 'selected' : '' ?>>Trao &#273;&#7893;i</option>
         </select>
 
         <?php if (service('request')->getGet('q') || service('request')->getGet('type')) { ?>
-            <a href="<?= base_url('notifications?tab=' . $tab) ?>" class="btn-filter-secondary">Xóa lọc</a>
+            <a href="<?= base_url('notifications?tab=' . $tab) ?>" class="btn-filter-secondary">X&#243;a l&#7885;c</a>
         <?php } ?>
     </form>
 
@@ -60,74 +62,6 @@
     </div>
 </div>
 <?= $this->endSection() ?>
-
 <?= $this->section('scripts') ?>
-<script>
-/**
- * L.A.N ERP - Quản lý Thông báo (Hỗ trợ AJAX Filter)
- */
-$(document).ready(function() {
-    const listContainer = $('#notif-list-container');
-    const filterForm = $('#notif-filter-form');
-    let searchTimeout = null;
-
-    // AJAX Filter logic
-    $(document).on('change', '.ajax-filter', function() {
-        triggerFilter();
-    });
-
-    $(document).on('input', '.ajax-filter-search', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            triggerFilter();
-        }, 500);
-    });
-
-    function triggerFilter() {
-        const formData = filterForm.serialize();
-        const baseUrl = filterForm.attr('action');
-        const finalUrl = baseUrl + '?' + formData;
-        
-        fetchUpdate(finalUrl);
-        window.history.pushState({path: finalUrl}, '', finalUrl);
-    }
-
-    async function fetchUpdate(url) {
-        listContainer.css('opacity', '0.5');
-        try {
-            const response = await fetch(url, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            const html = await response.text();
-            listContainer.html(html);
-        } catch (err) {
-            console.error('Lỗi filter thông báo AJAX:', err);
-        } finally {
-            listContainer.css('opacity', '1');
-        }
-    }
-    
-    // 1. Đánh dấu một thông báo là đã đọc (Xử lý AJAX)
-    $(document).on('click', '.btn-mark-read', function() {
-        const btn = $(this);
-        const id = btn.data('id');
-
-        $.post('<?= base_url("notifications/read/") ?>' + id, function() {
-            const row = btn.closest('.notif-item-page');
-            row.removeClass('unread').addClass('read');
-            row.find('.notif-title').removeClass('unread').addClass('read');
-            btn.remove();
-        });
-    });
-
-    // 2. Đánh dấu tất cả thông báo là đã đọc
-    $('#markAllReadPage').click(function() {
-        if (confirm('Đánh dấu tất cả là đã đọc?')) {
-            $.post('<?= base_url("notifications/read-all") ?>', function() {
-                location.reload();
-            });
-        }
-    });
-});
-</script>
+<script src="<?= base_url('js/notifications_page.js') ?>"></script>
 <?= $this->endSection() ?>

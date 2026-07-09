@@ -150,10 +150,11 @@ class LeaveRequestService
             $managerRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_TRUONG_PHONG)->first();
             if ($managerRole) {
                 $managerRecords = $this->userModel->select('users.id')
-                                             ->join('employees', 'employees.user_id = users.id')
+                                             ->join('employees', 'employees.user_id = users.id AND employees.deleted_at IS NULL')
                                              ->where('employees.department_id', $departmentId)
                                              ->where('users.role_id', $managerRole['id']) 
                                              ->where('users.active_status', 1)
+                                             ->where('users.deleted_at', null)
                                              ->get()->getResultArray();
                 $managers = array_column($managerRecords, 'id');
                 $recipientUserIds = array_merge($recipientUserIds, $managers);
@@ -311,18 +312,36 @@ class LeaveRequestService
             
             $statusStr = 'LEAVE_' . strtoupper($type);
             
-            // Xử lý logic nghỉ nửa ngày
-            $leaveDuration = $this->model->where('employee_id', $employeeId)
-                                         ->where('start_date <=', $dateStr)
-                                         ->where('end_date >=', $dateStr)
-                                         ->where('status', 'approved')
-                                         ->select('leave_duration')
-                                         ->first();
-            
-            if ($leaveDuration) {
-                if ($leaveDuration['leave_duration'] === 'morning_half') {
+            // Xử lý logic nghỉ nửa ngày:
+            // Lấy TẤT CẢ đơn nghỉ đã duyệt phủ ngày này (không dùng first() để tránh bỏ sót đơn thứ 2)
+            $leaveDurations = $this->model->where('employee_id', $employeeId)
+                                          ->where('start_date <=', $dateStr)
+                                          ->where('end_date >=', $dateStr)
+                                          ->where('status', 'approved')
+                                          ->select('leave_duration')
+                                          ->findAll();
+
+            if (!empty($leaveDurations)) {
+                $hasMorning   = false;
+                $hasAfternoon = false;
+                $hasFullDay   = false;
+
+                foreach ($leaveDurations as $ld) {
+                    $dur = $ld['leave_duration'] ?? '';
+                    if ($dur === 'morning_half')   $hasMorning   = true;
+                    if ($dur === 'afternoon_half') $hasAfternoon = true;
+                    if ($dur === '' || ($dur !== 'morning_half' && $dur !== 'afternoon_half')) {
+                        // Đơn nghỉ cả ngày (leave_duration trống hoặc giá trị khác)
+                        $hasFullDay = true;
+                    }
+                }
+
+                if ($hasFullDay || ($hasMorning && $hasAfternoon)) {
+                    // Cả ngày: nghỉ nguyên ngày, hoặc đủ cả sáng lẫn chiều
+                    $statusStr = 'LEAVE_FULL_DAY';
+                } elseif ($hasMorning) {
                     $statusStr = 'LEAVE_MORNING';
-                } elseif ($leaveDuration['leave_duration'] === 'afternoon_half') {
+                } elseif ($hasAfternoon) {
                     $statusStr = 'LEAVE_AFTERNOON';
                 }
             }

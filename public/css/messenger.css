@@ -1,0 +1,174 @@
+/*
+ * messenger.css
+ * 
+ * Stylesheet riêng cho module Facebook Messenger Chat.
+ * Kế thừa biến CSS và các class dùng chung từ zalo.css.
+ * Chỉ override màu sắc và branding Facebook (xanh #1877f2).
+ * 
+ * Rule #8: Apple-Minimal, High Density, tách CSS riêng file.
+ * Rule #13: Mobile-First, breakpoint 768px và 1024px.
+ */
+
+/* ====================================================
+   MESSENGER PAGE CONTAINER
+   ==================================================== */
+.messenger-page-container {
+    padding: 0;
+    height: calc(100vh - 80px);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Override màu primary của Zalo sang Facebook blue */
+.messenger-page-container .btn-premium {
+    background: linear-gradient(135deg, #1877f2, #0d5bbf);
+}
+
+.messenger-page-container .btn-premium:hover {
+    background: linear-gradient(135deg, #0d5bbf, #0a4a9e);
+    transform: translateY(-1px);
+}
+
+/* Override active state conversation */
+.messenger-page-container .conversation-item.active {
+    background: linear-gradient(135deg, rgba(24,119,242,0.12), rgba(24,119,242,0.06));
+    border-left: 3px solid #1877f2;
+}
+
+/* Override unread badge */
+.messenger-page-container .unread-badge {
+    background: #1877f2;
+}
+
+/* ====================================================
+   QUICK REPLY HOVER
+   ==================================================== */
+.quick-reply-item:hover {
+    background: rgba(24, 119, 242, 0.06);
+    border-color: #1877f2;
+}
+
+/* ====================================================
+   CHAT BUBBLES — Màu phân biệt Messenger vs Zalo
+   ==================================================== */
+.messenger-page-container .message-bubble.sent .message-content {
+    background: linear-gradient(135deg, #1877f2, #0d5bbf);
+    color: #fff;
+}
+
+.messenger-page-container .message-bubble.received .message-content {
+    background: #f0f2f5;
+    color: #0f172a;
+}
+
+/* ====================================================
+   SEND BUTTON — Màu Messenger
+   ==================================================== */
+.messenger-page-container .btn-send {
+    background: linear-gradient(135deg, #1877f2, #0d5bbf);
+    border: none;
+    color: #fff;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.messenger-page-container .btn-send:hover {
+    background: linear-gradient(135deg, #0d5bbf, #0a4a9e);
+    transform: scale(1.05);
+}
+
+/* ====================================================
+   FACEBOOK CHANNEL BADGE trên avatar
+   ==================================================== */
+.fb-channel-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 14px;
+    height: 14px;
+    background: #1877f2;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+}
+
+.fb-channel-badge i {
+    color: #fff;
+    font-size: 7px;
+}
+
+/* ====================================================
+   INSIGHT PANEL — Override link color cho Messenger
+   ==================================================== */
+.messenger-page-container .insight-header {
+    background: linear-gradient(135deg, #1877f2, #0d5bbf);
+    color: #fff;
+}
+
+.messenger-page-container .insight-header h3 {
+    color: #fff;
+}
+
+.messenger-page-container .insight-close {
+    color: rgba(255,255,255,0.8);
+}
+
+.messenger-page-container .insight-close:hover {
+    color: #fff;
+}
+
+/* ====================================================
+   HEADER ZALO DASHBOARD GRID (Kế thừa từ zalo.css)
+   ==================================================== */
+.messenger-page-container .zalo-dashboard-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 0;
+    height: calc(100vh - 160px);
+    overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+/* ====================================================
+   MOBILE RESPONSIVE
+   ==================================================== */
+@media (max-width: 768px) {
+    .messenger-page-container .zalo-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .messenger-page-container .zalo-dashboard-grid .zalo-main-chat {
+        display: none;
+    }
+
+    .messenger-page-container .zalo-dashboard-grid.has-selected .zalo-sidebar {
+        display: none;
+    }
+
+    .messenger-page-container .zalo-dashboard-grid.has-selected .zalo-main-chat {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .messenger-page-container .btn-back-mobile {
+        display: inline-flex !important;
+    }
+}
+
+@media (max-width: 1024px) {
+    .messenger-page-container .zalo-dashboard-grid {
+        grid-template-columns: 280px 1fr;
+    }
+}

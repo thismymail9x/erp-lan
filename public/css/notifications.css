@@ -36,7 +36,7 @@
 .notif-ticker-content {
     display: inline-block;
     padding-left: 100%;
-    animation: ticker-scroll 25s linear infinite;
+    animation: ticker-scroll var(--ticker-duration, 55s) linear infinite;
     cursor: default;
 }
 
@@ -181,6 +181,7 @@
 .notif-item-page {
     padding: 18px 24px; border-bottom: 1px solid #f2f2f7; display: flex; gap: 20px; align-items: flex-start; transition: all 0.2s; position: relative;
 }
+.notif-item-page.js-notif-open { cursor: pointer; }
 .notif-item-page.unread { background: rgba(0, 113, 227, 0.02); border-left: 3px solid var(--apple-blue); }
 .notif-item-page:hover { background: #fafafa; }
 
@@ -244,6 +245,20 @@
     width: 18px;
     height: 18px;
     accent-color: var(--apple-blue);
+    cursor: pointer;
+}
+
+.radio-apple {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.radio-apple input {
+    width: 20px;
+    height: 20px;
     cursor: pointer;
 }
 

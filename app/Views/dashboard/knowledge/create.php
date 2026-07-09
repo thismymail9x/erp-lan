@@ -137,46 +137,4 @@
 <?= $this->section('scripts') ?>
 <script src="<?= base_url('vendor/quill/quill.min.js') ?>"></script>
 <script src="<?= base_url('js/knowledge_editor.js') ?>"></script>
-<script>
-$(document).ready(function() {
-    if (typeof jQuery !== 'undefined' && jQuery.fn.select2) {
-        $('.select2-enable').select2({
-            width: '100%',
-            placeholder: "-- Vui lòng chọn --"
-        });
-    }
-});
-</script>
-<style>
-/* Module-specific refinements */
-.red-flag-wrapper {
-    border: 1px solid #ff3b3033;
-    background: #fffafa;
-    border-radius: 8px;
-}
-.red-flag-wrapper .ql-toolbar {
-    background: #fff5f5;
-    border-bottom: 1px solid #ff3b301a;
-}
-.case-link-box-active {
-    background: #fff;
-    padding: 16px;
-    border-radius: 12px;
-    border: 1px solid #0071e333;
-    box-shadow: 0 4px 10px rgba(0, 113, 227, 0.05);
-}
-.case-link-box-empty {
-    background: #f5f5f7;
-    padding: 16px;
-    border-radius: 12px;
-    border: 1px dashed #d2d2d7;
-    text-align: center;
-}
-.line-clamp-1 {
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-</style>
 <?= $this->endSection() ?>

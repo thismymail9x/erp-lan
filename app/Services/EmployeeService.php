@@ -59,7 +59,10 @@ class EmployeeService extends BaseService
 
         // Xây dựng câu truy vấn kết hợp thông tin Nhân viên và Phòng ban
         $query = $this->employeeModel->select('employees.*, departments.name as department_name')
-                            ->join('departments', 'departments.id = employees.department_id', 'left');
+                            ->join('departments', 'departments.id = employees.department_id', 'left')
+                            ->join('users', 'users.id = employees.user_id', 'inner')
+                            ->where('users.active_status', 1)
+                            ->where('users.deleted_at', null);
 
         // 1. Áp dụng bộ lọc tìm kiếm (Full-text search cơ bản)
         if (!empty($search)) {
@@ -74,6 +77,8 @@ class EmployeeService extends BaseService
 
         // 2. LOGIC PHÂN TÁCH DỮ LIỆU (Contextual Data Fetching):
         if (has_permission('sys.admin') || 
+            has_permission('user.view') ||
+            has_permission('user.manage') ||
             $roleName === \Config\AppConstants::ROLE_ADMIN || 
             $roleName === \Config\AppConstants::ROLE_MOD || 
             $departmentName === \Config\AppConstants::DEPT_NAME_HANH_CHINH) {
@@ -195,6 +200,8 @@ class EmployeeService extends BaseService
         return $this->userModel->select('users.id, users.email')
                                ->join('employees', 'employees.user_id = users.id', 'left')
                                ->where('employees.user_id', null)
+                               ->where('users.active_status', 1)
+                               ->where('users.deleted_at', null)
                                ->findAll();
     }
 
@@ -218,6 +225,7 @@ class EmployeeService extends BaseService
             ->join('users', 'users.id = employees.user_id')
             ->join('roles', 'roles.id = users.role_id')
             ->where('users.active_status', 1)
+            ->where('users.deleted_at', null)
             ->whereIn('roles.name', [
                 \Config\AppConstants::ROLE_ADMIN,
                 \Config\AppConstants::ROLE_MOD,

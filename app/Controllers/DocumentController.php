@@ -101,8 +101,9 @@ class DocumentController extends BaseController
         if (!$this->request->isAJAX()) {
             $userModel = new \App\Models\UserModel();
             $allUsers = $userModel->select('users.id, employees.full_name')
-                                 ->join('employees', 'employees.user_id = users.id')
+                                 ->join('employees', 'employees.user_id = users.id AND employees.deleted_at IS NULL')
                                  ->where('users.active_status', 1)
+                                 ->where('users.deleted_at', null)
                                  ->findAll();
         }
 

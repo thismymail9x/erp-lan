@@ -867,4 +867,442 @@ CREATE TABLE `contacts` (
                             CONSTRAINT `fk_contact_creator` FOREIGN KEY (`created_by`) REFERENCES `employees` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Bảng danh bạ liên hệ thông minh';
 
+-- ----------------------------
+-- UPDATE LOG: 14/05/2026 - Tích hợp Zalo OA (Zalo OA Integration)
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS `zalo_followers` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `zalo_id` VARCHAR(255) NOT NULL UNIQUE COMMENT 'Mã định danh người dùng Zalo',
+    `display_name` VARCHAR(255) NOT NULL,
+    `avatar_url` TEXT DEFAULT NULL,
+    `phone_number` VARCHAR(20) DEFAULT NULL,
+    `mid_code` VARCHAR(50) DEFAULT NULL,
+    `customer_id` INT(11) UNSIGNED DEFAULT NULL COMMENT 'Liên kết với bảng customers',
+    `tags` TEXT DEFAULT NULL COMMENT 'Phân loại tệp khách hàng Zalo',
+    `created_at` DATETIME DEFAULT NULL,
+    `updated_at` DATETIME DEFAULT NULL,
+    CONSTRAINT `fk_zalo_follower_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Lưu trữ thông tin người quan tâm Zalo OA (Followers)';
+
+CREATE TABLE IF NOT EXISTS `zalo_messages` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `zalo_msg_id` VARCHAR(255) DEFAULT NULL UNIQUE COMMENT 'ID tin nhắn từ Zalo',
+    `follower_id` INT(11) UNSIGNED NOT NULL COMMENT 'Liên kết với bảng zalo_followers',
+    `sender_type` ENUM('user', 'oa') NOT NULL DEFAULT 'user' COMMENT 'Người gửi: user (khách hàng), oa (nhân sự)',
+    `message_text` TEXT NOT NULL COMMENT 'Nội dung tin nhắn',
+    `attachments` TEXT DEFAULT NULL COMMENT 'Đính kèm (link ảnh, file)',
+    `created_at` DATETIME DEFAULT NULL,
+    CONSTRAINT `fk_zalo_msg_follower` FOREIGN KEY (`follower_id`) REFERENCES `zalo_followers` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Lưu trữ lịch sử tin nhắn Zalo vĩnh viễn';
+
+CREATE TABLE IF NOT EXISTS `zalo_campaigns` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(255) NOT NULL,
+    `template_id` VARCHAR(100) NOT NULL COMMENT 'ID mẫu ZNS',
+    `target_tags` TEXT DEFAULT NULL COMMENT 'Tags khách hàng mục tiêu',
+    `status` ENUM('draft', 'running', 'completed', 'cancelled') DEFAULT 'draft',
+    `sent_count` INT DEFAULT 0,
+    `success_count` INT DEFAULT 0,
+    `created_by` INT(11) UNSIGNED DEFAULT NULL,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `deleted_at` DATETIME DEFAULT NULL,
+    CONSTRAINT `fk_zalo_camp_creator` FOREIGN KEY (`created_by`) REFERENCES `employees` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Chiến dịch gửi ZNS (Tiếp thị lại)';
+
+CREATE TABLE IF NOT EXISTS `zalo_surveys` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `follower_id` INT(11) UNSIGNED NOT NULL,
+    `employee_id` INT(11) UNSIGNED DEFAULT NULL COMMENT 'Nhân sự được đánh giá',
+    `case_id` INT(11) UNSIGNED DEFAULT NULL COMMENT 'Vụ việc liên quan',
+    `rating` INT DEFAULT NULL COMMENT 'Đánh giá 1-5 sao',
+    `feedback` TEXT DEFAULT NULL,
+    `status` ENUM('pending', 'completed') DEFAULT 'pending',
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `deleted_at` DATETIME DEFAULT NULL,
+    `completed_at` DATETIME DEFAULT NULL,
+    CONSTRAINT `fk_zalo_survey_follower` FOREIGN KEY (`follower_id`) REFERENCES `zalo_followers` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_zalo_survey_emp` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_zalo_survey_case` FOREIGN KEY (`case_id`) REFERENCES `cases` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Khảo sát chất lượng tư vấn (Quản lý hiệu suất)';
+
+-- ----------------------------
+-- UPDATE LOG: 15/05/2026 - Nâng cấp Zalo OA: Phân quyền & Trạng thái đọc (Permissions & Read Status)
+-- ----------------------------
+ALTER TABLE `zalo_followers` ADD COLUMN `assigned_to` int(11) unsigned DEFAULT NULL AFTER `customer_id`;
+ALTER TABLE `zalo_followers` ADD CONSTRAINT `fk_zalo_follower_assigned` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+ALTER TABLE `zalo_messages` ADD COLUMN `is_read` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0: Chưa đọc, 1: Đã đọc' AFTER `attachments`;
+
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- ----------------------------
+-- 25. BẢNG zalo_quick_replies (Câu trả lời nhanh)
+-- Nhóm quản lý các mẫu câu hỗ trợ khách hàng nhanh chóng cho module Tư vấn khách hàng (Zalo/Messenger).
+-- Tuân thủ Rule #5 (Comments) & Rule #6 (Soft Delete).
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS `zalo_quick_replies` (
+                                                    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `title` VARCHAR(100) NOT NULL COMMENT 'Tiêu đề mẫu gợi nhớ',
+    `content` TEXT NOT NULL COMMENT 'Nội dung câu trả lời thực tế',
+    `created_at` DATETIME DEFAULT NULL COMMENT 'Thời gian tạo mẫu',
+    `updated_at` DATETIME DEFAULT NULL COMMENT 'Thời gian cập nhật',
+    `deleted_at` DATETIME DEFAULT NULL COMMENT 'Thời gian xóa mềm (Soft Delete)'
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Hệ thống mẫu phản hồi nhanh cho tư vấn viên';
+
+-- ----------------------------
+-- UPDATE LOG: 16/05/2026 - Module Tích hợp Facebook Messenger (Omni-Channel Communication)
+-- Thiết kế tương đồng với Zalo OA (zalo_followers / zalo_messages) để đồng nhất kiến trúc.
+-- Rule #4: Viết bên dưới, không sửa CREATE TABLE gốc.
+-- Rule #5: Gắn COMMENT tiếng Việt đầy đủ cho mỗi cột.
+-- ----------------------------
+
+CREATE TABLE IF NOT EXISTS `messenger_contacts` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT 'Khóa chính',
+    `psid` VARCHAR(100) NOT NULL UNIQUE COMMENT 'Page-Scoped ID: Định danh duy nhất của người dùng Facebook với Page này',
+    `display_name` VARCHAR(255) NOT NULL DEFAULT 'Khách Facebook' COMMENT 'Tên hiển thị lấy từ Facebook Graph API',
+    `avatar_url` TEXT DEFAULT NULL COMMENT 'URL ảnh đại diện người dùng',
+    `phone_number` VARCHAR(20) DEFAULT NULL COMMENT 'Số điện thoại (nếu người dùng cung cấp)',
+    `mid_code` VARCHAR(50) DEFAULT NULL COMMENT 'Mã định danh nội bộ hệ thống ERP (VD: FB-A1B2C3)',
+    `customer_id` INT(11) UNSIGNED DEFAULT NULL COMMENT 'Khóa ngoại liên kết bảng customers nếu đã đồng bộ CRM',
+    `assigned_to` INT(11) UNSIGNED DEFAULT NULL COMMENT 'user_id của nhân sự phụ trách hội thoại này',
+    `tags` TEXT DEFAULT NULL COMMENT 'Mảng JSON các nhãn phân loại (VD: ["Tiềm năng","Khiếu nại"])',
+    `locale` VARCHAR(20) DEFAULT 'vi_VN' COMMENT 'Ngôn ngữ người dùng (VD: vi_VN, en_US)',
+    `timezone` TINYINT DEFAULT 7 COMMENT 'Múi giờ UTC+N của người dùng',
+    `page_id` VARCHAR(100) DEFAULT NULL COMMENT 'Facebook Page ID nhận tin nhắn (hỗ trợ multi-page)',
+    `created_at` DATETIME DEFAULT NULL COMMENT 'Thời gian khởi tạo bản ghi',
+    `updated_at` DATETIME DEFAULT NULL COMMENT 'Thời gian tương tác gần nhất (dùng để sort danh sách)',
+    `deleted_at` DATETIME DEFAULT NULL COMMENT 'Thời gian xóa mềm (Soft Delete)',
+    INDEX `idx_psid` (`psid`),
+    INDEX `idx_assigned` (`assigned_to`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Danh sách người dùng tương tác qua Facebook Messenger (tương đương zalo_followers)';
+
+CREATE TABLE IF NOT EXISTS `messenger_messages` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT 'Khóa chính',
+    `contact_id` INT(11) UNSIGNED NOT NULL COMMENT 'Khóa ngoại tới messenger_contacts.id',
+    `fb_msg_id` VARCHAR(255) DEFAULT NULL COMMENT 'ID tin nhắn Facebook (dùng chống trùng lặp webhook)',
+    `sender_type` ENUM('user','page') NOT NULL DEFAULT 'user' COMMENT 'Chiều tin nhắn: user=KH gửi vào, page=ERP gửi ra',
+    `message_text` TEXT DEFAULT NULL COMMENT 'Nội dung văn bản của tin nhắn',
+    `attachments` TEXT DEFAULT NULL COMMENT 'JSON các đính kèm: [{type: image|file|video, payload: {...}}]',
+    `is_read` TINYINT(1) DEFAULT 0 COMMENT '0=Chưa đọc, 1=Đã đọc (Dùng để tính badge unread)',
+    `mid_staff_id` INT(11) UNSIGNED DEFAULT NULL COMMENT 'user_id nhân sự gửi tin (khi sender_type=page)',
+    `created_at` DATETIME DEFAULT NULL COMMENT 'Thời gian tin nhắn',
+    `updated_at` DATETIME DEFAULT NULL COMMENT 'Thời gian cập nhật bản ghi',
+    `deleted_at` DATETIME DEFAULT NULL COMMENT 'Thời gian xóa mềm (Soft Delete)',
+    INDEX `idx_contact` (`contact_id`),
+    UNIQUE KEY `idx_fb_msg_id` (`fb_msg_id`),
+    CONSTRAINT `fk_msn_msg_contact` FOREIGN KEY (`contact_id`) REFERENCES `messenger_contacts` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Lịch sử tin nhắn Facebook Messenger (tương đương zalo_messages)';
+
+-- Seed cấu hình Messenger vào system_settings (Giá trị rỗng, admin tự nhập qua /messenger/config)
+INSERT IGNORE INTO `system_settings` (`key`, `value`) VALUES
+    ('messenger_page_access_token', ''),
+    ('messenger_app_id', ''),
+    ('messenger_app_secret', ''),
+    ('messenger_verify_token', 'lan_erp_messenger_verify_2026');
+
+
+-- ----------------------------
+-- UPDATE LOG: 19/05/2026 - Module Khách hàng: Bổ dung nhân sự phụ trách chăm sóc tư vấn
+-- Rule #4: Viết bên dưới, không sửa CREATE TABLE gốc.
+-- Rule #5: Gắn COMMENT tiếng Việt đầy đủ cho mỗi cột.
+-- ----------------------------
+ALTER TABLE `customers` ADD COLUMN `assigned_care_staff_id` int(11) unsigned DEFAULT NULL COMMENT 'ID nhân sự phụ trách chăm sóc tư vấn (Liên kết bảng employees)' AFTER `created_by`;
+ALTER TABLE `customers` ADD CONSTRAINT `fk_customers_care_staff` FOREIGN KEY (`assigned_care_staff_id`) REFERENCES `employees` (`id`) ON DELETE SET NULL;
+
+-- ----------------------------
+-- UPDATE LOG: 21/05/2026 - Tích hợp Phân loại & Phân công Chat thông minh (Giai đoạn 2 & 3)
+-- Rule #4: Viết bên dưới, không sửa CREATE TABLE gốc.
+-- Rule #5: Gắn COMMENT tiếng Việt đầy đủ cho mỗi cột.
+-- ----------------------------
+
+ALTER TABLE `zalo_followers` 
+    ADD COLUMN `email` VARCHAR(255) DEFAULT NULL COMMENT 'Địa chỉ email khách hàng cung cấp qua chat' AFTER `phone_number`,
+    ADD COLUMN `lead_warmth` ENUM('hot', 'warm', 'cold') NOT NULL DEFAULT 'cold' COMMENT 'Độ nóng của lead: hot (Nóng), warm (Ấm), cold (Lạnh)' AFTER `tags`,
+    ADD COLUMN `is_duplicate` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Cờ báo trùng lặp (1: Trùng lặp, 0: Bình thường)' AFTER `lead_warmth`,
+    ADD COLUMN `duplicate_of` INT(11) UNSIGNED DEFAULT NULL COMMENT 'ID liên hệ chính trong zalo_followers bị trùng' AFTER `is_duplicate`,
+    ADD COLUMN `assigned_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm phân công nhân sự gần nhất' AFTER `assigned_to`,
+    ADD COLUMN `first_response_deadline` DATETIME DEFAULT NULL COMMENT 'Hạn chót để phản hồi khách hàng lần đầu (2 tiếng)' AFTER `assigned_at`,
+    ADD COLUMN `first_responded_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm phản hồi thực tế lần đầu tiên' AFTER `first_response_deadline`,
+    ADD COLUMN `is_overdue` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Cờ đánh dấu quá hạn phản hồi (1: Quá hạn, 0: Đúng hạn)' AFTER `first_responded_at`,
+    ADD COLUMN `deleted_at` DATETIME DEFAULT NULL COMMENT 'Thời gian xóa mềm (Soft Delete)' AFTER `updated_at`,
+    ADD CONSTRAINT `fk_zalo_follower_dup` FOREIGN KEY (`duplicate_of`) REFERENCES `zalo_followers` (`id`) ON DELETE SET NULL;
+
+ALTER TABLE `messenger_contacts` 
+    ADD COLUMN `email` VARCHAR(255) DEFAULT NULL COMMENT 'Địa chỉ email khách hàng cung cấp qua chat' AFTER `phone_number`,
+    ADD COLUMN `lead_warmth` ENUM('hot', 'warm', 'cold') NOT NULL DEFAULT 'cold' COMMENT 'Độ nóng của lead: hot (Nóng), warm (Ấm), cold (Lạnh)' AFTER `tags`,
+    ADD COLUMN `is_duplicate` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Cờ báo trùng lặp (1: Trùng lặp, 0: Bình thường)' AFTER `lead_warmth`,
+    ADD COLUMN `duplicate_of` INT(11) UNSIGNED DEFAULT NULL COMMENT 'ID liên hệ chính trong messenger_contacts bị trùng' AFTER `is_duplicate`,
+    ADD COLUMN `assigned_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm phân công nhân sự gần nhất' AFTER `assigned_to`,
+    ADD COLUMN `first_response_deadline` DATETIME DEFAULT NULL COMMENT 'Hạn chót để phản hồi khách hàng lần đầu (2 tiếng)' AFTER `assigned_at`,
+    ADD COLUMN `first_responded_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm phản hồi thực tế lần đầu tiên' AFTER `first_response_deadline`,
+    ADD COLUMN `is_overdue` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Cờ đánh dấu quá hạn phản hồi (1: Quá hạn, 0: Đúng hạn)' AFTER `first_responded_at`,
+    ADD CONSTRAINT `fk_messenger_contact_dup` FOREIGN KEY (`duplicate_of`) REFERENCES `messenger_contacts` (`id`) ON DELETE SET NULL;
+
+ALTER TABLE `employees`
+    ADD COLUMN `specialties` VARCHAR(255) DEFAULT NULL COMMENT 'JSON array các lĩnh vực chuyên môn (VD: ["Đất đai","Ly hôn"])' AFTER `position`,
+    ADD COLUMN `max_workload` INT(11) NOT NULL DEFAULT 15 COMMENT 'Giới hạn số lead tối đa nhân sự được nhận đồng thời' AFTER `specialties`;
+
+-- ----------------------------
+-- UPDATE LOG: 2026-05-22 - Bổ sung tính năng Ongoing SLA cho Chat
+-- Rule #4: Viết bên dưới, không sửa CREATE TABLE gốc.
+-- Rule #5: Gắn COMMENT tiếng Việt đầy đủ cho mỗi cột.
+-- ----------------------------
+ALTER TABLE `zalo_followers` 
+ADD COLUMN `ongoing_response_deadline` DATETIME DEFAULT NULL COMMENT 'Hạn chót để phản hồi tin nhắn mới nhất của khách trong quá trình trao đổi' AFTER `first_responded_at`,
+ADD COLUMN `last_customer_msg_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm khách hàng gửi tin nhắn cuối cùng' AFTER `ongoing_response_deadline`,
+ADD COLUMN `ongoing_is_overdue` TINYINT(1) DEFAULT 0 COMMENT 'Cờ đánh dấu vi phạm SLA trao đổi kế tiếp' AFTER `last_customer_msg_at`;
+
+ALTER TABLE `messenger_contacts` 
+ADD COLUMN `ongoing_response_deadline` DATETIME DEFAULT NULL COMMENT 'Hạn chót để phản hồi tin nhắn mới nhất của khách trong quá trình trao đổi' AFTER `first_responded_at`,
+ADD COLUMN `last_customer_msg_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm khách hàng gửi tin nhắn cuối cùng' AFTER `ongoing_response_deadline`,
+ADD COLUMN `ongoing_is_overdue` TINYINT(1) DEFAULT 0 COMMENT 'Cờ đánh dấu vi phạm SLA trao đổi kế tiếp' AFTER `last_customer_msg_at`;
+
+INSERT INTO `system_settings` (`key`, `value`, `updated_at`) VALUES ('ongoing_sla_hours', '2', NOW()) ON DUPLICATE KEY UPDATE `value`='2', `updated_at`=NOW();
+
+-- ----------------------------
+-- UPDATE LOG: 2026-05-22 - Module Chăm Sóc Khách Hàng (CSKH) - Phase 1
+-- Rule #4: Viết bên dưới, không sửa CREATE TABLE gốc.
+-- Rule #5: Gắn COMMENT tiếng Việt đầy đủ cho mỗi cột.
+-- ----------------------------
+
+ALTER TABLE `customers` 
+    ADD COLUMN `customer_segment` VARCHAR(50) DEFAULT NULL COMMENT 'Phân nhóm khách hàng A/B/C: vip (VIP - Nhóm A), regular (Phổ thông - Nhóm B), potential (Tiềm năng - Nhóm C)' AFTER `assigned_care_staff_id`,
+    ADD COLUMN `zalo_phone` VARCHAR(20) DEFAULT NULL COMMENT 'Số điện thoại Zalo riêng (nếu khác SĐT chính)' AFTER `customer_segment`,
+    ADD COLUMN `occupation` VARCHAR(255) DEFAULT NULL COMMENT 'Nghề nghiệp/Lĩnh vực hoạt động' AFTER `zalo_phone`,
+    ADD COLUMN `care_status` VARCHAR(50) NOT NULL DEFAULT 'new' COMMENT 'Trạng thái CSKH: new (Mới), phase1 (Giai đoạn 1), phase2 (Giai đoạn 2), phase3 (Giai đoạn 3), completed (Đã hoàn thành chăm sóc), dormant (Bỏ quên/cần kích hoạt lại)' AFTER `occupation`,
+    ADD COLUMN `service_completed_date` DATE DEFAULT NULL COMMENT 'Ngày hoàn thành dịch vụ/hợp đồng gần nhất' AFTER `care_status`,
+    ADD COLUMN `referral_count` INT(11) DEFAULT 0 COMMENT 'Số lần khách giới thiệu người khác' AFTER `service_completed_date`;
+
+CREATE TABLE IF NOT EXISTS `customer_care_plans` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT 'Khóa chính',
+    `customer_id` INT(11) UNSIGNED NOT NULL COMMENT 'Khóa ngoại liên kết bảng customers',
+    `phase` VARCHAR(50) NOT NULL COMMENT 'Giai đoạn CSKH: phase1 (Giai đoạn 1), phase2 (Giai đoạn 2), phase3 (Giai đoạn 3)',
+    `title` VARCHAR(255) NOT NULL COMMENT 'Tiêu đề kế hoạch chăm sóc',
+    `description` TEXT DEFAULT NULL COMMENT 'Mô tả chi tiết kế hoạch',
+    `assigned_staff_id` INT(11) UNSIGNED DEFAULT NULL COMMENT 'Nhân sự chịu trách nhiệm chăm sóc (Liên kết employees)',
+    `status` VARCHAR(50) NOT NULL DEFAULT 'pending' COMMENT 'Trạng thái: pending (Chờ), in_progress (Đang làm), completed (Hoàn thành), skipped (Bỏ qua)',
+    `due_date` DATE DEFAULT NULL COMMENT 'Hạn chót hoàn thành kế hoạch',
+    `completed_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm hoàn thành thực tế',
+    `result_notes` TEXT DEFAULT NULL COMMENT 'Kết quả hoặc ghi chú thu thập được từ khách',
+    `created_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm tạo bản ghi',
+    `updated_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm cập nhật bản ghi',
+    `deleted_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm xóa mềm (Soft Delete)',
+    CONSTRAINT `fk_care_plan_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_care_plan_staff` FOREIGN KEY (`assigned_staff_id`) REFERENCES `employees` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Kế hoạch chăm sóc khách hàng cũ theo từng giai đoạn';
+
+CREATE TABLE IF NOT EXISTS `customer_care_tasks` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT 'Khóa chính',
+    `care_plan_id` INT(11) UNSIGNED NOT NULL COMMENT 'Khóa ngoại liên kết customer_care_plans',
+    `customer_id` INT(11) UNSIGNED NOT NULL COMMENT 'Khóa ngoại liên kết customers để query nhanh',
+    `task_type` VARCHAR(50) NOT NULL COMMENT 'Loại công việc: thank_you, feedback, follow_up, gift, content, call, etc.',
+    `title` VARCHAR(255) NOT NULL COMMENT 'Tiêu đề công việc CSKH',
+    `description` TEXT DEFAULT NULL COMMENT 'Mô tả chi tiết công việc',
+    `channel` VARCHAR(50) DEFAULT NULL COMMENT 'Kênh tương tác: zalo, email, call, meeting, letter',
+    `is_completed` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Trạng thái hoàn thành: 0 (Chưa), 1 (Đã xong)',
+    `completed_by` INT(11) UNSIGNED DEFAULT NULL COMMENT 'Nhân sự thực hiện công việc (Liên kết employees)',
+    `completed_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm hoàn thành thực tế',
+    `due_date` DATE DEFAULT NULL COMMENT 'Hạn chót hoàn thành công việc',
+    `sort_order` INT(11) DEFAULT 0 COMMENT 'Thứ tự sắp xếp hiển thị',
+    `created_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm tạo bản ghi',
+    `updated_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm cập nhật bản ghi',
+    `deleted_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm xóa mềm (Soft Delete)',
+    CONSTRAINT `fk_care_task_plan` FOREIGN KEY (`care_plan_id`) REFERENCES `customer_care_plans` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_care_task_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_care_task_staff` FOREIGN KEY (`completed_by`) REFERENCES `employees` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Checklist công việc CSKH chi tiết trong từng kế hoạch';
+
+CREATE TABLE IF NOT EXISTS `customer_loyalty` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT 'Khóa chính',
+    `customer_id` INT(11) UNSIGNED NOT NULL COMMENT 'Khóa ngoại liên kết customers',
+    `loyalty_tier` VARCHAR(50) NOT NULL DEFAULT 'standard' COMMENT 'Hạng thành viên: standard (Tiêu chuẩn), silver (Bạc), gold (Vàng), vip (VIP)',
+    `benefits` TEXT DEFAULT NULL COMMENT 'Quyền lợi được áp dụng (Định dạng JSON)',
+    `points` INT(11) DEFAULT 0 COMMENT 'Điểm tích lũy',
+    `referral_code` VARCHAR(20) DEFAULT NULL COMMENT 'Mã giới thiệu duy nhất của khách hàng',
+    `total_referrals` INT(11) DEFAULT 0 COMMENT 'Tổng số lượng khách giới thiệu thành công',
+    `notes` TEXT DEFAULT NULL COMMENT 'Ghi chú thêm về loyalty/VIP',
+    `activated_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm kích hoạt thẻ/hạng',
+    `created_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm tạo bản ghi',
+    `updated_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm cập nhật bản ghi',
+    `deleted_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm xóa mềm (Soft Delete)',
+    UNIQUE KEY `idx_referral_code` (`referral_code`),
+    CONSTRAINT `fk_loyalty_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Chương trình khách hàng thân thiết và VIP';
+
+-- ----------------------------
+-- UPDATE LOG: 25/05/2026 - Hệ thống Trạng thái & SLA CSKH Cấu hình Động (Dynamic SLA & Status Config)
+-- Quy tắc 4 & 5: Đồng bộ hóa kép cấu hình trạng thái và nhật ký theo dõi SLA cho module Khách hàng.
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS `customer_sla_settings` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT 'Khóa chính',
+    `status_key` VARCHAR(50) NOT NULL COMMENT 'Khóa định danh trạng thái',
+    `status_name` VARCHAR(100) NOT NULL COMMENT 'Tên hiển thị trạng thái',
+    `sla_hours` INT(11) NOT NULL DEFAULT 0 COMMENT 'Thời gian xử lý SLA (giờ), 0 là không giới hạn',
+    `color` VARCHAR(20) NOT NULL DEFAULT '#6c757d' COMMENT 'Màu sắc đại diện trạng thái (Hex hoặc CSS)',
+    `sort_order` INT(11) NOT NULL DEFAULT 0 COMMENT 'Thứ tự hiển thị',
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Trạng thái hoạt động (1: Bật, 0: Tắt)',
+    `created_at` DATETIME DEFAULT NULL COMMENT 'Ngày tạo',
+    `updated_at` DATETIME DEFAULT NULL COMMENT 'Ngày cập nhật',
+    `deleted_at` DATETIME DEFAULT NULL COMMENT 'Ngày xóa mềm',
+    UNIQUE KEY `idx_status_key` (`status_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Cấu hình trạng thái tư vấn và thời hạn SLA động cho khách hàng';
+
+CREATE TABLE IF NOT EXISTS `customer_sla_history` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT 'Khóa chính',
+    `customer_id` INT(11) UNSIGNED NOT NULL COMMENT 'Khóa ngoại liên kết bảng customers',
+    `assigned_staff_id` INT(11) UNSIGNED DEFAULT NULL COMMENT 'Nhân viên phụ trách tại thời điểm này (Liên kết employees)',
+    `status` VARCHAR(50) NOT NULL COMMENT 'Trạng thái tư vấn',
+    `start_time` DATETIME NOT NULL COMMENT 'Thời điểm bắt đầu trạng thái',
+    `end_time` DATETIME DEFAULT NULL COMMENT 'Thời điểm kết thúc trạng thái',
+    `sla_duration` INT(11) NOT NULL DEFAULT 0 COMMENT 'Thời hạn SLA được áp dụng (giờ)',
+    `due_time` DATETIME DEFAULT NULL COMMENT 'Thời gian hạn chót hoàn thành',
+    `sla_status` VARCHAR(30) NOT NULL DEFAULT 'in_progress' COMMENT 'Trạng thái SLA: in_progress, achieved, overdue, completed_late',
+    `created_at` DATETIME DEFAULT NULL COMMENT 'Ngày tạo',
+    `updated_at` DATETIME DEFAULT NULL COMMENT 'Ngày cập nhật',
+    `deleted_at` DATETIME DEFAULT NULL COMMENT 'Ngày xóa mềm',
+    CONSTRAINT `fk_csh_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_csh_staff` FOREIGN KEY (`assigned_staff_id`) REFERENCES `employees` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Nhật ký lịch sử tiến độ và trạng thái SLA chăm sóc khách hàng';
+
+INSERT IGNORE INTO `customer_sla_settings` (`status_key`, `status_name`, `sla_hours`, `color`, `sort_order`, `created_at`, `updated_at`) VALUES
+('chua_tu_van', 'Chưa được tư vấn', 24, '#6c757d', 1, NOW(), NOW()),
+('dang_tu_van', 'Đang tư vấn', 48, '#0071e3', 2, NOW(), NOW()),
+('doi_ho_so', 'Đợi khách gửi hồ sơ', 120, '#ff9500', 3, NOW(), NOW()),
+('nghien_cuu_bao_phi', 'Đang nghiên cứu để báo phí', 48, '#af52de', 4, NOW(), NOW()),
+('thuong_luong', 'Đang thương lượng', 72, '#5856d6', 5, NOW(), NOW()),
+('chot_hop_dong', 'Đã chốt hợp đồng', 0, '#34c759', 6, NOW(), NOW()),
+('tam_dung', 'Tạm dừng chăm sóc', 0, '#8e8e93', 7, NOW(), NOW()),
+('khong_tiem_nang', 'Không tiềm năng / Hủy', 0, '#ff3b30', 8, NOW(), NOW());
+
+-- ============================================================
+-- ZALO ZNS (Zalo Notification Service) - Bảng dữ liệu
+-- Ngày tạo: 2026-05-26
+-- Mô tả: Lưu trữ mẫu tin, chiến dịch và log gửi thông báo ZNS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS `zns_templates` (
+    `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+    `template_id` VARCHAR(100) NOT NULL COMMENT 'ID mẫu tin từ hệ thống Zalo Business',
+    `template_name` VARCHAR(255) NOT NULL COMMENT 'Tên mẫu tin hiển thị trong ERP',
+    `template_content` TEXT NULL COMMENT 'Nội dung mẫu tin (preview)',
+    `template_params` JSON NULL COMMENT 'Danh sách các biến trong mẫu tin (JSON array)',
+    `default_mappings` JSON NULL COMMENT 'Cấu hình ánh xạ mặc định do Admin thiết lập giữa tham số ZNS và trường dữ liệu ERP',
+    `status` ENUM('active','inactive') NOT NULL DEFAULT 'active' COMMENT 'Trạng thái: active=đang sử dụng, inactive=tạm ngưng',
+    `created_by` INT(11) UNSIGNED NULL COMMENT 'ID nhân sự tạo template',
+    `created_at` DATETIME NULL,
+    `updated_at` DATETIME NULL,
+    `deleted_at` DATETIME NULL COMMENT 'Xóa mềm (Soft Delete)',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `template_id` (`template_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng mẫu tin ZNS - Lưu trữ các template thông báo Zalo đã đăng ký';
+
+CREATE TABLE IF NOT EXISTS `zns_campaigns` (
+    `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(255) NOT NULL COMMENT 'Tên chiến dịch',
+    `description` TEXT NULL COMMENT 'Mô tả chi tiết chiến dịch',
+    `zns_template_id` INT(11) UNSIGNED NOT NULL COMMENT 'FK tới zns_templates.id',
+    `template_data_mapping` JSON NULL COMMENT 'Mapping giữa biến template và trường dữ liệu KH (JSON)',
+    `filter_criteria` JSON NULL COMMENT 'Bộ lọc KH mục tiêu (tag, status, segment...)',
+    `customer_ids` JSON NULL COMMENT 'Danh sách ID KH được chọn thủ công',
+    `status` ENUM('draft','sending','completed','failed','cancelled') NOT NULL DEFAULT 'draft' COMMENT 'Trạng thái chiến dịch',
+    `total_recipients` INT(11) NOT NULL DEFAULT 0 COMMENT 'Tổng số người nhận',
+    `sent_count` INT(11) NOT NULL DEFAULT 0 COMMENT 'Số tin đã gửi',
+    `success_count` INT(11) NOT NULL DEFAULT 0 COMMENT 'Số tin gửi thành công',
+    `fail_count` INT(11) NOT NULL DEFAULT 0 COMMENT 'Số tin gửi thất bại',
+    `created_by` INT(11) UNSIGNED NULL COMMENT 'ID nhân sự tạo chiến dịch',
+    `started_at` DATETIME NULL COMMENT 'Thời điểm bắt đầu gửi',
+    `completed_at` DATETIME NULL COMMENT 'Thời điểm hoàn thành',
+    `created_at` DATETIME NULL,
+    `updated_at` DATETIME NULL,
+    `deleted_at` DATETIME NULL COMMENT 'Xóa mềm (Soft Delete)',
+    PRIMARY KEY (`id`),
+    KEY `zns_template_id` (`zns_template_id`),
+    KEY `status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng chiến dịch ZNS - Quản lý gửi thông báo hàng loạt tới KH';
+
+CREATE TABLE IF NOT EXISTS `zns_logs` (
+    `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+    `campaign_id` INT(11) UNSIGNED NULL COMMENT 'FK tới zns_campaigns.id (NULL nếu gửi đơn lẻ)',
+    `customer_id` INT(11) UNSIGNED NULL COMMENT 'FK tới customers.id',
+    `template_id` VARCHAR(100) NOT NULL COMMENT 'ID mẫu tin Zalo',
+    `phone` VARCHAR(20) NOT NULL COMMENT 'SĐT người nhận (format 84xxx)',
+    `template_data` JSON NULL COMMENT 'Dữ liệu đã gửi vào template (JSON)',
+    `status` ENUM('pending','sent','delivered','failed') NOT NULL DEFAULT 'pending' COMMENT 'Trạng thái gửi',
+    `zalo_msg_id` VARCHAR(100) NULL COMMENT 'ID tin nhắn từ Zalo trả về',
+    `error_code` INT(11) NULL COMMENT 'Mã lỗi từ Zalo API',
+    `error_message` TEXT NULL COMMENT 'Nội dung lỗi chi tiết',
+    `sent_by` INT(11) UNSIGNED NULL COMMENT 'ID nhân sự thực hiện gửi',
+    `sent_at` DATETIME NULL COMMENT 'Thời điểm gửi thực tế',
+    `created_at` DATETIME NULL,
+    PRIMARY KEY (`id`),
+    KEY `campaign_id` (`campaign_id`),
+    KEY `customer_id` (`customer_id`),
+    KEY `status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng log ZNS - Ghi nhận chi tiết từng tin nhắn ZNS đã gửi';
+
+-- ============================================================
+-- HƯỚNG DẪN CẬP NHẬT CƠ SỞ DỮ LIỆU THỦ CÔNG (Nếu không chạy được /run-migrations)
+-- Vui lòng chạy câu lệnh dưới đây trong phpMyAdmin hoặc cổng truy vấn MySQL để thêm cột:
+--
+-- ALTER TABLE `zns_templates` ADD COLUMN `default_mappings` JSON NULL COMMENT 'Cấu hình ánh xạ mặc định do Admin thiết lập' AFTER `template_params`;
+-- ============================================================
+
+
+-- ----------------------------
+-- UPDATE LOG: 01/06/2026 - Nâng cấp Nghiệp vụ Bảng lương (Hệ số lương thử việc + Chuyển hạng giữa tháng + Truy lĩnh tự động + Ngày công bù)
+-- Quy tắc 4: Chỉ thêm ALTER TABLE cuối file, KHÔNG sửa CREATE TABLE gốc.
+-- ----------------------------
+
+-- Bảng EMPLOYEES: Hệ số lương và thông tin chuyển hạng giữa kỳ
+ALTER TABLE `employees`
+    ADD COLUMN IF NOT EXISTS `probation_rate` DECIMAL(5,2) NOT NULL DEFAULT 100.00 COMMENT 'Hệ số lương hiện tại (% lương cơ bản): 85=Thử việc, 40=Thực tập, 60=Học việc, 100=Chính thức' AFTER `allowance_base`,
+    ADD COLUMN IF NOT EXISTS `probation_end_date` DATE NULL DEFAULT NULL COMMENT 'Ngày kết thúc giai đoạn thử việc/thực tập. NULL = không chuyển hạng trong kỳ tính' AFTER `probation_rate`,
+    ADD COLUMN IF NOT EXISTS `new_rate_after` DECIMAL(5,2) NOT NULL DEFAULT 100.00 COMMENT 'Hệ số % lương áp dụng SAU ngày probation_end_date (thường là 100 khi chuyển sang chính thức)' AFTER `probation_end_date`;
+
+-- Bảng PAYROLLS: Ngày công bù thủ công, snapshot hệ số lương và cột khoản khác/truy lĩnh
+ALTER TABLE `payrolls`
+    ADD COLUMN IF NOT EXISTS `manual_adjust_days` DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT 'Số ngày công cộng thêm thủ công (Admin bù delay chấm công nhân viên mới)' AFTER `actual_working_days`,
+    ADD COLUMN IF NOT EXISTS `probation_rate_snapshot` DECIMAL(5,2) NOT NULL DEFAULT 100.00 COMMENT 'Snapshot hệ số % lương tại thời điểm tính lương (phục vụ tra cứu lịch sử)' AFTER `manual_adjust_days`,
+    ADD COLUMN IF NOT EXISTS `salary_other` DECIMAL(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Khoản điều chỉnh khác / truy lĩnh tự động' AFTER `salary_bonus`;
+
+-- ----------------------------
+-- UPDATE LOG: 03/06/2026 - KPI tư vấn theo giá trị hợp đồng đã chốt
+-- Mốc KPI: 150.000.000 VNĐ giá trị hợp đồng/tháng tương ứng thưởng 5.000.000 VNĐ.
+-- ----------------------------
+ALTER TABLE `cases`
+    ADD COLUMN IF NOT EXISTS `consultant_id` INT(11) UNSIGNED DEFAULT NULL COMMENT 'Nhân sự tư vấn đã chốt khách để tính KPI tư vấn' AFTER `assigned_staff_id`,
+    ADD COLUMN IF NOT EXISTS `consultation_closed_at` DATETIME DEFAULT NULL COMMENT 'Thời điểm ghi nhận hồ sơ được tư vấn chốt thành công' AFTER `consultant_id`;
+
+
+-- ----------------------------
+-- UPDATE LOG: 17/06/2026 - Đăng ký xe trong lịch trình công việc
+-- Quy tắc 4: Chỉ thêm ALTER TABLE cuối file, KHÔNG sửa CREATE TABLE gốc.
+-- ----------------------------
+ALTER TABLE `work_schedules`
+    ADD COLUMN IF NOT EXISTS `requires_vehicle` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 nếu lịch trình có đăng ký sử dụng xe công ty' AFTER `location`;
+-- ----------------------------
+-- UPDATE LOG: 03/07/2026 - Trang thai qua tang cho khach hang
+-- Quy tac 4: Chi them ALTER TABLE cuoi file, KHONG sua CREATE TABLE goc.
+-- ----------------------------
+ALTER TABLE `customers`
+    ADD COLUMN IF NOT EXISTS `has_received_gift` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Trang thai qua tang cua khach hang: 0 chua tang, 1 da tang' AFTER `care_status`;
+
+-- ----------------------------
+-- UPDATE LOG: 09/07/2026 - Deadline cuối ngày và ghi nhận KPI ngoại lệ cho step vụ việc
+-- Quy tac 4: Chi them ALTER TABLE/UPDATE cuoi file, KHONG sua CREATE TABLE goc.
+-- ----------------------------
+ALTER TABLE `case_steps`
+    ADD COLUMN IF NOT EXISTS `kpi_override_approved` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Quản lý ghi nhận KPI dù step hoàn thành sau hạn' AFTER `kpi_reward`,
+    ADD COLUMN IF NOT EXISTS `kpi_override_reason` TEXT NULL COMMENT 'Lý do chấp thuận KPI ngoại lệ' AFTER `kpi_override_approved`,
+    ADD COLUMN IF NOT EXISTS `kpi_override_by` INT(11) UNSIGNED NULL COMMENT 'Nhân sự quản lý đã chấp thuận KPI ngoại lệ' AFTER `kpi_override_reason`,
+    ADD COLUMN IF NOT EXISTS `kpi_override_at` DATETIME NULL COMMENT 'Thời điểm chấp thuận KPI ngoại lệ' AFTER `kpi_override_by`;
+
+UPDATE `case_steps`
+SET `deadline` = CONCAT(DATE(`deadline`), ' 23:59:59')
+WHERE `deadline` IS NOT NULL;
+
+UPDATE `cases`
+SET `deadline` = CONCAT(DATE(`deadline`), ' 23:59:59')
+WHERE `deadline` IS NOT NULL;

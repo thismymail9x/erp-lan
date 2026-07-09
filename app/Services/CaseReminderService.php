@@ -56,6 +56,11 @@ class CaseReminderService
             $case = $this->caseModel->find($step['case_id']);
             if (!$case) continue;
 
+            // Nếu vụ việc bị Tạm dừng hoặc Hủy, không nhắc nhở hay cảnh báo quá hạn nữa
+            if (in_array($case['status'], ['tam_dung', 'huy'])) {
+                continue;
+            }
+
             // --- CHIẾN LƯỢC NHẮC HẸN (Notification Strategy) ---
             
             // Mức 1: Cảnh báo sớm (3 ngày trước Deadline) - Giúp nhân viên chủ động sắp xếp

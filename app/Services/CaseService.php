@@ -35,7 +35,7 @@ class CaseService extends BaseService
      * @param string $search Từ khóa tìm kiếm đa năng.
      * @return array Danh sách vụ việc đã được lọc và làm sạch dữ liệu.
      */
-    public function getCases(string $sort = 'id', string $order = 'desc', int $perPage = 20, string $search = '', array $lawyerIds = [], string $status = '', int $tagId = 0, int $month = 0, int $year = 0, string $paymentStatus = '', bool $isFinance = false)
+    public function getCases(string $sort = 'id', string $order = 'desc', int $perPage = 20, string $search = '', array $lawyerIds = [], string $status = '', int $tagId = 0, int $month = 0, int $year = 0, string $paymentStatus = '', bool $isFinance = false, ?array $allowedCaseIds = null)
     {
         // 1. Phân tích bối cảnh người dùng (Authentication Context)
         $roleName = session()->get('role_name');
@@ -55,6 +55,8 @@ class CaseService extends BaseService
 
         $orderField = $sortMap[$sort] ?? 'cases.id';
         $direction  = (strtolower($order) === 'asc') ? 'asc' : 'desc';
+        $currentEarnedCondition = $this->currentCaseAssigneeConditionSql('completed_by', 'cases');
+        $currentRemainingCondition = $this->currentCaseAssigneeConditionSql('assigned_to', 'cases');
 
         // 3. Xây dựng Query Builder cốt lõi (Bổ sung kpi_earned & kpi_remaining)
         $isHanhChinhOrAdmin = ($roleName === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
@@ -80,8 +82,8 @@ class CaseService extends BaseService
 
         // 3. Xây dựng Query Builder cốt lõi
         $query = $this->caseModel->select($selectData)
-            ->select('(SELECT SUM(kpi_reward) FROM case_steps WHERE case_id = cases.id AND status = "completed" AND deleted_at IS NULL) as kpi_earned')
-            ->select('(SELECT SUM(kpi_reward) FROM case_steps WHERE case_id = cases.id AND status IN ("pending", "active", "pending_approval", "overdue") AND deleted_at IS NULL) as kpi_remaining')
+            ->select('(SELECT COALESCE(SUM(kpi_reward), 0) FROM case_steps WHERE case_id = cases.id AND status = "completed" AND (completed_at <= deadline OR kpi_override_approved = 1) AND ' . $currentEarnedCondition . ' AND deleted_at IS NULL) as kpi_earned')
+            ->select('(SELECT COALESCE(SUM(kpi_reward), 0) FROM case_steps WHERE case_id = cases.id AND status IN ("pending", "active", "pending_approval") AND deadline >= NOW() AND ' . $currentRemainingCondition . ' AND deleted_at IS NULL AND cases.status NOT IN ("da_hoan_thanh", "huy", "tam_dung")) as kpi_remaining')
             ->select('(SELECT MIN(deadline) FROM case_steps WHERE case_id = cases.id AND status IN ("active", "pending_approval") AND deadline IS NOT NULL AND deleted_at IS NULL) as step_deadline')
             ->select('(SELECT step_name FROM case_steps WHERE case_id = cases.id AND status IN ("active", "pending_approval") AND deleted_at IS NULL ORDER BY deadline ASC LIMIT 1) as current_step_name')
             ->join('customers', 'customers.id = cases.customer_id', 'left')
@@ -116,7 +118,7 @@ class CaseService extends BaseService
                         $query->where("cases.id IN (
                             SELECT DISTINCT case_id FROM case_steps 
                             WHERE deleted_at IS NULL AND (
-                                (status = 'completed' AND completed_at > deadline)
+                                (status = 'completed' AND completed_at > deadline AND kpi_override_approved != 1)
                                 OR 
                                 (status IN ('active') AND deadline < '$now')
                             )
@@ -127,7 +129,7 @@ class CaseService extends BaseService
                             $query->where("cases.id IN (
                                 SELECT DISTINCT case_id FROM case_steps 
                                 WHERE deleted_at IS NULL AND (
-                                    (status = 'completed' AND completed_at > deadline AND completed_by = $myEmpId)
+                                    (status = 'completed' AND completed_at > deadline AND kpi_override_approved != 1 AND completed_by = $myEmpId)
                                     OR 
                                     (status IN ('active') AND deadline < '$now' AND assigned_to = $myEmpId)
                                 )
@@ -140,7 +142,7 @@ class CaseService extends BaseService
                         $query->where("cases.id IN (
                             SELECT DISTINCT case_id FROM case_steps 
                             WHERE deleted_at IS NULL AND (
-                                (status = 'completed' AND completed_at > deadline AND completed_by IN ($idsStr))
+                                (status = 'completed' AND completed_at > deadline AND kpi_override_approved != 1 AND completed_by IN ($idsStr))
                                 OR 
                                 (status IN ('active') AND deadline < '$now' AND assigned_to IN ($idsStr))
                             )
@@ -158,7 +160,7 @@ class CaseService extends BaseService
         }
 
         // 6. Áp dụng các bộ lọc chung (Search, Lawyers, Tags, Time, Payment Status)
-        $this->applyFilters($query, $search, $lawyerIds, $tagId, $month, $year, $paymentStatus, $isFinance);
+        $this->applyFilters($query, $search, $lawyerIds, $tagId, $month, $year, $paymentStatus, $isFinance, $allowedCaseIds);
         // 7. Thực thi truy vấn kèm theo Phân trang
         // Ưu tiên các vụ việc đang làm ('dang_xu_ly') lên đầu khi xem danh sách mặc định (Sắp xếp theo ID)
         if ($sort === 'id') {
@@ -289,20 +291,9 @@ class CaseService extends BaseService
     {
         $session = session();
         $roleName = $session->get('role_name');
-        
-        // Query cơ sở bao gồm cả phân quyền và bộ lọc người dùng chọn
-        $baseQuery = $this->caseModel->select('cases.id');
-        
-        // 1. Phân quyền
-        $this->applyAccessLimit($baseQuery);
-        
-        // 2. Bộ lọc (Sync với danh sách)
-        $this->applyFilters($baseQuery, $search, $lawyerIds, $tagId, $month, $year);
-        
         $now = date('Y-m-d H:i:s');
         $overdueSubquery = "SELECT DISTINCT case_id FROM case_steps WHERE status = 'active' AND deadline < '$now' AND deleted_at IS NULL";
         
-        // Nếu không phải Admin, chỉ đếm những vụ việc mà CHÍNH HỌ đang làm trễ
         $isAdminView = ($this->accessControl->canViewAllData($roleName) || $session->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
         if (!$isAdminView) {
             $myEmpId = (int)$session->get('employee_id');
@@ -311,12 +302,23 @@ class CaseService extends BaseService
             }
         }
 
+        $buildBaseQuery = function() use ($search, $lawyerIds, $tagId, $month, $year) {
+            $query = $this->caseModel->select('cases.id')
+                ->join('customers', 'customers.id = cases.customer_id', 'left')
+                ->join('employees', 'employees.id = cases.assigned_lawyer_id', 'left');
+            
+            $this->applyAccessLimit($query);
+            $this->applyFilters($query, $search, $lawyerIds, $tagId, $month, $year);
+            return $query;
+        };
+
         return [
-            'total'      => (clone $baseQuery)->countAllResults(),
-            'processing' => (clone $baseQuery)->where('cases.status', 'dang_xu_ly')->countAllResults(),
-            'waiting'    => (clone $baseQuery)->where('cases.status', 'cho_tiep_nhan')->countAllResults(),
-            'completed'  => (clone $baseQuery)->where('cases.status', 'da_hoan_thanh')->countAllResults(),
-            'overdue'    => (clone $baseQuery)
+            'total'      => $buildBaseQuery()->countAllResults(),
+            'processing' => $buildBaseQuery()->where('cases.status', 'dang_xu_ly')->countAllResults(),
+            'waiting'    => $buildBaseQuery()->where('cases.status', 'cho_tiep_nhan')->countAllResults(),
+            'paused'     => $buildBaseQuery()->where('cases.status', 'tam_dung')->countAllResults(),
+            'completed'  => $buildBaseQuery()->where('cases.status', 'da_hoan_thanh')->countAllResults(),
+            'overdue'    => $buildBaseQuery()
                                 ->whereIn('cases.status', ['cho_tiep_nhan', 'dang_xu_ly'])
                                 ->where("cases.id IN ($overdueSubquery)")
                                 ->countAllResults()
@@ -327,7 +329,7 @@ class CaseService extends BaseService
      * Áp dụng tập hợp các bộ lọc tìm kiếm và phân loại.
      * Phương thức này dùng để đồng bộ hóa Query giữa danh sách và bộ chỉ số thống kê.
      */
-    private function applyFilters(&$query, $search, $lawyerIds, $tagId, $month, $year, $paymentStatus = '', $isFinance = false)
+    private function applyFilters(&$query, $search, $lawyerIds, $tagId, $month, $year, $paymentStatus = '', $isFinance = false, ?array $allowedCaseIds = null)
     {
         // 1. Lọc theo nhân sự phụ trách
         if (!empty($lawyerIds)) {
@@ -341,31 +343,18 @@ class CaseService extends BaseService
         }
 
         // 2. Lọc theo tháng/năm
-        if ($month > 0) {
-            if ($year <= 0) $year = (int)date('Y');
-            
-            if ($isFinance) {
-                // Trong module Tài chính: Lọc vụ việc được tạo trong tháng HOẶC có đợt thanh toán trong tháng đó
-                $monthStr = str_pad($month, 2, '0', STR_PAD_LEFT);
-                $datePattern = $year . '-' . $monthStr;
-                
-                $query->groupStart()
-                      ->where('MONTH(cases.created_at)', $month)
-                      ->where('YEAR(cases.created_at)', $year)
-                      ->orLike('cases.payment_progress', $datePattern)
-                ->groupEnd();
+        if ($isFinance && $allowedCaseIds !== null) {
+            if (empty($allowedCaseIds)) {
+                $query->where('1 = 0');
             } else {
-                // Module Vụ việc: Lọc theo ngày tạo (Mặc định)
+                $query->whereIn('cases.id', $allowedCaseIds);
+            }
+        } else {
+            if ($month > 0) {
+                if ($year <= 0) $year = (int)date('Y');
                 $query->where('MONTH(cases.created_at)', $month);
                 $query->where('YEAR(cases.created_at)', $year);
-            }
-        } elseif ($year > 0) {
-            if ($isFinance) {
-                $query->groupStart()
-                      ->where('YEAR(cases.created_at)', $year)
-                      ->orLike('cases.payment_progress', (string)$year)
-                ->groupEnd();
-            } else {
+            } elseif ($year > 0) {
                 $query->where('YEAR(cases.created_at)', $year);
             }
         }
@@ -412,6 +401,19 @@ class CaseService extends BaseService
     /**
      * Cơ chế Phân quyền dữ liệu (Security Scoping) dùng chung.
      */
+    private function currentCaseAssigneeConditionSql(string $employeeColumn, string $caseAlias): string
+    {
+        $memberSubquery = 'SELECT cm.employee_id FROM case_members cm '
+            . 'WHERE cm.case_id = ' . $caseAlias . '.id '
+            . 'AND cm.role_in_case IN ("assignee", "main")';
+
+        return '('
+            . $employeeColumn . ' IN (' . $memberSubquery . ') '
+            . 'OR (NOT EXISTS (' . $memberSubquery . ') AND '
+            . $employeeColumn . ' = COALESCE(' . $caseAlias . '.assigned_lawyer_id, ' . $caseAlias . '.assigned_staff_id))'
+            . ')';
+    }
+
     private function applyAccessLimit(&$query)
     {
         $session = session();
@@ -481,18 +483,21 @@ class CaseService extends BaseService
     public function getFinanceStats(string $search = '', int $month = 0, int $year = 0, string $paymentStatus = '')
     {
         // Lấy toàn bộ dữ liệu (không lọc tháng/năm ở SQL vì sẽ xử lý trong PHP)
-        // Chỉ áp dụng: phân quyền, tìm kiếm, trạng thái thanh toán
-        $query = $this->caseModel->select('contract_value, payment_progress, created_at');
+        // Bổ sung JOIN để search hoạt động mà không lỗi SQL
+        $query = $this->caseModel->select('cases.id, cases.contract_value, cases.payment_progress, cases.created_at')
+            ->join('customers', 'customers.id = cases.customer_id', 'left')
+            ->join('employees', 'employees.id = cases.assigned_lawyer_id', 'left');
+            
         $this->applyAccessLimit($query);
-        $this->applyFilters($query, $search, [], 0, 0, 0, $paymentStatus, true);
+        $this->applyFilters($query, $search, [], 0, 0, 0, $paymentStatus, false);
         
         $results = $query->findAll();
         
         $totalContract = 0;
         $totalPaid     = 0;
         $totalUnpaid   = 0;
+        $matchingCaseIds = [];
 
-        // Chuẩn bị hiệu quả tháng/năm lọc
         $filterYear  = ($year > 0) ? $year : 0;
         $filterMonth = ($month > 0 && $filterYear > 0) ? $month : 0;
 
@@ -507,19 +512,13 @@ class CaseService extends BaseService
                 }
             }
 
-            // ----------------------------------------------------------------
-            // Xác định "mốc thời gian đại diện" cho từng chỉ số
-            // ----------------------------------------------------------------
-
-            // --- TỔNG HĐ: Dùng deadline đợt lần 1 (index 0), fallback → created_at ---
             $totalRepDate = null;
             if (isset($payments[0]) && !empty($payments[0]['deadline'])) {
-                $totalRepDate = $payments[0]['deadline']; // Thời gian thu lần 1
+                $totalRepDate = $payments[0]['deadline'];
             } else {
-                $totalRepDate = $createdAt; // Fallback: ngày tạo vụ việc
+                $totalRepDate = $createdAt;
             }
 
-            // --- ĐÃ THU: Ưu tiên từ to đến bé (từ cuối lên). Lấy mốc cuối cùng có thời gian. Fallback → created_at ---
             $paidRepDate = null;
             $hasPaid = false;
             for ($i = count($payments) - 1; $i >= 0; $i--) {
@@ -530,11 +529,12 @@ class CaseService extends BaseService
                     }
                 }
             }
+            // Không lấy fallback created_at cho paidRepDate nếu đợt thanh toán không nhập ngày
+            // Điều này tránh việc hiển thị sai ở tháng tạo vụ việc trên phần mềm
             if ($hasPaid && $paidRepDate === null) {
-                $paidRepDate = $createdAt;
+                $paidRepDate = null;
             }
 
-            // --- CHƯA THU: Thời gian lần thanh toán cuối cùng chưa thanh toán nếu có, fallback → created_at ---
             $unpaidRepDate = null;
             $hasUnpaid = false;
             for ($i = count($payments) - 1; $i >= 0; $i--) {
@@ -543,18 +543,16 @@ class CaseService extends BaseService
                     if (!empty($payments[$i]['deadline'])) {
                         $unpaidRepDate = $payments[$i]['deadline'];
                     }
-                    break; // Chỉ lấy mốc của lần cuối cùng chưa thanh toán
+                    break;
                 }
             }
+            // Không lấy fallback created_at cho unpaidRepDate nếu đợt thanh toán không nhập ngày
             if ($hasUnpaid && $unpaidRepDate === null) {
-                $unpaidRepDate = $createdAt;
+                $unpaidRepDate = null;
             }
 
-            // ----------------------------------------------------------------
-            // Helper: Kiểm tra mốc thời gian có khớp bộ lọc tháng/năm không
-            // ----------------------------------------------------------------
             $matchesFilter = function(?string $dateStr) use ($filterYear, $filterMonth): bool {
-                if ($filterYear <= 0) return true; // Không lọc theo năm → luôn khớp
+                if ($filterYear <= 0) return true;
                 if (empty($dateStr)) return false;
                 try {
                     $dt = new \DateTime($dateStr);
@@ -566,28 +564,31 @@ class CaseService extends BaseService
                 }
             };
 
-            // ----------------------------------------------------------------
-            // Cộng Tổng HĐ
-            // ----------------------------------------------------------------
-            if ($matchesFilter($totalRepDate)) {
-                $totalContract += (float)($row['contract_value'] ?? 0);
+            $isMatch = false;
+            if ($filterYear <= 0) {
+                $isMatch = true;
+            } else {
+                if ($matchesFilter($totalRepDate)) {
+                    $isMatch = true;
+                } elseif ($hasPaid && $matchesFilter($paidRepDate)) {
+                    $isMatch = true;
+                } elseif ($hasUnpaid && $matchesFilter($unpaidRepDate)) {
+                    $isMatch = true;
+                }
             }
 
-            // ----------------------------------------------------------------
-            // Cộng Đã thu / Chưa thu
-            // ----------------------------------------------------------------
-            foreach ($payments as $p) {
-                $amtStr = $p['amount'] ?? '0';
-                $amt    = (float)str_replace(['.', ','], '', $amtStr);
+            if ($isMatch) {
+                $matchingCaseIds[] = (int)$row['id'];
+                
+                $totalContract += (float)($row['contract_value'] ?? 0);
+                
+                foreach ($payments as $p) {
+                    $amtStr = $p['amount'] ?? '0';
+                    $amt    = (float)str_replace(['.', ','], '', $amtStr);
 
-                if (!empty($p['is_paid']) && $p['is_paid'] == 1) {
-                    // Đã thu
-                    if ($matchesFilter($paidRepDate)) {
+                    if (!empty($p['is_paid']) && $p['is_paid'] == 1) {
                         $totalPaid += $amt;
-                    }
-                } else {
-                    // Chưa thu
-                    if ($matchesFilter($unpaidRepDate)) {
+                    } else {
                         $totalUnpaid += $amt;
                     }
                 }
@@ -597,7 +598,8 @@ class CaseService extends BaseService
         return [
             'total_contract' => $totalContract,
             'total_paid'     => $totalPaid,
-            'total_unpaid'   => $totalUnpaid
+            'total_unpaid'   => $totalUnpaid,
+            'case_ids'       => $matchingCaseIds
         ];
     }
 }

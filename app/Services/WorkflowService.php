@@ -391,6 +391,39 @@ class WorkflowService extends BaseService
      * Bác bỏ yêu cầu phê duyệt (Rejection Flow).
      * Trả hồ sơ/bước về cho nhân viên sửa lại.
      */
+    /**
+     * Ghi nhận KPI ngoại lệ cho bước đã hoàn thành trễ hạn.
+     *
+     * Lý do nghiệp vụ: Có các trường hợp nhân sự hoàn thành công việc đạt yêu cầu
+     * nhưng bị ghi nhận trễ hạn do nguyên nhân khách quan hoặc do thời gian quản lý duyệt.
+     * Cờ ngoại lệ giúp báo cáo KPI vẫn ghi nhận thưởng, đồng thời giữ nguyên lịch sử
+     * deadline và thời điểm hoàn thành thực tế để phục vụ kiểm toán.
+     */
+    public function approveStepKpiOverride(int $stepId, string $reason, ?int $approvedBy): array
+    {
+        $step = $this->stepModel->find($stepId);
+        if (!$step) {
+            throw new Exception("Không tìm thấy bước cần ghi nhận KPI.");
+        }
+
+        if (($step['status'] ?? '') !== 'completed' || empty($step['completed_at'])) {
+            throw new Exception("Chỉ ghi nhận KPI ngoại lệ cho bước đã hoàn thành.");
+        }
+
+        if ((int)($step['kpi_reward'] ?? 0) <= 0) {
+            throw new Exception("Bước này không có định mức KPI để ghi nhận.");
+        }
+
+        $this->stepModel->update($stepId, [
+            'kpi_override_approved' => 1,
+            'kpi_override_reason'   => $reason,
+            'kpi_override_by'       => $approvedBy,
+            'kpi_override_at'       => date('Y-m-d H:i:s'),
+        ]);
+
+        return $step;
+    }
+
     public function rejectStep(int $stepId, string $reason = '')
     {
         $step = $this->stepModel->find($stepId);
@@ -720,6 +753,12 @@ class WorkflowService extends BaseService
         $today = $now->format('Y-m-d');
 
         foreach ($activeSteps as $step) {
+            // Kiểm tra trạng thái vụ việc: Nếu vụ việc bị Tạm dừng hoặc Hủy, không nhắc nhở hay cảnh báo quá hạn nữa
+            $case = $this->caseModel->find($step['case_id']);
+            if (!$case || in_array($case['status'], ['tam_dung', 'huy'])) {
+                continue;
+            }
+
             $deadline = new \DateTime($step['deadline']);
             // Tính toán số giờ còn lại (Số âm tức là đã quá hạn)
             $hoursLeft = ($deadline->getTimestamp() - $now->getTimestamp()) / 3600;

@@ -123,6 +123,10 @@ class TagController extends BaseController
      */
     public function show($id)
     {
+        if (!has_permission('sys.admin')) {
+            return redirect()->to(base_url('tags'))->with('error', 'Chỉ Quản trị viên mới có quyền xem chi tiết danh sách gắn nhãn để bảo mật dữ liệu.');
+        }
+
         $tag = model('TagModel')->find($id);
         if (!$tag) {
             return redirect()->to(base_url('tags'))->with('error', 'Nhãn dán không tồn tại.');

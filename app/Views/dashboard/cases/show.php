@@ -1,4 +1,4 @@
-<?= $this->extend('layouts/dashboard') ?>
+﻿<?= $this->extend('layouts/dashboard') ?>
 
 <?= $this->section('styles') ?>
 <link rel="stylesheet" href="<?= base_url('css/cases.css') ?>">
@@ -21,7 +21,7 @@
     $canEditCase = has_permission('sys.admin') || has_permission('case.manage') || has_permission('case.edit_all') || $isPrimaryAssignee;
 ?>
 
-<div class="case-detail-container">
+<div class="case-detail-container" data-vault-url="<?= base_url('documents/vault-list') ?>?category=internal" data-import-doc-url="<?= base_url('cases/import-doc/' . $case['id']) ?>" data-csrf-name="<?= csrf_token() ?>" data-csrf-hash="<?= csrf_hash() ?>">
     <!-- 
         Tiêu đề trang chi tiết Vụ việc:
         Hiển thị Mã số (Code), Tên vụ việc và Khách hàng liên quan một cách trang nhã.
@@ -47,7 +47,7 @@
                 <a href="<?= base_url('cases/edit/' . $case['id']) ?>" class="btn-secondary-sm" title="Sửa">
                     <i class="fas fa-edit"></i> Sửa
                 </a>
-                <button class="btn-premium" onclick="document.getElementById('statusModal').style.display='flex'"
+                <button class="btn-premium-sm" data-modal-open="statusModal"
                         title="Cập nhật trạng thái tổng thể">
                     <i class="fas fa-sync-alt"></i> Cập nhật
                 </button>
@@ -59,16 +59,16 @@
         <div class="profile-main">
             <!-- Tabs Navigation -->
             <div class="nav-tabs-premium m-b-24">
-                <div class="nav-tab-item active" onclick="switchTab('overview')">
+                <div class="nav-tab-item active" data-tab="overview">
                     <i class="fas fa-stream"></i> Tổng quan
                 </div>
-                <div class="nav-tab-item" onclick="switchTab('comments')">
+                <div class="nav-tab-item" data-tab="comments">
                     <i class="fas fa-comments"></i> Trao đổi (<?= !empty($comments) && is_array($comments) ? count($comments) : 0 ?>)
                 </div>
-                <div class="nav-tab-item" onclick="switchTab('history')">
+                <div class="nav-tab-item" data-tab="history">
                     <i class="fas fa-history"></i> Lịch sử
                 </div>
-                <div class="nav-tab-item" onclick="switchTab('documents')">
+                <div class="nav-tab-item" data-tab="documents">
                     <i class="fas fa-file-contract"></i> Tài liệu (<?= !empty($documents) && is_array($documents) ? count($documents) : 0 ?>)
                 </div>
             </div>
@@ -99,7 +99,7 @@
                             <span class="badge-secondary-minimal text-apple-main font-weight-700"><?= $progressPercent ?>%</span>
                         </div>
                         <div class="progress-bar-container">
-                            <div class="progress-bar-fill" style="width: <?= $progressPercent ?>%;"></div>
+                            <div class="progress-bar-fill" data-progress-percent="<?= $progressPercent ?>"></div>
                         </div>
 
                         <div class="horizontal-stepper">
@@ -135,10 +135,10 @@
                     <?php if (!empty($active_step)) { ?>
                         <div class="premium-card p-20 m-b-24">
                             <div class="flex-row justify-between align-center m-b-15">
-                                <h3 class="section-header-title m-0" style="display: flex; align-items: center; gap: 12px;">
+                                <h3 class="section-header-title active-step-heading">
                                     <i class="fas fa-tasks"></i> 
                                     <span>Bước: <?= esc($active_step['step_name']) ?></span>
-                                    <span class="badge-secondary-minimal text-xs m-l-5" style="font-weight: 600;">
+                                    <span class="badge-secondary-minimal text-xs m-l-5 active-step-duration">
                                         <i class="fas fa-clock m-r-4"></i> Quy định: <?= $active_step['duration_days'] ?> ngày
                                     </span>
                                     <?php if (($active_step['kpi_reward'] ?? 0) > 0) { ?>
@@ -148,13 +148,14 @@
                                         </div>
                                     <?php } ?>
                                 </h3>
-                                <div class="text-right" style="display:flex; gap: 10px; justify-content: flex-end;">
+                                <div class="text-right case-action-row">
                                     <?php
                                     $role = session()->get('role_name');
-                                    // isEmployee: Phải gửi duyệt (mặc định cho Nhân viên / TTS)
-                                    $isEmployee = (strpos(strtolower($role), 'nhân viên') !== false || $role == 'Nhân viên chính thức');
-                                    // isManager: Quyền quản trị hệ thống
-                                    $isManager = in_array(strtolower($role), ['admin', 'trưởng phòng', 'truong_phong']);
+                                    $roleLower = strtolower($role ?? '');
+                                    $isManager = has_permission('sys.admin')
+                                        || has_permission('case.edit_all')
+                                        || has_permission('case.approve')
+                                        || in_array($roleLower, ['admin', 'trưởng phòng', 'truong_phong'], true);
 
                                     // Ưu tiên: Nếu User hiện tại là Người duyệt (Approver) của vụ việc này -> Cho phép Duyệt thẳng và Không bước qua khâu gửi duyệt
                                     $canApproveDirectly = ($isManager || $isApprover);
@@ -164,18 +165,16 @@
                                         <?php if ($canApproveDirectly) { ?>
                                             <form action="<?= base_url('cases/approve-step/' . $active_step['id']) ?>"
                                                   method="POST"
-                                                  onsubmit="return confirm('Phê duyệt bước này?')">
+                                                  data-confirm="Phê duyệt bước này?">
                                                 <?= csrf_field() ?>
-                                                <button type="submit" class="btn-premium btn-sm"
-                                                        style="background: var(--apple-main); border-color: var(--apple-main);">
+                                                <button type="submit" class="btn-premium-sm btn-sm btn-approve-step">
                                                     <i class="fas fa-check"></i> Duyệt
                                                 </button>
                                             </form>
                                             <form action="<?= base_url('cases/reject-step/' . $active_step['id']) ?>"
-                                                  method="POST" onsubmit="return confirm('Từ chối bước này?')">
+                                                  method="POST" data-confirm="Từ chối bước này?">
                                                 <?= csrf_field() ?>
-                                                <button type="submit" class="btn-premium btn-sm"
-                                                        style="background: var(--apple-red); border-color: var(--apple-red);">
+                                                <button type="submit" class="btn-premium-sm btn-sm btn-reject-step">
                                                     <i class="fas fa-times"></i> Hủy
                                                 </button>
                                             </form>
@@ -183,15 +182,14 @@
                                             <?php if (!empty($is_approval_read)) { ?>
                                                 <form action="<?= base_url('cases/complete-step/' . $active_step['id']) ?>"
                                                       method="POST"
-                                                      onsubmit="return confirm('Gửi yêu cầu xét duyệt lại?')">
+                                                      data-confirm="Gửi yêu cầu xét duyệt lại?">
                                                     <?= csrf_field() ?>
-                                                    <button type="submit" class="btn-premium btn-sm">
+                                                    <button type="submit" class="btn-premium-sm btn-sm">
                                                         <i class="fas fa-paper-plane"></i> Gửi lại
                                                     </button>
                                                 </form>
                                             <?php } else { ?>
-                                                <span class="badge-secondary-minimal text-apple-orange"
-                                                      style="padding: 8px 15px; border-color: var(--apple-orange);">
+                                                <span class="badge-secondary-minimal text-apple-orange badge-awaiting-approval">
                                                 <i class="fas fa-hourglass-half"></i> Chờ duyệt
                                             </span>
                                             <?php } ?>
@@ -199,9 +197,9 @@
                                     <?php } else { ?>
                                         <form action="<?= base_url('cases/complete-step/' . $active_step['id']) ?>"
                                               method="POST"
-                                              onsubmit="return confirm('Xác nhận hoàn thành?')">
+                                              data-confirm="Xác nhận hoàn thành?">
                                             <?= csrf_field() ?>
-                                            <button type="submit" class="btn-premium btn-sm">
+                                            <button type="submit" class="btn-premium-sm btn-sm">
                                                 <i class="fas <?= !$canApproveDirectly ? 'fa-paper-plane' : 'fa-check-double' ?>"></i>
                                                 <?= !$canApproveDirectly ? 'Gửi duyệt' : 'Hoàn thành' ?>
                                             </button>
@@ -267,9 +265,9 @@
                                             <div class="doc-status-icon <?= $isUploaded ? 'uploaded' : 'missing' ?>">
                                                 <i class="fas <?= $isUploaded ? 'fa-check-circle' : 'fa-circle' ?>"></i>
                                             </div>
-                                            <div class="checklist-label" style="flex:1;"><?= esc($rd) ?></div>
+                                            <div class="checklist-label"><?= esc($rd) ?></div>
                                             
-                                            <div class="checklist-actions" style="display: flex; gap: 8px;">
+                                            <div class="checklist-actions">
                                                 <?php if ($isUploaded) { ?>
                                                     <?php 
                                                         $isImg = in_array(strtolower($matchedDoc['file_type'] ?? ''), ['jpg', 'jpeg', 'png', 'gif', 'webp']);
@@ -280,14 +278,14 @@
                                                     </a>
                                                     <?php if ($isImg) { ?>
                                                         <button type="button" class="btn-secondary-sm text-apple-blue" 
-                                                                onclick="previewImage('<?= $docUrl . '?preview=1' ?>', '<?= esc($matchedDoc['file_name']) ?>')" 
+                                                                data-preview-url="<?= $docUrl . '?preview=1' ?>" data-preview-title="<?= esc($matchedDoc['file_name']) ?>" 
                                                                 title="Xem nhanh ảnh">
                                                             <i class="fas fa-eye"></i>
                                                         </button>
                                                     <?php } ?>
                                                 <?php } else { ?>
                                                     <button class="btn-upload-checklist"
-                                                            onclick="openUploadStep(<?= $active_step['id'] ?? 0 ?>, '<?= esc($rd) ?>')">
+                                                            data-upload-step="<?= $active_step['id'] ?? 0 ?>" data-doc-name="<?= esc($rd) ?>">
                                                         <i class="fas fa-upload"></i> Tải lên
                                                     </button>
                                                 <?php } ?>
@@ -304,8 +302,8 @@
                 $isHanhChinhOrAdmin = (session()->get('role_name') === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
                 if ($isHanhChinhOrAdmin) { 
                 ?>
-                <div class="premium-card p-20 m-b-24" style="background: rgba(var(--apple-blue-rgb), 0.03); border-color: rgba(var(--apple-blue-rgb), 0.2);">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                <div class="premium-card p-20 m-b-24 case-finance-card">
+                    <div class="case-card-header-row m-b-20">
                         <h3 class="section-header-title m-0 text-apple-blue"><i class="fas fa-file-invoice-dollar m-r-8"></i> Tài khoản, Hợp đồng & Thanh toán</h3>
                         <a href="<?= base_url('cases/edit/' . $case['id']) ?>" class="btn-secondary-sm text-xs"><i class="fas fa-edit m-r-4"></i> Cập nhật</a>
                     </div>
@@ -318,17 +316,19 @@
                         </div>
                         <div class="info-item flex-2">
                             <label class="text-muted-dark text-xs font-weight-600 uppercase">Tiến độ thanh toán</label>
-                            <div class="font-weight-500 text-apple-main" style="line-height: 1.5;">
+                            <div class="font-weight-500 text-apple-main case-payment-text">
                                 <?php 
                                 if (!empty($case['payment_progress'])) {
                                     $payments = json_decode($case['payment_progress'], true);
                                     if (json_last_error() === JSON_ERROR_NONE && is_array($payments)) {
-                                        echo '<ul style="padding-left: 20px; margin: 0;">';
+                                        echo '<ul class="case-payment-list">';
                                         foreach ($payments as $p) {
                                             $amountHtml = !empty($p['amount']) ? '<span class="text-apple-blue font-weight-600">' . number_format($p['amount'], 0, ',', '.') . 'đ</span>' : '';
                                             $deadlineHtml = !empty($p['deadline']) ? ' - Hạn: <span class="text-apple-red">' . date('d/m/Y', strtotime($p['deadline'])) . '</span>' : '';
                                             $paidIcon = (!empty($p['is_paid']) && $p['is_paid'] == 1) ? '<span class="badge-success-minimal text-xs m-l-8"><i class="fas fa-check-circle"></i> Đã thu</span>' : '<span class="badge-warning-minimal text-xs m-l-8"><i class="fas fa-clock"></i> Chờ thu</span>';
-                                            echo '<li>' . esc($p['title']) . ': ' . $amountHtml . $deadlineHtml . $paidIcon . '</li>';
+                                            $vatIcon = (!empty($p['is_vat']) && $p['is_vat'] == 1) ? '<span class="badge-success-minimal text-xs m-l-8 badge-vat-issued"><i class="fas fa-file-invoice-dollar"></i> Đã xuất VAT</span>' : '<span class="badge-warning-minimal text-xs m-l-8"><i class="fas fa-file-invoice"></i> Chưa xuất VAT</span>';
+                                            $noteHtml = !empty($p['note']) ? ' <span class="text-xs text-muted-dark italic case-payment-note">(Ghi chú: ' . esc($p['note']) . ')</span>' : '';
+                                            echo '<li>' . esc($p['title']) . ': ' . $amountHtml . $deadlineHtml . $paidIcon . $vatIcon . $noteHtml . '</li>';
                                         }
                                         echo '</ul>';
                                     } else {
@@ -347,7 +347,7 @@
                 <div class="premium-card p-20 m-b-24">
                     <div class="card-section">
                         <h3 class="section-header-title">Nội dung & Lưu ý</h3>
-                        <div class="description-box text-apple-main m-b-20" style="line-height: 1.6;">
+                        <div class="description-box text-apple-main m-b-20 case-description-text">
                             <?= nl2br(esc($case['description'] ?: 'Không có mô tả chi tiết.')) ?>
                         </div>
                         <h3 class="section-header-title">Thông tin bổ sung</h3>
@@ -361,15 +361,13 @@
                                     ?>
                                 </div>
                             </div>
-                            <div class="info-item" style="grid-column: span 2;">
-                                <label class="text-muted-dark text-xs font-weight-600 uppercase"
-                                       style="display:flex; justify-content:space-between; align-items:center;">
+                            <div class="info-item case-info-wide">
+                                <label class="text-muted-dark text-xs font-weight-600 uppercase case-member-header">
                                     <span>Đội ngũ phụ trách</span>
                                     <?php if (in_array(session()->get('role_name'), ['Admin', 'Trưởng phòng'])) { ?>
                                         <a href="javascript:void(0)"
-                                           onclick="document.getElementById('assignMembersModal').style.display='flex'; $('.select2-multi').select2({dropdownParent: $('#assignMembersModal')});"
-                                           class="text-apple-blue font-weight-500"
-                                           style="text-decoration:none; text-transform:none;"><i
+                                           data-modal-open="assignMembersModal"
+                                           class="text-apple-blue font-weight-500 case-tags-edit-link"><i
                                                     class="fas fa-user-plus m-r-4"></i> Phân công</a>
                                     <?php } ?>
                                 </label>
@@ -380,10 +378,9 @@
                                         </div>
                                     <?php } else { ?>
                                         <?php if (!empty($memberGroups['approver']) && is_array($memberGroups['approver'])) { ?>
-                                            <div style="display: flex; gap: 8px; align-items: flex-start;">
-                                                <span class="badge-secondary-minimal text-xs"
-                                                      style="min-width: 85px; text-align: center; background: rgba(0,0,0,0.05);">Người duyệt</span>
-                                                <div style="flex:1; line-height:1.5;">
+                                            <div class="case-member-row">
+                                                <span class="badge-secondary-minimal text-xs case-member-role">Người duyệt</span>
+                                                <div class="case-member-list">
                                                     <?php foreach ($memberGroups['approver'] as $idx => $m) { ?>
                                                         <a href="<?= base_url('employees/edit/' . $m['employee_id']) ?>" class="link-premium text-sm font-weight-600">
                                                             <?= esc($m['full_name'] ?? 'N/A') ?><?= ($idx < count($memberGroups['approver']) - 1) ? ',' : '' ?>
@@ -393,10 +390,9 @@
                                             </div>
                                         <?php } ?>
                                         <?php if (!empty($memberGroups['assignee']) && is_array($memberGroups['assignee'])) { ?>
-                                            <div style="display: flex; gap: 8px; align-items: flex-start;">
-                                                <span class="badge-info-minimal text-xs"
-                                                      style="min-width: 85px; text-align: center;">Chuyên môn</span>
-                                                <div style="flex:1; line-height:1.5;">
+                                            <div class="case-member-row">
+                                                <span class="badge-info-minimal text-xs case-member-role">Chuyên môn</span>
+                                                <div class="case-member-list">
                                                     <?php foreach ($memberGroups['assignee'] as $idx => $m) { ?>
                                                         <a href="<?= base_url('employees/edit/' . $m['employee_id']) ?>" class="link-premium text-sm font-weight-600">
                                                             <?= esc($m['full_name'] ?? 'N/A') ?><?= ($idx < count($memberGroups['assignee']) - 1) ? ',' : '' ?>
@@ -406,10 +402,9 @@
                                             </div>
                                         <?php } ?>
                                         <?php if (!empty($memberGroups['supporter']) && is_array($memberGroups['supporter'])) { ?>
-                                            <div style="display: flex; gap: 8px; align-items: flex-start;">
-                                                <span class="text-muted-dark text-xs"
-                                                      style="min-width: 85px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px;">Hỗ trợ</span>
-                                                <div style="flex:1; line-height:1.5; font-weight:500;">
+                                            <div class="case-member-row">
+                                                <span class="text-muted-dark text-xs case-member-role case-member-support">Hỗ trợ</span>
+                                                <div class="case-member-list font-weight-500">
                                                     <?php foreach ($memberGroups['supporter'] as $idx => $m) { ?>
                                                         <a href="<?= base_url('employees/edit/' . $m['employee_id']) ?>" class="link-premium text-sm font-weight-600">
                                                             <?= esc($m['full_name'] ?? 'N/A') ?><?= ($idx < count($memberGroups['supporter']) - 1) ? ',' : '' ?>
@@ -427,17 +422,17 @@
                     <!-- NEW: Detailed Vertical Roadmap & Rewards -->
                     <div class="row-v-timeline m-t-40 m-b-24">
                         <div class="flex-row justify-between align-center m-b-20">
-                            <h3 class="section-header-title m-0">Lộ trình & Định mức thưởng</h3>
+                            <h3 class="section-header-title">Lộ trình & Định mức thưởng</h3>
                             
                             <?php if (has_permission('sys.admin') || has_permission('case.edit_all')) { ?>
-                                <div style="display: flex; gap: 8px;">
-                                    <button type="button" onclick="document.getElementById('addStepModal').style.display='flex'" class="btn-secondary-sm flex-item-center" style="padding: 4px 12px; font-size: 12px; font-weight: 600; height: 32px;cursor: pointer">
+                                <div class="case-roadmap-actions">
+                                    <button type="button" data-modal-open="addStepModal" class="btn-secondary-sm flex-item-center">
                                         <i class="fas fa-plus text-apple-blue m-r-5"></i> Thêm bước
                                     </button>
                                     <a href="<?= base_url('cases/sync-rewards/' . $case['id']) ?>" 
                                        class="btn-secondary-sm flex-item-center" 
-                                       onclick="return confirm('Hệ thống sẽ cập nhật lại định mức thưởng mới nhất từ Quy trình gốc cho tất cả các bước của vụ việc này. Tiếp tục?')"
-                                       style="padding: 4px 12px; font-size: 12px; font-weight: 600; height: 32px;">
+                                       data-confirm="Hệ thống sẽ cập nhật lại định mức thưởng mới nhất từ Quy trình gốc cho tất cả các bước của vụ việc này. Tiếp tục?"
+                                       class="case-roadmap-action-sm">
                                         <i class="fas fa-sync-alt text-muted m-r-5"></i> Đồng bộ thưởng
                                     </a>
                                 </div>
@@ -447,6 +442,9 @@
                             <?php foreach ($steps as $idx => $s) { 
                                 $isCompleted = (($s['status'] ?? '') === 'completed');
                                 $isActive = (($s['status'] ?? '') === 'active');
+                                $isLate = $isCompleted && strtotime($s['completed_at']) > strtotime($s['deadline']);
+                                $isKpiOverrideApproved = !empty($s['kpi_override_approved']);
+                                $canApproveStepKpi = (has_permission('sys.admin') || has_permission('case.edit_all') || has_permission('case.approve') || !empty($isApprover));
                                 $rClass = '';
                                 if ($isCompleted) $rClass = 'completed';
                                 elseif ($isActive) $rClass = 'active';
@@ -457,17 +455,24 @@
                                         <div class="flex-column">
                                             <div class="roadmap-step-name">
                                                 Bước <?= $idx + 1 ?>: <?= esc($s['step_name']) ?>
-                                                <span class="badge-secondary-minimal text-xxs m-l-5" style="vertical-align: middle; padding: 2px 8px; font-weight: 600;">
+                                                <span class="badge-secondary-minimal text-xxs m-l-5 roadmap-duration-badge">
                                                     <i class="fas fa-hourglass-start m-r-4"></i><?= $s['duration_days'] ?> ngày
                                                 </span>
                                                 <?php if ($isCompleted) { ?> <i class="fas fa-check-circle text-green m-l-5"></i> <?php } ?>
                                             </div>
                                             <div class="text-xs text-muted-dark m-t-4">
-                                                <?php if ($isCompleted) { 
-                                                    $isLate = strtotime($s['completed_at']) > strtotime($s['deadline']);
-                                                ?>
+                                                <?php if ($isCompleted) { ?>
                                                     Hạn quy định: <span class="text-apple-main font-weight-600"><?= date('d/m/Y', strtotime($s['deadline'])) ?></span> 
                                                     - Thực tế: <span class="<?= $isLate ? 'text-apple-red' : 'text-apple-main' ?> font-weight-600"><?= date('d/m/Y H:i', strtotime($s['completed_at'])) ?></span>
+                                                    <?php if ($isLate && $isKpiOverrideApproved) { ?>
+                                                        <span class="badge-success-minimal text-xxs m-l-5" title="<?= esc($s['kpi_override_reason'] ?? 'Đã được quản lý ghi nhận KPI') ?>">
+                                                            <i class="fas fa-check-double m-r-4"></i>KPI đã ghi nhận
+                                                        </span>
+                                                    <?php } elseif ($isLate) { ?>
+                                                        <span class="badge-warning-minimal text-xxs m-l-5">
+                                                            <i class="fas fa-exclamation-triangle m-r-4"></i>Chưa ghi nhận KPI
+                                                        </span>
+                                                    <?php } ?>
                                                 <?php } else { 
                                                     $isOverdue = strtotime($s['deadline']) < time();
                                                 ?>
@@ -477,30 +482,47 @@
                                             <?php 
                                             $sDocs = !empty($s['required_documents']) ? json_decode($s['required_documents'], true) : [];
                                             if (!empty($sDocs)) { ?>
-                                                <div class="roadmap-docs-list m-t-8" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                <div class="roadmap-docs-list m-t-8 roadmap-docs-list">
                                                     <?php foreach ($sDocs as $docName) { ?>
-                                                        <span class="badge-secondary-minimal text-xxs" style="padding: 2px 8px; border-radius: 4px; background: rgba(0,0,0,0.03); color: var(--apple-text-muted); font-weight: 500;">
+                                                        <span class="badge-secondary-minimal text-xxs roadmap-doc-badge">
                                                             <i class="fas fa-file-alt m-r-4"></i> <?= esc($docName) ?>
                                                         </span>
                                                     <?php } ?>
                                                 </div>
                                             <?php } ?>
                                         </div>
-                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                        <div class="roadmap-reward-row">
                                             <?php if (($s['kpi_reward'] ?? 0) > 0) { ?>
-                                                <div class="<?= $isActive ? 'badge-reward-vibrant' : 'reward-label-mini' ?>" style="font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 20px;">
+                                                <div class="<?= $isActive ? 'badge-reward-vibrant' : 'reward-label-mini' ?> roadmap-reward-badge">
                                                     <i class="fas fa-gift"></i> +<?= number_format($s['kpi_reward'], 0, ',', '.') ?> VNĐ
                                                 </div>
                                             <?php } else { ?>
-                                                <div class="text-xs text-muted-dark italic" style="opacity: 0.5;">0đ</div>
+                                                <div class="text-xs text-muted-dark italic roadmap-zero-reward">0đ</div>
+                                            <?php } ?>
+
+                                            <?php if ($isCompleted && $isLate && !$isKpiOverrideApproved && ($s['kpi_reward'] ?? 0) > 0 && $canApproveStepKpi) { ?>
+                                                <form action="<?= base_url('cases/approve-step-kpi/' . $s['id']) ?>"
+                                                      method="POST"
+                                                      class="flex-item-center gap-5"
+                                                      data-confirm="Ghi nhận KPI cho bước hoàn thành trễ này?">
+                                                    <?= csrf_field() ?>
+                                                    <input type="hidden" name="reason" value="Quản lý chấp thuận lý do giải trình hợp lệ.">
+                                                    <button type="submit" class="btn-secondary-sm flex-item-center text-apple-blue" title="Ghi nhận KPI cho step này">
+                                                        <i class="fas fa-award"></i>
+                                                    </button>
+                                                </form>
+                                            <?php } elseif ($isCompleted && (!$isLate || $isKpiOverrideApproved) && ($s['kpi_reward'] ?? 0) > 0) { ?>
+                                                <span class="badge-success-minimal text-xxs" title="KPI được tính cho nhân sự hoàn thành">
+                                                    <i class="fas fa-check m-r-4"></i>KPI
+                                                </span>
                                             <?php } ?>
                                             
                                             <?php if (has_permission('sys.admin') || has_permission('case.edit_all')) { ?>
                                                 <a href="<?= base_url('cases/delete-step/' . $s['id']) ?>" 
-                                                   onclick="return confirm('Xác nhận xóa bỏ bước này khỏi quy trình? Lưu ý: Hành động này không thể hoàn tác.')"
+                                                   data-confirm="Xác nhận xóa bỏ bước này khỏi quy trình? Lưu ý: Hành động này không thể hoàn tác."
                                                    class="btn-secondary-sm flex-item-center text-apple-red" title="Xóa bước này" 
-                                                   style="padding: 0; width: 28px; height: 28px; justify-content: center; border-radius: 6px; background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.2);">
-                                                    <i class="fas fa-trash-alt" style="font-size: 12px;"></i>
+                                                   class="btn-delete-step">
+                                                    <i class="fas fa-trash-alt" ></i>
                                                 </a>
                                             <?php } ?>
                                         </div>
@@ -513,11 +535,11 @@
             </div>
 
             <!-- Comments Section (Internal) -->
-            <div id="tab-comments" class="tab-content" style="display: none;">
+            <div id="tab-comments" class="tab-content">
                 <div class="premium-card p-20 m-b-24">
                     <h3 class="section-header-title">Trao đổi (Chỉ nhân viên)</h3>
 
-                        <div class="comment-feed m-b-20" style="max-height: 400px; overflow-y: auto; padding-right: 10px;">
+                        <div class="comment-feed m-b-20">
                             <?php if (empty($comments) || !is_array($comments)) { ?>
                                 <div class="empty-state-container p-20 text-center text-muted-dark">Chưa có trao đổi nào về
                                     hồ sơ này.
@@ -527,12 +549,12 @@
                                     <div class="timeline-item-premium" title="Phản hồi từ <?= esc($c['user_name'] ?? 'N/A') ?>">
                                         <div class="timeline-dot"></div>
                                         <div class="flex-column gap-5 m-b-10">
-                                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <div class="case-log-row">
                                                 <span class="font-weight-700 text-sm text-apple-main"><?= esc($c['user_name'] ?? 'Unknown User') ?></span>
                                                 <span class="text-xs text-muted-dark"><?= isset($c['created_at']) ? date('H:i d/m/Y', strtotime($c['created_at'])) : '--' ?></span>
                                             </div>
                                         </div>
-                                        <div class="text-sm text-apple-main" style="line-height: 1.5;">
+                                        <div class="text-sm text-apple-main case-comment-text">
                                             <?= nl2br(esc($c['content'] ?? '')) ?>
                                         </div>
                                     </div>
@@ -549,7 +571,7 @@
                                       title="Nội dung trao đổi"></textarea>
                         </div>
                         <div class="text-right m-t-10">
-                            <button type="submit" class="btn-premium btn-sm" title="Gửi ghi chú cho đồng nghiệp">
+                            <button type="submit" class="btn-premium-sm btn-sm" title="Gửi ghi chú cho đồng nghiệp">
                                 <i class="fas fa-paper-plane"></i> Gửi ghi chú
                             </button>
                         </div>
@@ -559,7 +581,7 @@
 
 
             <!-- History Section -->
-            <div id="tab-history" class="tab-content" style="display: none;">
+            <div id="tab-history" class="tab-content">
                 <div class="premium-card p-20 m-b-24">
                     <div class="header-controls">
                         <a href="<?= base_url('knowledge/create?case_id=' . $case['id']) ?>" class="btn-secondary-sm" title="Soạn tài liệu kinh nghiệm và bài học cho riêng vụ việc này.">
@@ -573,9 +595,8 @@
                             </div>
                         <?php } else { ?>
                             <?php foreach ($history as $h) { ?>
-                                <div class="log-entry-item p-15" style="border-bottom: 1px solid var(--border-color);">
-                                    <div class="log-header"
-                                         style="display: flex; justify-content: space-between; align-items: start;">
+                                <div class="log-entry-item p-15" >
+                                    <div class="log-header case-log-row">
                                         <div class="log-title">
                                         <span class="badge-log badge-secondary-minimal m-r-8" title="Hành động">
                                             <?php
@@ -606,19 +627,18 @@
             </div>
 
             <!-- Documents Section -->
-            <div id="tab-documents" class="tab-content" style="display: none;">
+            <div id="tab-documents" class="tab-content">
                 <div class="premium-card p-20 m-b-24">
-                    <div class="header-with-action m-b-20"
-                         style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="header-with-action m-b-20 case-log-row">
                         <h3 class="section-header-title p-0 m-0">Danh sách hồ sơ</h3>
-                        <div style="display: flex; gap: 10px;">
+                        <div class="case-doc-actions">
                             <button class="btn-secondary-sm"
-                                    onclick="openVaultModal('tab-documents')"
+                                    data-vault-open="true"
                                     title="Chọn tài liệu từ kho DMS chung">
                                 <i class="fas fa-archive"></i> Kho tài liệu
                             </button>
                             <button class="btn-premium-sm"
-                                    onclick="document.getElementById('uploadModal').style.display='flex'"
+                                    data-modal-open="uploadModal"
                                     title="Tải tệp tin pháp lý lên hệ thống">
                                 <i class="fas fa-upload m-r-8"></i> Tải tài liệu mới
                             </button>
@@ -653,7 +673,7 @@
                                         </td>
                                         <td class="table-cell-center text-sm"><?= isset($doc['created_at']) ? date('d/m/Y', strtotime($doc['created_at'])) : '--' ?></td>
                                         <td class="table-cell-center">
-                                            <div style="display: flex; gap: 8px; justify-content: center;">
+                                            <div class="case-doc-row-actions">
                                                 <?php 
                                                     $isImg = in_array(strtolower($doc['file_type'] ?? ''), ['jpg', 'jpeg', 'png', 'gif', 'webp']);
                                                     $docUrl = base_url('documents/view/' . $doc['id']);
@@ -664,7 +684,7 @@
                                                 </a>
                                                 <?php if ($isImg) { ?>
                                                     <button type="button" class="btn-secondary-sm text-apple-blue" 
-                                                            onclick="previewImage('<?= $docUrl . '?preview=1' ?>', '<?= esc($doc['file_name']) ?>')" 
+                                                            data-preview-url="<?= $docUrl . '?preview=1' ?>" data-preview-title="<?= esc($doc['file_name']) ?>" 
                                                             title="Xem nhanh ảnh">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
@@ -684,18 +704,18 @@
         <div class="profile-sidebar">
             <div class="premium-card p-20 m-b-24">
                 <h3 class="sidebar-section-title">Trạng thái hiện tại</h3>
-                <div class="status-indicator-box text-center p-20 m-b-15"
-                     style="background: rgba(0,0,0,0.02); border-radius: 12px;">
+                <div class="status-indicator-box text-center p-20 m-b-15 case-status-card">
                     <?php
                     $statusClasses = [
                             'cho_tiep_nhan' => 'badge-info-minimal',
                             'dang_xu_ly'    => 'badge-warning-minimal',
+                            'tam_dung'      => 'badge-secondary-minimal',
                             'da_hoan_thanh' => 'badge-success-minimal',
                             'huy'           => 'badge-danger-minimal'
                     ];
                     $currentStatusClass = $statusClasses[$case['status']] ?? 'badge-secondary-minimal';
                     ?>
-                    <div class="badge-log <?= $currentStatusClass ?> text-lg" style="padding: 10px 20px; display: block;"
+                    <div class="badge-log <?= $currentStatusClass ?> text-lg case-status-badge-large"
                          title="Trạng thái xử lý của hồ sơ">
                         <?= $statusLabels[$case['status']] ?? $case['status'] ?>
                     </div>
@@ -719,21 +739,21 @@
             </div>
 
             <div class="premium-card p-20 m-b-24">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <div class="case-tags-header">
                     <h3 class="sidebar-section-title m-0">Nhãn dán Vụ việc</h3>
-                    <a href="javascript:void(0)" onclick="document.getElementById('tagModal').style.display='flex'" 
-                       class="text-apple-blue font-weight-500 text-xs" style="text-decoration:none;">
+                    <a href="javascript:void(0)" data-modal-open="tagModal" 
+                       class="text-apple-blue font-weight-500 text-xs case-tags-edit-link">
                         <i class="fas fa-edit m-r-4"></i> Quản lý
                     </a>
                 </div>
                 
-                <div class="tags-container-minimal flex-wrap" style="gap: 8px;">
+                <div class="tags-container-minimal flex-wrap">
                     <?php if (empty($tags)) { ?>
                         <div class="text-xs text-muted-dark italic">Chưa gắn nhãn dán nào.</div>
                     <?php } else { ?>
                         <?php foreach ($tags as $t) { ?>
-                            <span class="tag-badge-premium" style="background-color: <?= esc($t['color']) ?>15; color: <?= esc($t['color']) ?>; border: 1px solid <?= esc($t['color']) ?>30;">
-                                <i class="fas fa-tag m-r-4" style="font-size: 8px;"></i> <?= esc($t['name']) ?>
+                            <span class="tag-badge-premium" data-tag-color="<?= esc($t['color']) ?>">
+                                <i class="fas fa-tag m-r-4"></i> <?= esc($t['name']) ?>
                             </span>
                         <?php } ?>
                     <?php } ?>
@@ -744,33 +764,33 @@
                 <h3 class="sidebar-section-title">Hành động nhanh</h3>
                 <div class="quick-actions-list flex-column gap-10">
                     <?php if ($canEditCase) { ?>
-                        <button class="btn-secondary-sm w-100" style="justify-content: flex-start;"
-                                onclick="document.getElementById('statusModal').style.display='flex'"
+                        <button class="btn-secondary-sm w-100 case-sidebar-button"
+                                data-modal-open="statusModal"
                                 title="Cập nhật trạng thái tổng thể hồ sơ">
                             <i class="fas fa-sync-alt m-r-8"></i> Cập nhật trạng thái
                         </button>
                     <?php } ?>
 
-                    <button class="btn-secondary-sm w-100" style="justify-content: flex-start;"
-                            onclick="switchTab('comments')" title="Viết trao đổi hoặc chỉ đạo nghiệp vụ">
+                    <button class="btn-secondary-sm w-100 case-sidebar-button"
+                            data-tab="comments" title="Viết trao đổi hoặc chỉ đạo nghiệp vụ">
                         <i class="fas fa-comment-dots m-r-8"></i> Thêm ghi chú nội bộ
                     </button>
 
-                    <button class="btn-secondary-sm w-100" style="justify-content: flex-start;"
-                            onclick="window.location.href='<?= base_url('knowledge/create?case_id=' . $case['id']) ?>'" 
+                    <button class="btn-secondary-sm w-100 case-sidebar-button"
+                            data-navigate-url="<?= base_url('knowledge/create?case_id=' . $case['id']) ?>" 
                             title="Bạn có kinh nghiệm gì về Case này không? Chia sẻ ngay">
                         <i class="fas fa-lightbulb m-r-8 text-warning"></i> Chia sẻ kinh nghiệm ngay
                     </button>
 
 <!--                    --><?php //if (!empty($case['customer_phone'])) { ?>
-<!--                    <a href="tel:--><?php //= esc($case['customer_phone']) ?><!--" class="btn-secondary-sm w-100" style="justify-content: flex-start;"-->
+<!--                    <a href="tel:--><?php //= esc($case['customer_phone']) ?><!--" class="btn-secondary-sm w-100 case-sidebar-button"-->
 <!--                       title="Gọi điện trực tiếp cho khách hàng: --><?php //= esc($case['customer_phone']) ?><!--">-->
 <!--                        <i class="fas fa-phone-alt m-r-8 text-apple-green"></i> Liên hệ: --><?php //= esc($case['customer_phone']) ?>
 <!--                    </a>-->
 <!--                    --><?php //} ?>
 
-                    <button class="btn-secondary-sm w-100 text-apple-red" style="justify-content: flex-start;"
-                            onclick="document.getElementById('reminderModal').style.display='flex'; $('.select2-single').select2({dropdownParent: $('#reminderModal')});"
+                    <button class="btn-secondary-sm w-100 text-apple-red case-sidebar-button"
+                            data-modal-open="reminderModal"
                             title="Gửi thông báo nhắc nhở tiến độ">
                         <i class="fas fa-bell m-r-8"></i> Nhắc nhở bộ phận
                     </button>
@@ -782,17 +802,16 @@
 
 <!-- Modals -->
 <!-- Reminder Modal -->
-<div id="reminderModal" class="modal-overlay"
-     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-    <div class="premium-card p-20" style="width:500px; position:relative;">
+<div id="reminderModal" class="modal-overlay case-modal">
+    <div class="premium-card p-20 case-modal-card">
         <h3 class="section-header-title">Gửi nhắc nhở bộ phận</h3>
         <p class="text-xs text-muted-dark m-b-20">Thông báo này sẽ xuất hiện trên thanh Navbar của người nhận ngay lập tức.</p>
         
         <form action="<?= base_url('cases/send-reminder/' . $case['id']) ?>" method="POST">
             <?= csrf_field() ?>
             <div class="form-group-premium m-b-15">
-                <label class="info-list-label m-b-10" style="display:block;">Gửi đến nhân sự</label>
-                <select name="recipient_user_id" class="form-control-premium select2-single" required style="width:100%;">
+                <label class="info-list-label m-b-10 case-form-label">Gửi đến nhân sự</label>
+                <select name="recipient_user_id" class="form-control-premium select2-single case-select-full" required >
                     <option value="">-- Chọn người nhận --</option>
                     <?php if (!empty($staffs)) { ?>
                         <?php foreach ($staffs as $s) { ?>
@@ -805,31 +824,31 @@
             </div>
 
             <div class="form-group-premium m-b-15">
-                <label class="info-list-label m-b-10" style="display:block;">Nội dung nhắc nhở</label>
-                <textarea name="message" class="form-control-premium" required
-                          placeholder="Nhập nội dung cần chỉ đạo hoặc nhắc nhở..." style="height:120px;"
+                <label class="info-list-label m-b-10 case-form-label">Nội dung nhắc nhở</label>
+                <textarea name="message" class="form-control-premium case-textarea-reminder" required
+                          placeholder="Nhập nội dung cần chỉ đạo hoặc nhắc nhở..."
                           title="Nội dung sẽ hiển thị cho người nhận"></textarea>
             </div>
             
-            <div class="form-actions-row m-t-20">
-                <button type="button" class="btn-secondary-sm"
-                        onclick="document.getElementById('reminderModal').style.display='none'">Hủy
-                </button>
-                <button type="submit" class="btn-premium" style="background: var(--apple-red); border-color: var(--apple-red);">
+            <div class="form-actions-row m-t-20 ">
+                <button type="submit" class="btn-premium-sm btn-danger-action m-b-10">
                     <i class="fas fa-paper-plane m-r-8"></i> Gửi thông báo
                 </button>
+                <button type="button" class="btn-secondary-sm"
+                        data-modal-close="reminderModal">Hủy
+                </button>
+
             </div>
         </form>
     </div>
 </div>
-<div id="statusModal" class="modal-overlay"
-     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-    <div class="premium-card p-20" style="width:450px; position:relative;">
+<div id="statusModal" class="modal-overlay case-modal">
+    <div class="premium-card p-20 case-modal-card case-modal-card-sm">
         <h3 class="section-header-title">Cập nhật trạng thái mới</h3>
         <form action="<?= base_url('cases/update-status/' . $case['id']) ?>" method="POST">
             <?= csrf_field() ?>
             <div class="form-group-premium m-b-15">
-                <label class="info-list-label m-b-10" style="display:block;">Trạng thái tiếp theo</label>
+                <label class="info-list-label m-b-10 case-form-label">Trạng thái tiếp theo</label>
                 <select name="status" class="form-control-premium" required title="Chọn trạng thái mới cho hồ sơ">
                     <?php 
                     $labels = \Config\AppConstants::CASE_STATUS_LABELS;
@@ -841,32 +860,32 @@
 
 
             <div class="form-group-premium m-b-15">
-                <label class="info-list-label m-b-10" style="display:block;">Ghi chú thay đổi</label>
-                <textarea name="note" class="form-control-premium"
-                          placeholder="Lý do cập nhật hoặc bước công việc tiếp theo..." style="height:100px;"
+                <label class="info-list-label m-b-10 case-form-label">Ghi chú thay đổi</label>
+                <textarea name="note" class="form-control-premium case-textarea-status"
+                          placeholder="Lý do cập nhật hoặc bước công việc tiếp theo..."
                           title="Ghi chú giải thích cho việc thay đổi trạng thái"></textarea>
             </div>
             <div class="form-actions-row m-t-20">
+
+                <button type="submit" class="btn-premium-sm m-b-10" title="Xác nhận cập nhật">Cập nhật ngay</button>
                 <button type="button" class="btn-secondary-sm"
-                        onclick="document.getElementById('statusModal').style.display='none'">Hủy
+                        data-modal-close="statusModal">Hủy
                 </button>
-                <button type="submit" class="btn-premium" title="Xác nhận cập nhật">Cập nhật ngay</button>
             </div>
         </form>
     </div>
 </div>
 
 <!-- Assign Members Modal -->
-<div id="assignMembersModal" class="modal-overlay"
-     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-    <div class="premium-card p-20" style="width:500px; position:relative;">
+<div id="assignMembersModal" class="modal-overlay case-modal">
+    <div class="premium-card p-20 case-modal-card">
         <h3 class="section-header-title">Phân công nhân sự tham gia</h3>
         <form action="<?= base_url('cases/update-members/' . $case['id']) ?>" method="POST">
             <?= csrf_field() ?>
             <div class="form-group-premium m-b-15">
-                <label class="info-list-label m-b-5" style="display:block;">1. Người phê duyệt (Cấp Quản lý)</label>
-                <select name="approvers[]" class="form-control-premium select2-multi" multiple="multiple"
-                        style="width: 100%;">
+                <label class="info-list-label m-b-5 case-form-label">1. Người phê duyệt (Cấp Quản lý)</label>
+                <select name="approvers[]" class="form-control-premium select2-multi case-select-full" multiple="multiple"
+                        >
                     <?php if (!empty($staffs) && is_array($staffs)) { ?>
                         <?php foreach ($staffs as $s) { ?>
                             <option value="<?= $s['id'] ?>" <?= (isset($memberGroups['approver']) && is_array($memberGroups['approver']) && in_array($s['id'], array_column($memberGroups['approver'], 'employee_id'))) ? 'selected' : '' ?>><?= esc($s['full_name'] ?? '--') ?>
@@ -877,9 +896,9 @@
                 </select>
             </div>
             <div class="form-group-premium m-b-15">
-                <label class="info-list-label m-b-5" style="display:block;">2. Phụ trách chính</label>
-                <select name="assignees[]" class="form-control-premium select2-multi" multiple="multiple"
-                        style="width: 100%;">
+                <label class="info-list-label m-b-5 case-form-label">2. Phụ trách chính</label>
+                <select name="assignees[]" class="form-control-premium select2-multi case-select-full" multiple="multiple"
+                        >
                     <?php foreach ($staffs as $s) { ?>
                         <option value="<?= $s['id'] ?>" <?= in_array($s['id'], array_column($memberGroups['assignee'], 'employee_id')) ? 'selected' : '' ?>><?= esc($s['full_name']) ?>
                             (<?= esc($s['position']) ?>)
@@ -888,9 +907,9 @@
                 </select>
             </div>
             <div class="form-group-premium m-b-15">
-                <label class="info-list-label m-b-5" style="display:block;">3. Nhân sự hỗ trợ</label>
-                <select name="supporters[]" class="form-control-premium select2-multi" multiple="multiple"
-                        style="width: 100%;">
+                <label class="info-list-label m-b-5 case-form-label">3. Nhân sự hỗ trợ</label>
+                <select name="supporters[]" class="form-control-premium select2-multi case-select-full" multiple="multiple"
+                        >
                     <?php foreach ($staffs as $s) { ?>
                         <option value="<?= $s['id'] ?>" <?= in_array($s['id'], array_column($memberGroups['supporter'], 'employee_id')) ? 'selected' : '' ?>><?= esc($s['full_name']) ?>
                             (<?= esc($s['position']) ?>)
@@ -900,17 +919,16 @@
             </div>
             <div class="form-actions-row m-t-20">
                 <button type="button" class="btn-secondary-sm"
-                        onclick="document.getElementById('assignMembersModal').style.display='none'">Hủy
+                        data-modal-close="assignMembersModal">Hủy
                 </button>
-                <button type="submit" class="btn-premium"><i class="fas fa-save m-r-8"></i> Lưu danh sách</button>
+                <button type="submit" class="btn-premium-sm"><i class="fas fa-save m-r-8"></i> Lưu danh sách</button>
             </div>
         </form>
     </div>
 </div>
 
-<div id="uploadModal" class="modal-overlay"
-     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-    <div class="premium-card" style="width:450px;">
+<div id="uploadModal" class="modal-overlay case-modal">
+    <div class="premium-card case-modal-card case-modal-card-sm">
         <h3 class="section-title-premium">Tải tài liệu lên hồ sơ</h3>
         <p class="text-xs text-muted-dark m-b-20">Tài liệu sẽ được tự động đồng bộ vào kho dữ liệu khách hàng.</p>
         <form action="<?= base_url('cases/upload-doc/' . $case['id']) ?>" method="POST" enctype="multipart/form-data">
@@ -929,27 +947,26 @@
                 <textarea name="description" class="form-control-premium" placeholder="Mô tả nội dung tài liệu..."></textarea>
             </div>
             <input type="hidden" name="step_id" id="modal_step_id" value="">
-            <div class="form-actions-row" style="margin-top:20px; justify-content: flex-end;">
+            <div class="form-actions-row case-upload-actions">
                 <button type="button" class="btn-secondary-sm"
-                        onclick="document.getElementById('uploadModal').style.display='none'">Hủy
+                        data-modal-close="uploadModal">Hủy
                 </button>
-                <button type="submit" class="btn-premium">Tải lên ngay</button>
+                <button type="submit" class="btn-premium-sm">Tải lên ngay</button>
             </div>
         </form>
     </div>
 </div>
 
 <!-- Tag Management Modal -->
-<div id="tagModal" class="modal-overlay"
-     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1100; align-items:center; justify-content:center;">
-    <div class="premium-card p-20" style="width:450px; position:relative;">
+<div id="tagModal" class="modal-overlay case-modal modal-lg">
+    <div class="premium-card p-20 case-modal-card case-modal-card-sm">
         <h3 class="section-header-title">Quản lý nhãn dán hồ sơ</h3>
         <p class="text-xs text-muted-dark m-b-20">Gắn các thẻ phân loại để dễ dàng theo dõi và tìm lọc vụ việc.</p>
         
         <form action="<?= base_url('cases/update-tags/' . $case['id']) ?>" method="POST">
             <?= csrf_field() ?>
             <div class="form-group-premium m-b-15">
-                <div class="tags-selector-list gap-15" style="max-height: 300px; overflow-y: auto; padding-right: 10px;">
+                <div class="tags-selector-list gap-15">
                     <?php if (empty($availableTags)) { ?>
                         <div class="text-xs text-muted-dark italic">Chưa có nhãn dán nào trong hệ thống.</div>
                     <?php } else { ?>
@@ -957,13 +974,13 @@
                             $currentTagIds = array_column($tags, 'id');
                             foreach ($availableTags as $at) { 
                         ?>
-                            <label class="custom-checkbox-premium flex-item-center" style="cursor: pointer;">
+                            <label class="custom-checkbox-premium flex-item-center case-checkbox-label">
                                 <input type="checkbox" name="tag_ids[]" value="<?= $at['id'] ?>" 
                                        <?= in_array($at['id'], $currentTagIds) ? 'checked' : '' ?>
-                                       style="width: 18px; height: 18px; margin-right: 12px; cursor: pointer;">
+                                       class="case-checkbox-input">
                                 <div class="flex-column">
                                     <div class="flex-item-center gap-10">
-                                        <span class="tag-badge-premium" style="background-color: <?= esc($at['color']) ?>15; color: <?= esc($at['color']) ?>; border: 1px solid <?= esc($at['color']) ?>30;">
+                                        <span class="tag-badge-premium" data-tag-color="<?= esc($at['color']) ?>">
                                             <?= esc($at['name']) ?>
                                         </span>
                                         <?php if ($at['type'] == 'private') { ?>
@@ -977,11 +994,11 @@
                 </div>
             </div>
             
-            <div class="form-actions-row m-t-25 text-center" style="justify-content: flex-end; gap: 12px;">
+            <div class="form-actions-row m-t-25 text-center case-form-actions-end">
                 <button type="button" class="btn-secondary-sm"
-                        onclick="document.getElementById('tagModal').style.display='none'">Hủy
+                        data-modal-close="tagModal">Hủy
                 </button>
-                <button type="submit" class="btn-premium">
+                <button type="submit" class="btn-premium-sm">
                     <i class="fas fa-save m-r-8"></i> Lưu
                 </button>
             </div>
@@ -991,23 +1008,23 @@
             $isPowerUser = (has_permission('sys.admin') || strpos(strtolower(session()->get('role_name')), 'trưởng phòng') !== false);
             if ($isPowerUser) { 
         ?>
-            <hr class="m-y-20" style="opacity: 0.1;">
+            <hr class="m-y-20 case-modal-separator">
             <div class="quick-create-tag-section">
-                <h4 class="text-xs font-weight-700 uppercase m-b-15" style="color: var(--apple-text-muted);">Tạo nhãn dán</h4>
+                <h4 class="text-xs font-weight-700 uppercase m-b-15 case-quick-tag-title">Tạo nhãn dán</h4>
                 <form action="<?= base_url('cases/create-tag') ?>" method="POST" class="flex-column gap-15">
                     <?= csrf_field() ?>
-                    <div style="display: grid; grid-template-columns: 1fr 100px; gap: 10px;">
-                        <input type="text" name="name" class="form-control-premium" placeholder="Tên nhãn dán..." required style="height: 38px;">
-                        <input type="color" name="color" value="#007aff" class="form-control-premium" style="height: 38px; padding: 2px; width: 100%;">
+                    <div class="case-quick-tag-grid">
+                        <input type="text" name="name" class="form-control-premium" placeholder="Tên nhãn dán..." required >
+                        <input type="color" name="color" value="#007aff" class="form-control-premium case-color-input">
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 100px; gap: 10px;">
-                        <select name="type" class="form-control-premium text-xs" style="width: auto; height: 32px; padding: 0 10px;">
+                    <div class="case-quick-tag-grid">
+                        <select name="type" class="form-control-premium text-xs case-select-compact">
                             <option value="global">Dùng chung (Toàn công ty)</option>
                             <option value="private">Dùng riêng (Cá nhân)</option>
                         </select>
                         <input type="hidden" name="module_scope" value="cases">
                         <input type="hidden" name="ref_case_id" value="<?= $case['id'] ?>">
-                        <button type="submit" class="btn-secondary-sm" style="font-size: 11px;">
+                        <button type="submit" class="btn-secondary-sm case-btn-xs">
                             <i class="fas fa-plus m-r-5"></i> Tạo mới
                         </button>
                     </div>
@@ -1018,26 +1035,25 @@
 </div>
 
 <!-- Add Step Modal -->
-<div id="addStepModal" class="modal-overlay"
-     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1100; align-items:center; justify-content:center;">
-    <div class="premium-card p-20" style="width:500px; position:relative;">
+<div id="addStepModal" class="modal-overlay case-modal modal-lg">
+    <div class="premium-card p-20 case-modal-card">
         <h3 class="section-header-title">Thêm bước phát sinh</h3>
         <p class="text-xs text-muted-dark m-b-20">Bước mới sẽ được thêm vào cuối quy trình (hoặc tự động sắp xếp theo thời hạn).</p>
         
         <form action="<?= base_url('cases/add-step/' . $case['id']) ?>" method="POST">
             <?= csrf_field() ?>
             <div class="form-group-premium m-b-15">
-                <label class="info-list-label m-b-5" style="display:block;">Tên bước công việc <span class="text-apple-red">*</span></label>
+                <label class="info-list-label m-b-5 case-form-label">Tên bước công việc <span class="text-apple-red">*</span></label>
                 <input type="text" name="step_name" class="form-control-premium" required placeholder="Ví dụ: Bổ sung hồ sơ tài chính phụ">
             </div>
 
             <div class="form-group-premium m-b-15">
-                <label class="info-list-label m-b-5" style="display:block;">Tài liệu bắt buộc (Cách nhau bằng dấu phẩy)</label>
+                <label class="info-list-label m-b-5 case-form-label">Tài liệu bắt buộc (Cách nhau bằng dấu phẩy)</label>
                 <input type="text" name="required_documents_raw" class="form-control-premium" placeholder="Ví dụ: CCCD, Hợp đồng lao động, Giấy xác nhận...">
             </div>
 
             <div class="form-group-premium m-b-15">
-                <label class="info-list-label m-b-5" style="display:block;">Vị trí chèn <span class="text-apple-red">*</span></label>
+                <label class="info-list-label m-b-5 case-form-label">Vị trí chèn <span class="text-apple-red">*</span></label>
                 <select name="insert_after_step_id" class="form-control-premium" required>
                     <?php 
                         $lastCompletedOrder = 0;
@@ -1059,43 +1075,42 @@
             </div>
             
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div class="case-two-col-grid">
                 <div class="form-group-premium m-b-15">
-                    <label class="info-list-label m-b-5" style="display:block;">Thời gian dự kiến (Ngày)</label>
+                    <label class="info-list-label m-b-5 case-form-label">Thời gian dự kiến (Ngày)</label>
                     <input type="number" name="duration_days" class="form-control-premium" min="1" value="3" required>
                 </div>
                 <div class="form-group-premium m-b-15">
-                    <label class="info-list-label m-b-5" style="display:block;">Thưởng KPI (VNĐ)</label>
-                    <input type="text" name="kpi_reward" class="form-control-premium" value="0" onkeyup="this.value=this.value.replace(/[^\d]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
+                    <label class="info-list-label m-b-5 case-form-label">Thưởng KPI (VNĐ)</label>
+                    <input type="text" name="kpi_reward" class="form-control-premium" value="0" data-money-format="true">
                 </div>
             </div>
             
-            <div class="form-actions-row m-t-20 text-center" style="justify-content: flex-end; gap: 12px;">
-                <button type="button" class="btn-secondary-sm" onclick="document.getElementById('addStepModal').style.display='none'">Hủy</button>
-                <button type="submit" class="btn-premium"><i class="fas fa-save m-r-8"></i> Thêm bước</button>
+            <div class="form-actions-row m-t-20 text-center case-form-actions-end">
+                <button type="button" class="btn-secondary-sm" data-modal-close="addStepModal">Hủy</button>
+                <button type="submit" class="btn-premium-sm"><i class="fas fa-save m-r-8"></i> Thêm bước</button>
             </div>
         </form>
     </div>
 </div>
 
 <!-- Modal: Nhập từ kho DMS -->
-<div id="vaultModal" class="modal-overlay"
-     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1100; align-items:center; justify-content:center;">
-    <div class="premium-card" style="width:650px; max-height: 80vh; display: flex; flex-direction: column;">
-        <div class="modal-header-premium" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 class="section-title-premium" style="margin:0;">Kho tài liệu hệ thống (Vault)</h3>
-            <button type="button" class="btn-close-minimal" onclick="document.getElementById('vaultModal').style.display='none'"><i class="fas fa-times"></i></button>
+<div id="vaultModal" class="modal-overlay case-modal modal-lg">
+    <div class="premium-card case-modal-card case-modal-card-lg">
+        <div class="modal-header-premium case-modal-header m-b-20">
+            <h3 class="section-title-premium case-modal-title">Kho tài liệu hệ thống (Vault)</h3>
+            <button type="button" class="btn-close-minimal" data-modal-close="vaultModal"><i class="fas fa-times"></i></button>
         </div>
         
         <div class="m-b-15">
-            <input type="text" id="vaultSearch" placeholder="Tìm kiếm tài liệu trong kho..." class="form-control-premium" onkeyup="filterVault()">
+            <input type="text" id="vaultSearch" placeholder="Tìm kiếm tài liệu trong kho..." class="form-control-premium">
         </div>
 
-        <div id="vaultListContainer" style="flex:1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+        <div id="vaultListContainer" class="vault-list-container">
             <table class="premium-table">
                 <thead>
                     <tr>
-                        <th style="width: 40px;"></th>
+                        <th class="vault-radio-col"></th>
                         <th>Tên tài liệu</th>
                         <th>Phân loại</th>
                         <th>Ngày tạo</th>
@@ -1108,215 +1123,29 @@
             </table>
         </div>
 
-        <div class="form-actions-row m-t-20" style="justify-content: flex-end;">
-            <button type="button" class="btn-secondary-sm" onclick="document.getElementById('vaultModal').style.display='none'">Đóng</button>
-            <button type="button" id="btnConfirmImport" class="btn-premium" disabled onclick="confirmImport()">Nhập tài liệu đã chọn</button>
+        <div class="form-actions-row m-t-20 case-form-actions-end">
+            <button type="button" class="btn-secondary-sm" data-modal-close="vaultModal">Đóng</button>
+            <button type="button" id="btnConfirmImport" class="btn-premium-sm" disabled >Nhập tài liệu đã chọn</button>
         </div>
     </div>
 </div>
 
 <!-- Image Preview Modal (Apple-Style) -->
-<div id="imagePreviewModal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:2000; align-items:center; justify-content:center; backdrop-filter: blur(5px);">
-    <div style="position:relative; max-width:90%; max-height:90%;">
-        <button onclick="document.getElementById('imagePreviewModal').style.display='none'" 
-                style="position:absolute; top:-40px; right:-40px; background:none; border:none; color:white; font-size:30px; cursor:pointer;">
+<div id="imagePreviewModal" class="modal-overlay case-modal image-preview-modal">
+    <div class="image-preview-content">
+        <button data-modal-close="imagePreviewModal" 
+                class="image-preview-close">
             <i class="fas fa-times"></i>
         </button>
-        <div style="background:white; padding:10px; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5);">
-            <img id="previewImgElement" src="" style="max-width:100%; max-height:80vh; display:block; border-radius:8px;">
-            <div id="previewImgTitle" style="text-align:center; padding-top:10px; font-weight:600; color:#333; font-size:14px;"></div>
+        <div class="image-preview-frame">
+            <img id="previewImgElement" src="" class="image-preview-img">
+            <div id="previewImgTitle" class="image-preview-title"></div>
         </div>
     </div>
 </div>
 
-<script>
-    /**
-     * L.A.N ERP - Quản lý Chi tiết Vụ việc
-     */
-    $(document).ready(function() {
-        // Kích hoạt Select2 cho các ô chọn nhân sự trong Modal Phân công
-        $('.select2-multi').select2({
-            dropdownParent: $('#assignMembersModal'),
-            width: '100%',
-            placeholder: '-- Chọn nhân sự --'
-        });
-    });
+<?= $this->endSection() ?>
 
-    /**
-     * Chuyển đổi hiển thị giữa các tab nội dung (Tổng quan, Bình luận, Lịch sử, Tài liệu).
-     * @param {string} tabId - Định danh của tab cần hiển thị (ví dụ: 'overview', 'comments', ...).
-     */
-    function switchTab(tabId) {
-        // Ẩn tất cả các khối nội dung tab hiện tại
-        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-        
-        // Gỡ bỏ trạng thái 'active' khỏi tất cả các nút điều hướng tab
-        document.querySelectorAll('.nav-tab-item').forEach(el => el.classList.remove('active'));
-        
-        // Hiển thị khối nội dung được chọn
-        const targetTab = document.getElementById('tab-' + tabId);
-        if (targetTab) {
-            targetTab.style.display = 'block';
-        }
-
-        // Thêm trạng thái 'active' cho nút tab vừa được click
-        // Lưu ý: Sử dụng event.currentTarget để xác định đúng phần tử được nhấn
-        if (event && event.currentTarget) {
-            event.currentTarget.classList.add('active');
-        }
-    }
-
-    /**
-     * Mở Modal tải tài liệu và gán tự động thông tin vào các trường ẩn (hidden fields).
-     * Phục vụ việc tải tài liệu minh chứng cho từng bước (Step) trong quy trình.
-     * @param {number} stepId - ID của bước công việc đang thực hiện.
-     * @param {string} docName - Tên gợi ý cho tài liệu cần tải lên.
-     */
-    function openUploadStep(stepId, docName) {
-        // Gán ID bước vào input ẩn để server biết tài liệu thuộc bước nào
-        document.getElementById('modal_step_id').value = stepId;
-        
-        // Tự động điền tên tài liệu dựa trên checklist để người dùng không phải nhập lại
-        document.getElementById('modal_file_name').value = docName;
-        
-        // Hiển thị modal upload bằng Flexbox để căn giữa màn hình
-        const uploadModal = document.getElementById('uploadModal');
-        if (uploadModal) {
-            uploadModal.style.display = 'flex';
-        }
-    }
-
-    let selectedVaultDocId = null;
-    let importTargetType = 'case';
-
-    /**
-     * Mở Modal kho tài liệu DMS để chọn tệp tin nhập vào vụ việc.
-     */
-    function openVaultModal(target) {
-        const modal = document.getElementById('vaultModal');
-        modal.style.display = 'flex';
-        selectedVaultDocId = null;
-        document.getElementById('btnConfirmImport').disabled = true;
-
-        // Tải danh sách tài liệu từ kho qua AJAX
-        fetch('<?= base_url("documents/vault-list") ?>?category=internal')
-            .then(response => response.json())
-            .then(data => {
-                const tbody = document.getElementById('vaultTableBody');
-                tbody.innerHTML = '';
-                
-                if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center p-20">Kho tài liệu hiện tại đang trống.</td></tr>';
-                    return;
-                }
-
-                data.forEach(doc => {
-                    const tr = document.createElement('tr');
-                    tr.style.cursor = 'pointer';
-                    tr.onclick = () => selectVaultDoc(doc.id, tr);
-                    tr.innerHTML = `
-                        <td><input type="radio" name="vault_doc" value="${doc.id}"></td>
-                        <td><strong>${doc.file_name}</strong></td>
-                        <td><span class="badge-secondary-minimal text-xs">${doc.document_category}</span></td>
-                        <td class="text-sm">${new Date(doc.created_at).toLocaleDateString('vi-VN')}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            });
-    }
-
-    function selectVaultDoc(id, row) {
-        selectedVaultDocId = id;
-        document.querySelectorAll('#vaultTableBody tr').forEach(r => r.style.background = 'white');
-        row.style.background = 'rgba(0, 113, 227, 0.05)';
-        row.querySelector('input[type="radio"]').checked = true;
-        document.getElementById('btnConfirmImport').disabled = false;
-    }
-
-    /**
-     * Xác nhận nhập tài liệu từ kho vào vụ việc hiện tại.
-     */
-    function confirmImport() {
-        if (!selectedVaultDocId) return;
-
-        const formData = new FormData();
-        formData.append('document_id', selectedVaultDocId);
-        formData.append('<?= csrf_token() ?>', '<?= csrf_hash() ?>');
-
-        fetch('<?= base_url("cases/import-doc/" . $case['id']) ?>', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.status === 'success') {
-                alert('Đã nhập tài liệu thành công.');
-                location.reload();
-            } else {
-                alert('Có lỗi xảy ra: ' + result.message);
-            }
-        });
-    }
-
-    function previewImage(url, title) {
-        const modal = document.getElementById('imagePreviewModal');
-        const img = document.getElementById('previewImgElement');
-        const titleEl = document.getElementById('previewImgTitle');
-        
-        img.src = url;
-        titleEl.innerText = title;
-        modal.style.display = 'flex';
-    }
-
-    // Close modal on outside click
-    window.addEventListener('click', function(e) {
-        const modal = document.getElementById('imagePreviewModal');
-        if (e.target === modal) {
-            modal.style.display = 'none';
-        }
-    });
-
-    /**
-     * Lọc tài liệu trong Kho (Vault Search)
-     */
-    function filterVault() {
-        let input = document.getElementById('vaultSearch');
-        if (!input) return;
-        let filter = input.value.toUpperCase();
-        let tr = document.querySelectorAll('#vaultTableBody tr');
-        tr.forEach(row => {
-            let text = row.textContent || row.innerText;
-            row.style.display = text.toUpperCase().indexOf(filter) > -1 ? "" : "none";
-        });
-    }
-
-    /**
-     * Switch Tab Function
-     */
-    function switchTab(tabName) {
-        document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-        document.querySelectorAll('.nav-tab-item').forEach(t => t.classList.remove('active'));
-        
-        const targetTab = document.getElementById('tab-' + tabName);
-        if (targetTab) targetTab.style.display = 'block';
-        
-        const targetItem = document.querySelector(`.nav-tab-item[onclick*="${tabName}"]`);
-        if (targetItem) targetItem.classList.add('active');
-    }
-</script>
-
-<!-- Global Image Preview Modal -->
-<div id="imagePreviewModal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:2000; align-items:center; justify-content:center; backdrop-filter: blur(5px);">
-    <div style="position:relative; max-width:90%; max-height:90%;">
-        <button onclick="document.getElementById('imagePreviewModal').style.display='none'" 
-                style="position:absolute; top:-40px; right:-40px; background:none; border:none; color:white; font-size:30px; cursor:pointer;">
-            <i class="fas fa-times"></i>
-        </button>
-        <div style="background:white; padding:10px; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5);">
-            <img id="previewImgElement" src="" style="max-width:100%; max-height:80vh; display:block; border-radius:8px;">
-            <div id="previewImgTitle" style="text-align:center; padding-top:10px; font-weight:600; color:#333; font-size:14px;"></div>
-        </div>
-    </div>
-</div>
-
+<?= $this->section('scripts') ?>
+<script src="<?= base_url('js/case_show.js') ?>"></script>
 <?= $this->endSection() ?>

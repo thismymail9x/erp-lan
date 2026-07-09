@@ -55,6 +55,7 @@ class EmployeeController extends BaseController
 
         // --- KIỂM TRA QUYỀN TRUY CẬP (Access Control) ---
         $isPrivileged = (has_permission('sys.admin') || 
+                         has_permission('user.view') ||
                          has_permission('user.manage') ||
                          $roleName === \Config\AppConstants::ROLE_ADMIN || 
                          $roleName === \Config\AppConstants::ROLE_MOD || 
@@ -133,6 +134,14 @@ class EmployeeController extends BaseController
         }
 
         $data = $this->request->getPost();
+
+        // --- XỬ LÝ CHUYÊN MÔN CHAT (Phase 3) ---
+        if (isset($data['specialties']) && is_array($data['specialties'])) {
+            $data['specialties'] = json_encode($data['specialties'], JSON_UNESCAPED_UNICODE);
+        } else {
+            $data['specialties'] = json_encode([]);
+        }
+
         $result = $this->employeeService->createEmployee($data);
 
         if ($result['status'] === 'success') {
@@ -234,6 +243,13 @@ class EmployeeController extends BaseController
             ];
             // Loại bỏ mọi trường khác khỏi mảng $data
             $data = array_intersect_key($data, array_flip($allowedFields));
+        } else {
+            // Đối với Admin/Hành chính: Xử lý chuyên môn và tải tối đa
+            if (isset($data['specialties']) && is_array($data['specialties'])) {
+                $data['specialties'] = json_encode($data['specialties'], JSON_UNESCAPED_UNICODE);
+            } else {
+                $data['specialties'] = json_encode([]);
+            }
         }
 
         // 3. Thực thi cập nhật qua Service

@@ -99,7 +99,9 @@
                                 </div>
                             </td>
                             <td>
-                                <?php if($user['active_status']) { ?>
+                                <?php if(!empty($user['deleted_at'])) { ?>
+                                    <span class="status-deleted" title="Tài khoản đã bị xóa"><i class="fas fa-trash-alt"></i> Đã xóa</span>
+                                <?php } elseif($user['active_status']) { ?>
                                     <span class="status-active" title="Tài khoản đang hoạt động bình thường"><i class="fas fa-check-circle"></i> HD</span>
                                 <?php } else { ?>
                                     <span class="status-locked" title="Tài khoản đã bị khóa truy cập"><i class="fas fa-lock"></i> Khóa</span>

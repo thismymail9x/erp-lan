@@ -25,6 +25,7 @@ class WorkScheduleModel extends BaseModel
         'location', 
         'start_at', 
         'end_at', 
+        'requires_vehicle',
         'status'
     ];
 

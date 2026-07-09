@@ -1,5 +1,9 @@
 <?= $this->extend('layouts/dashboard') ?>
 
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('css/workflows.css') ?>">
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
 <div class="workflow-edit-container">
     <div class="dashboard-header-wrapper m-b-24">
@@ -55,40 +59,5 @@
     </div>
 </div>
 
-<style>
-.max-w-700 { max-width: 700px; }
-.m-auto { margin-left: auto; margin-right: auto; }
-.flex-row { display: flex; }
-.flex-1 { flex: 1; }
-.align-center { align-items: center; }
 
-/* Minimal Switch Style */
-.switch-minimal {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-}
-.switch-minimal input { opacity: 0; width: 0; height: 0; }
-.slider-round {
-  position: absolute;
-  cursor: pointer;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: #e5e5ea;
-  transition: .4s;
-  border-radius: 24px;
-}
-.slider-round:before {
-  position: absolute;
-  content: "";
-  height: 18px; width: 18px;
-  left: 3px; bottom: 3px;
-  background-color: white;
-  transition: .4s;
-  border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-input:checked + .slider-round { background-color: #34c759; }
-input:checked + .slider-round:before { transform: translateX(20px); }
-</style>
 <?= $this->endSection() ?>

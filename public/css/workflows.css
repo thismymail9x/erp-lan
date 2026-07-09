@@ -1,0 +1,262 @@
+/* app\Views\dashboard\workflows\create.php */
+/* Minimal Switch Style */
+.switch-minimal {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+.switch-minimal input { opacity: 0; width: 0; height: 0; }
+.slider-round {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #e5e5ea;
+  transition: .4s;
+  border-radius: 24px;
+}
+.slider-round:before {
+  position: absolute;
+  content: "";
+  height: 18px; width: 18px;
+  left: 3px; bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+input:checked + .slider-round { background-color: #34c759; }
+input:checked + .slider-round:before { transform: translateX(20px); }
+/* app\Views\dashboard\workflows\edit.php */
+.max-w-700 { max-width: 700px; }
+.m-auto { margin-left: auto; margin-right: auto; }
+.flex-row { display: flex; }
+.flex-1 { flex: 1; }
+.align-center { align-items: center; }
+
+/* Minimal Switch Style */
+.switch-minimal {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+.switch-minimal input { opacity: 0; width: 0; height: 0; }
+.slider-round {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #e5e5ea;
+  transition: .4s;
+  border-radius: 24px;
+}
+.slider-round:before {
+  position: absolute;
+  content: "";
+  height: 18px; width: 18px;
+  left: 3px; bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+input:checked + .slider-round { background-color: #34c759; }
+input:checked + .slider-round:before { transform: translateX(20px); }
+/* app\Views\dashboard\workflows\index.php */
+.grid-layout-premium {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 24px;
+}
+.workflow-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+}
+.workflow-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+}
+.card-header-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+.workflow-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 10px 0;
+    color: var(--apple-main);
+}
+.workflow-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--text-muted-dark);
+    font-size: 0.9rem;
+}
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+.bg-apple-green { background-color: #34c759; }
+.bg-apple-gray { background-color: #8e8e93; }
+
+.btn-icon-only-minimal {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.03);
+    color: var(--apple-main);
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+}
+.btn-icon-only-minimal:hover {
+    background: rgba(0,0,0,0.08);
+}
+.btn-icon-duplicate {
+    color: var(--apple-blue);
+    background: rgba(0, 122, 255, 0.05);
+}
+.btn-icon-duplicate:hover {
+    background: rgba(0, 122, 255, 0.15);
+}
+.flex-row { display: flex; }
+.align-center { align-items: center; }
+.m-l-8 { margin-left: 8px; }
+/* app\Views\dashboard\workflows\steps.php */
+.steps-builder-layout {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+}
+.steps-list-column { flex: 3; }
+.steps-info-column { flex: 1; }
+.sticky-top { position: sticky; top: 24px; }
+
+.step-card {
+    border-left: 4px solid var(--apple-blue);
+    padding: 0;
+    overflow: hidden;
+}
+.step-card-header {
+    background: rgba(0,0,0,0.02);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+.step-number {
+    font-weight: 800;
+    color: var(--apple-blue);
+    font-size: 1.1rem;
+}
+.step-name-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--apple-main);
+    padding: 5px;
+}
+.step-name-input:focus {
+    outline: none;
+    background: rgba(255,255,255,0.8);
+    border-radius: 4px;
+}
+.btn-remove-step {
+    background: transparent;
+    border: none;
+    color: var(--apple-red);
+    cursor: pointer;
+    font-size: 1.1rem;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+.btn-remove-step:hover { opacity: 1; }
+
+.step-card-body { padding: 20px; }
+.form-row-steps {
+    display: flex;
+    gap: 15px;
+}
+.form-group-mini {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+.form-group-mini.flex-2 { flex: 2; }
+.form-group-mini label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-muted-dark);
+    margin-bottom: 8px;
+}
+.form-group-mini input, .form-group-mini select {
+    padding: 10px;
+    border: 1px solid #e5e5ea;
+    border-radius: 8px;
+    font-size: 0.95rem;
+}
+
+.btn-add-step-full {
+    width: 100%;
+    padding: 15px;
+    border: 2px dashed #d1d1d6;
+    background: transparent;
+    color: var(--text-muted-dark);
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+.btn-add-step-full:hover {
+    border-color: var(--apple-blue);
+    color: var(--apple-blue);
+    background: rgba(0, 122, 255, 0.03);
+}
+.currency-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.input-currency {
+    padding-right: 45px !important;
+    text-align: right;
+    font-weight: 600;
+    color: var(--apple-blue);
+}
+.currency-label {
+    position: absolute;
+    right: 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted-dark);
+    pointer-events: none;
+}
+
+.guide-list {
+    padding-left: 18px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--apple-main);
+}
+.guide-list li { margin-bottom: 12px; }

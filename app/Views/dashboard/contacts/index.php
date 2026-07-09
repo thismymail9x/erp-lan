@@ -19,7 +19,7 @@
         </div>
         <div class="header-controls">
             <?php if (has_permission('contact.create')) { ?>
-            <button class="btn-premium" onclick="openContactModal()">
+            <button type="button" class="btn-premium js-open-contact-modal">
                 <i class="fas fa-plus-circle"></i> Thêm liên hệ
             </button>
             <?php } ?>
@@ -31,8 +31,8 @@
         <div class="search-input-container filter-search-container">
             <i class="fas fa-search search-icon"></i>
             <input type="text" id="contact-search" class="input-premium" placeholder="Tìm tên, số điện thoại, chức vụ..." value="<?= esc($filters['search'] ?? '') ?>">
-            <i class="fas fa-times clear-search" id="clear-search" title="Xóa tìm kiếm" style="display: none;"></i>
-            <div class="search-loader" id="search-loader" style="display: none;"></div>
+            <i class="fas fa-times clear-search is-hidden" id="clear-search" title="Xóa tìm kiếm"></i>
+            <div class="search-loader is-hidden" id="search-loader"></div>
         </div>
         
         <div class="filter-group-inline">
@@ -58,7 +58,7 @@
             </select>
             <?php } ?>
 
-            <button type="button" id="btn-reset-filters" class="btn-secondary-sm" title="Đặt lại bộ lọc" style="flex: 0 0 32px; height: 32px; border-radius: 8px;">
+            <button type="button" id="btn-reset-filters" class="btn-secondary-sm contacts-reset-filter-btn" title="Đặt lại bộ lọc">
                 <i class="fas fa-undo"></i>
             </button>
         </div>
@@ -83,10 +83,10 @@
     </div>
     <div class="flex-row gap-10">
         <?php if ($isAdmin) { ?>
-        <button class="btn-minimal-white" onclick="handleBatchAction(1)">
+        <button type="button" class="btn-minimal-white js-contact-batch-private" data-status="1">
             <i class="fas fa-lock"></i> Gắn Private
         </button>
-        <button class="btn-minimal-white" onclick="handleBatchAction(0)">
+        <button type="button" class="btn-minimal-white js-contact-batch-private" data-status="0">
             <i class="fas fa-unlock"></i> Bỏ Private
         </button>
         <?php } ?>
@@ -98,7 +98,7 @@
     <div class="modal-content-premium">
         <div class="flex-row justify-between align-center m-b-20">
             <h3 id="modal-title" class="section-header-title">Thêm liên hệ</h3>
-            <span class="close-btn-minimal" onclick="closeContactModal()">&times;</span>
+            <span class="close-btn-minimal js-close-contact-modal">&times;</span>
         </div>
         
         <form id="contact-form" class="flex-column gap-15">
@@ -170,7 +170,7 @@
             <?php } ?>
 
             <div class="form-actions-row m-t-20 form-actions-container">
-                <button type="button" class="btn-secondary" onclick="closeContactModal()">Hủy bỏ</button>
+                <button type="button" class="btn-secondary js-close-contact-modal">Hủy bỏ</button>
                 <button type="submit" class="btn-premium">Lưu thông tin</button>
             </div>
         </form>

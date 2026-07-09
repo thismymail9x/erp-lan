@@ -16,7 +16,7 @@
 </div>
 
 <!-- Search/Filter Bar (Apple Style Row) -->
-<form action="<?= base_url('leave-requests') ?>" method="GET" class="search-filter-bar m-b-24" id="leave-filter-form">
+<form action="<?= base_url('leave-requests') ?>" method="GET" class="search-filter-bar m-b-24 filter-bar" id="leave-filter-form">
     <div class="search-input-group">
         <i class="fas fa-search"></i>
         <input type="text" name="search" placeholder="Tìm theo lý do, ..." value="<?= esc(request()->getGet('search')) ?>">
@@ -28,6 +28,11 @@
             <option value="<?= $key ?>" <?= $filters['status'] == $key ? 'selected' : '' ?>><?= $label ?></option>
         <?php } ?>
     </select>
+
+    <div class="search-input-group" id="month-group">
+        <i class="fas fa-calendar-alt"></i>
+        <input type="month" name="month" value="<?= esc($filters['month'] ?? '') ?>" class="form-control-premium">
+    </div>
 
     <?php if (has_permission('leave.approve') || has_permission('sys.admin')) { ?>
         <select name="department_id" class="filter-select">
@@ -96,113 +101,7 @@
     </div>
 </div>
 
-<?php $this->endSection() ?>
-
-<?php $this->section('scripts') ?>
-<script>
-    $(document).ready(function() {
-        let debounceTimer;
-        const filterForm = $('#leave-filter-form');
-        const resultsContainer = $('#leave-table-container');
-
-        function performSearch() {
-            const formData = filterForm.serialize();
-            resultsContainer.css('opacity', '0.5');
-
-            $.ajax({
-                url: window.location.pathname,
-                type: 'GET',
-                data: formData,
-                success: function(response) {
-                    resultsContainer.html(response);
-                    resultsContainer.css('opacity', '1');
-                },
-                error: function() {
-                    resultsContainer.css('opacity', '1');
-                    console.error('Lỗi khi tải kết quả lọc.');
-                }
-            });
-        }
-
-        // Search Input
-        filterForm.find('input[name="search"]').on('input', function() {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(performSearch, 500);
-        });
-
-        // Select Filters
-        filterForm.find('select').on('change', performSearch);
-
-        // AJAX Pagination
-        $(document).on('click', '#leave-pagination a', function(e) {
-            e.preventDefault();
-            const url = $(this).attr('href');
-            resultsContainer.css('opacity', '0.5');
-
-            $.ajax({
-                url: url,
-                type: 'GET',
-                success: function(response) {
-                    resultsContainer.html(response);
-                    resultsContainer.css('opacity', '1');
-                    $('html, body').animate({ scrollTop: $(".dashboard-header-wrapper").offset().top - 20 }, 500);
-                }
-            });
-        });
-    });
-
-    const modal = document.getElementById('leaveModal');
-    let currentId = null;
-
-
-    function closeModal() {
-        modal.style.display = 'none';
-    }
-
-    function formatDate(dateStr) {
-        if (!dateStr) return '...';
-        const d = new Date(dateStr);
-        return d.toLocaleDateString('vi-VN');
-    }
-
-    function handleApproval(id, action) {
-        const note = (action === 'approved') ? 'Đã đồng ý cho nghỉ.' : 'Không được phê duyệt.';
-        if (!confirm(`Bạn có chắc muốn thực hiện hành động này?`)) return;
-
-        submitApproval(id, action, note);
-    }
-
-    document.getElementById('btnApprove')?.addEventListener('click', () => {
-        submitApproval(currentId, 'approved', document.getElementById('approvalNote').value);
-    });
-
-    document.getElementById('btnReject')?.addEventListener('click', () => {
-        submitApproval(currentId, 'rejected', document.getElementById('approvalNote').value);
-    });
-
-    function submitApproval(id, action, note) {
-        const fd = new FormData();
-        fd.append('action', action);
-        fd.append('note', note);
-        fd.append('<?= csrf_token() ?>', '<?= csrf_hash() ?>');
-
-        fetch(`<?= base_url('leave-requests/approve') ?>/${id}`, {
-            method: 'POST',
-            body: fd,
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.status === 'success') {
-                location.reload();
-            } else {
-                alert(data.message);
-            }
-        });
-    }
-
-    window.onclick = function(event) {
-        if (event.target == modal) closeModal();
-    }
-</script>
+<?= $this->endSection() ?>
+<?= $this->section('scripts') ?>
+<script src="<?= base_url('js/leave_requests.js') ?>"></script>
 <?= $this->endSection() ?>

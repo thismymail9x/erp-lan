@@ -136,3 +136,86 @@ if (!function_exists('get_available_roles')) {
         return $model->orderBy('id', 'ASC')->findAll();
     }
 }
+if (!function_exists('get_phone_variants')) {
+    /**
+     * Tạo ra các biến thể số điện thoại để khớp chính xác trong tìm kiếm (đặc biệt giữa Zalo OA và CRM).
+     * Ví dụ: "0987654321" -> ["0987654321", "84987654321", "+84987654321", "987654321"]
+     * 
+     * @param string $phone Số điện thoại đầu vào
+     * @return array
+     */
+    function get_phone_variants(string $phone): array
+    {
+        $clean = preg_replace('/\D/', '', $phone);
+        if (empty($clean)) {
+            return [];
+        }
+
+        $variants = [$clean];
+
+        // Nếu bắt đầu bằng 84, thêm bản thể đầu 0 và không đầu số
+        if (strpos($clean, '84') === 0 && strlen($clean) > 2) {
+            $noCountry = substr($clean, 2);
+            $variants[] = '0' . $noCountry;
+            $variants[] = $noCountry;
+            $variants[] = '+84' . $noCountry;
+        }
+        // Nếu bắt đầu bằng 0, thêm bản thể đầu 84, +84 và không đầu số
+        elseif (strpos($clean, '0') === 0 && strlen($clean) > 1) {
+            $noZero = substr($clean, 1);
+            $variants[] = '84' . $noZero;
+            $variants[] = '+84' . $noZero;
+            $variants[] = $noZero;
+        }
+        else {
+            $variants[] = '0' . $clean;
+            $variants[] = '84' . $clean;
+            $variants[] = '+84' . $clean;
+        }
+
+        // Tạo thêm các biến thể có định dạng phổ biến khác
+        return array_unique($variants);
+    }
+}
+
+if (!function_exists('format_seconds_to_duration')) {
+    /**
+     * Chuyển đổi số giây thành chuỗi thời gian thân thiện bằng tiếng Việt.
+     * Ví dụ: 5400 giây -> "1 giờ 30 phút", 90000 giây -> "1 ngày 1 giờ"
+     * 
+     * @param int $seconds Số giây cần định dạng
+     * @return string Chuỗi hiển thị tiếng Việt
+     */
+    function format_seconds_to_duration(int $seconds): string
+    {
+        if ($seconds <= 0) {
+            return '0 phút';
+        }
+
+        $days = floor($seconds / 86400);
+        $seconds %= 86400;
+
+        $hours = floor($seconds / 3600);
+        $seconds %= 3600;
+
+        $minutes = floor($seconds / 60);
+
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days} ngày";
+            if ($hours > 0) {
+                $parts[] = "{$hours} giờ";
+            }
+        } elseif ($hours > 0) {
+            $parts[] = "{$hours} giờ";
+            if ($minutes > 0) {
+                $parts[] = "{$minutes} phút";
+            }
+        } else {
+            $parts[] = "{$minutes} phút";
+        }
+
+        return implode(' ', $parts);
+    }
+}
+

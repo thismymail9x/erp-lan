@@ -1,6 +1,19 @@
 <?= $this->extend('layouts/dashboard') ?>
 
 <?= $this->section('content') ?>
+<?php
+$isAdminOrManager = false;
+if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
+    $isAdminOrManager = true;
+} else {
+    $roleName = session()->get('role_name');
+    if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG) {
+        $isAdminOrManager = true;
+    }
+}
+$isCaretaker = (!empty($customer['assigned_care_staff_id']) && $customer['assigned_care_staff_id'] == session()->get('employee_id'));
+$canEditCareStatus = $isAdminOrManager || $isCaretaker;
+?>
 <div class="customer-create-container" style="max-width: 900px; margin: 0 auto;">
     <div class="dashboard-header-wrapper" style="margin-bottom: 40px;">
         <div class="header-title-container" style="text-align: center; width: 100%;">
@@ -81,8 +94,64 @@
                 </div>
             </div>
 
+            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 20px;">
+                <div class="form-group-premium">
+                    <label class="label-premium">Nhân sự phụ trách chăm sóc tư vấn</label>
+                    <select name="assigned_care_staff_id" class="form-control-premium" <?= !$isAdminOrManager ? 'disabled' : '' ?> title="Nhân sự phụ trách chăm sóc, tư vấn cho khách hàng này">
+                        <option value="">-- Chọn nhân sự --</option>
+                        <?php foreach ($employees as $emp): ?>
+                            <option value="<?= $emp['id'] ?>" <?= ($customer['assigned_care_staff_id'] == $emp['id']) ? 'selected' : '' ?>>
+                                <?= esc($emp['full_name']) ?> (<?= esc($emp['role_name']) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group-premium">
+                    <label class="label-premium">Số Zalo (Zalo Phone)</label>
+                    <input type="text" name="zalo_phone" class="form-control-premium" value="<?= esc($customer['zalo_phone'] ?? '') ?>" placeholder="Nhập số điện thoại Zalo...">
+                </div>
+                <div class="form-group-premium">
+                    <label class="label-premium">Nghề nghiệp</label>
+                    <input type="text" name="occupation" class="form-control-premium" value="<?= esc($customer['occupation'] ?? '') ?>" placeholder="Nhập nghề nghiệp...">
+                </div>
+            </div>
+
+            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 20px;">
+                <div class="form-group-premium">
+                    <label class="label-premium">Nhóm khách hàng (Phân loại A/B/C)</label>
+                    <select name="customer_segment" class="form-control-premium">
+                        <option value="vip" <?= (($customer['customer_segment'] ?? '') === 'vip') ? 'selected' : '' ?>>Nhóm A — VIP</option>
+                        <option value="regular" <?= (($customer['customer_segment'] ?? 'regular') === 'regular') ? 'selected' : '' ?>>Nhóm B — Phổ thông</option>
+                        <option value="potential" <?= (($customer['customer_segment'] ?? '') === 'potential') ? 'selected' : '' ?>>Nhóm C — Tiềm năng nguội</option>
+                    </select>
+                </div>
+                <div class="form-group-premium">
+                    <label class="label-premium">Tình trạng CSKH</label>
+                    <select name="care_status" class="form-control-premium" <?= !$canEditCareStatus ? 'disabled' : '' ?>>
+                        <option value="new" <?= (($customer['care_status'] ?? 'new') === 'new') ? 'selected' : '' ?>>Mới (Chưa chăm sóc)</option>
+                        <option value="phase1" <?= (($customer['care_status'] ?? '') === 'phase1') ? 'selected' : '' ?>>Giai đoạn 1 (Ngày 1-7)</option>
+                        <option value="phase2" <?= (($customer['care_status'] ?? '') === 'phase2') ? 'selected' : '' ?>>Giai đoạn 2 (Ngày 7-30)</option>
+                        <option value="phase3" <?= (($customer['care_status'] ?? '') === 'phase3') ? 'selected' : '' ?>>Giai đoạn 3 (Trên 30 ngày)</option>
+                        <option value="completed" <?= (($customer['care_status'] ?? '') === 'completed') ? 'selected' : '' ?>>Hoàn thành quy trình</option>
+                        <option value="dormant" <?= (($customer['care_status'] ?? '') === 'dormant') ? 'selected' : '' ?>>Đang tạm ngưng chăm sóc</option>
+                    </select>
+                </div>
+                <div class="form-group-premium">
+                    <label class="label-premium">Ngày hoàn tất dịch vụ gần nhất</label>
+                    <input type="date" name="service_completed_date" class="form-control-premium" value="<?= esc($customer['service_completed_date'] ?? '') ?>">
+                </div>
+                <div class="form-group-premium">
+                    <label class="label-premium">Qu&#224; t&#7863;ng</label>
+                    <label class="gift-checkbox-option">
+                        <input type="hidden" name="has_received_gift" value="0">
+                        <input type="checkbox" name="has_received_gift" value="1" <?= !empty($customer['has_received_gift']) ? 'checked' : '' ?>>
+                        <span>&#272;&#227; t&#7863;ng qu&#224;</span>
+                    </label>
+                </div>
+            </div>
+
             <div class="form-group-premium" style="margin-top: 20px;">
-                <label class="label-premium">Ghi chú nội bộ (Chỉ quản lý thấy)</label>
+                <label class="label-premium">Nội dung cần tư vấn</label>
                 <textarea name="notes_internal" class="form-control-premium" rows="3"><?= esc($customer['notes_internal']) ?></textarea>
             </div>
 
@@ -98,4 +167,3 @@
 <?= $this->section('scripts') ?>
 <script src="<?= base_url('js/customer_edit.js') ?>"></script>
 <?= $this->endSection() ?>
-

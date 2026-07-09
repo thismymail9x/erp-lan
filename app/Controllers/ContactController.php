@@ -17,9 +17,9 @@ class ContactController extends BaseController
     public static $modulePermissions = [
         'group' => 'Danh bạ liên hệ',
         'permissions' => [
-            'contact.view'   => ['desc' => 'Xem danh sách liên hệ', 'roles' => [1, 3, 4]],
-            'contact.create' => ['desc' => 'Thêm liên hệ mới', 'roles' => [1, 3, 4]],
-            'contact.edit'   => ['desc' => 'Chỉnh sửa liên hệ', 'roles' => [1, 3, 4]],
+            'contact.view'   => ['desc' => 'Xem danh sách liên hệ', 'roles' => [1, 2, 3, 4, 5, 6]],
+            'contact.create' => ['desc' => 'Thêm liên hệ mới', 'roles' => [1, 3, 4,5,6]],
+            'contact.edit'   => ['desc' => 'Chỉnh sửa liên hệ', 'roles' => [1, 3, 4,5,6]],
             'contact.delete' => ['desc' => 'Xóa liên hệ', 'roles' => [1, 3]],
             'contact.admin'  => ['desc' => 'Quản trị liên hệ (Gắn cờ Private/Xem dữ liệu ẩn)', 'roles' => [1, 3]]
         ]
@@ -71,7 +71,7 @@ class ContactController extends BaseController
     public function index()
     {
         // Kiểm tra quyền truy cập (Quy tắc 7: Security)
-        if (!has_permission('contact.view')) {
+        if (!has_permission('contact.view') && !session()->get('employee_id')) {
             return redirect()->to('/dashboard')->with('error', 'Bạn không có quyền truy cập module này.');
         }
 

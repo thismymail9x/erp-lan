@@ -148,34 +148,8 @@
         </div>
     </div>
 </div>
+<?= $this->endSection() ?>
 
-<script>
-$(document).ready(function() {
-    $('.btn-copy-link').click(function() {
-        const link = $(this).data('link');
-        const el = document.createElement('textarea');
-        el.value = link;
-        document.body.appendChild(el);
-        el.select();
-        document.execCommand('copy');
-        document.body.removeChild(el);
-        
-        const originalHtml = $(this).html();
-        $(this).html('<i class="fas fa-check"></i> Đã Copy!');
-        $(this).addClass('bg-success text-white');
-        
-        setTimeout(() => {
-            $(this).html(originalHtml);
-            $(this).removeClass('bg-success text-white');
-        }, 2000);
-    });
-});
-</script>
-
-<style>
-.section-title { font-weight: 700; font-size: 1.2rem; color: #1d1d1f; border-bottom: 2px solid #f2f2f7; padding-bottom: 12px; margin-bottom: 20px; }
-.knowledge-quick-summary { background: #f5f5f7; padding: 20px; border-radius: 12px; border-left: 4px solid #0071e3; font-style: italic; color: #48484a; }
-.btn-copy-link { background: #fff; border: 1px solid #d2d2d7; color: #1d1d1f; padding: 10px 20px; border-radius: 20px; font-weight: 600; font-size: 12px; transition: all 0.2s; }
-.btn-copy-link:hover { background: #f5f5f7; border-color: #0071e3; color: #0071e3; }
-</style>
+<?= $this->section('scripts') ?>
+<script src="<?= base_url('js/knowledge.js') ?>"></script>
 <?= $this->endSection() ?>

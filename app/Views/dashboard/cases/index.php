@@ -1,7 +1,7 @@
 <?= $this->extend('layouts/dashboard') ?>
 
 <?= $this->section('styles') ?>
-<link rel="stylesheet" href="<?= base_url('css/cases.css') ?>">
+<link rel="stylesheet" href="<?= base_url('css/cases.css') ?>?v=20260708">
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
@@ -24,9 +24,9 @@
         Hiển thị 4 chỉ số quan trọng nhất giúp Quản lý và Nhân viên nắm bắt nhanh khối lượng công việc.
         Bao gồm: Tổng số vụ, Đang xử lý, Hoàn thành trong tháng, và các Bước bị quá hạn.
     -->
-    <div class="stats-grid-premium">
+    <div class="stats-grid-premium case-stats-grid">
         <!-- Card: Tổng số vụ việc hồ sơ trong hệ thống (Dựa theo quyền truy cập) -->
-        <div class="stat-card-premium pointer" onclick="filterByStat('')" title="Tổng số vụ việc/hồ sơ pháp lý bạn có quyền truy cập">
+        <div class="stat-card-premium pointer case-stat-filter" data-status="" title="Tổng số vụ việc/hồ sơ pháp lý bạn có quyền truy cập">
             <div class="stat-icon-wrapper stat-icon-blue">
                 <i class="fas fa-folder"></i>
             </div>
@@ -36,7 +36,7 @@
             </div>
         </div>
         <!-- Vụ việc đang trong quá trình xử lý -->
-        <div class="stat-card-premium pointer" onclick="filterByStat('dang_xu_ly')" title="Số lượng vụ việc đang trung các bước thực hiện">
+        <div class="stat-card-premium pointer case-stat-filter" data-status="dang_xu_ly" title="Số lượng vụ việc đang trung các bước thực hiện">
             <div class="stat-icon-wrapper stat-icon-orange">
                 <i class="fas fa-spinner"></i>
             </div>
@@ -46,8 +46,8 @@
             </div>
         </div>
         <!-- Vụ việc Chờ tiếp nhận -->
-        <div class="stat-card-premium pointer" onclick="filterByStat('cho_tiep_nhan')" title="Số lượng vụ việc mới khởi tạo, đang chờ tiếp nhận">
-            <div class="stat-icon-wrapper stat-icon-blue" style="color: #5856d6; background: rgba(88, 86, 214, 0.1);">
+        <div class="stat-card-premium pointer case-stat-filter" data-status="cho_tiep_nhan" title="Số lượng vụ việc mới khởi tạo, đang chờ tiếp nhận">
+            <div class="stat-icon-wrapper stat-icon-blue stat-icon-waiting">
                 <i class="fas fa-hourglass-start"></i>
             </div>
             <div>
@@ -55,8 +55,18 @@
                 <div class="stat-value"><?= $stats['waiting'] ?? 0 ?></div>
             </div>
         </div>
+        <!-- Vụ việc tạm dừng -->
+        <div class="stat-card-premium pointer case-stat-filter" data-status="tam_dung" title="Số lượng vụ việc đang tạm dừng">
+            <div class="stat-icon-wrapper stat-icon-paused">
+                <i class="fas fa-pause-circle"></i>
+            </div>
+            <div>
+                <div class="stat-label">Tạm dừng</div>
+                <div class="stat-value"><?= $stats['paused'] ?? 0 ?></div>
+            </div>
+        </div>
         <!-- Vụ việc đã hoàn thành (Tổng số) -->
-        <div class="stat-card-premium pointer" onclick="filterByStat('da_hoan_thanh')" title="Số lượng vụ việc đã hoàn thành từ trước đến nay">
+        <div class="stat-card-premium pointer case-stat-filter" data-status="da_hoan_thanh" title="Số lượng vụ việc đã hoàn thành từ trước đến nay">
             <div class="stat-icon-wrapper stat-icon-green">
                 <i class="fas fa-check-double"></i>
             </div>
@@ -66,25 +76,25 @@
             </div>
         </div>
         <!-- Vụ việc có bước bị quá hạn -->
-        <div class="stat-card-premium pointer" onclick="filterByStat('overdue')" title="Cảnh báo: Các vụ việc có bước công việc đã quá hạn chót">
-            <div class="stat-icon-wrapper stat-icon-purple" style="color: var(--apple-red); background: rgba(255, 59, 48, 0.1);">
+        <div class="stat-card-premium pointer case-stat-filter" data-status="overdue" title="Cảnh báo: Các vụ việc có bước công việc đã quá hạn chót">
+            <div class="stat-icon-wrapper stat-icon-purple stat-icon-overdue">
                 <i class="fas fa-exclamation-triangle"></i>
             </div>
             <div>
-                <div class="stat-label" style="color: var(--apple-red);">Quá hạn</div>
+                <div class="stat-label case-overdue-label">Quá hạn</div>
                 <div class="stat-value text-apple-red"><?= $stats['overdue'] ?? 0 ?></div>
             </div>
         </div>
     </div>
 
     <!-- Search and Filter Bar -->
-    <div class="search-filter-wrapper m-b-16" style="display: flex; gap: 12px; align-items: center; flex-wrap: nowrap;">
-        <div class="search-input-container" style="flex: 1; min-width: 200px;">
+    <div class="search-filter-wrapper filter-bar">
+        <div class="search-input-container case-search-box">
             <i class="fas fa-search search-icon"></i>
             <input type="text" id="case-search" class="input-premium" placeholder="Tìm tên vụ việc, mã hoặc khách hàng..." value="<?= esc($search) ?>" autocomplete="off">
         </div>
         
-        <div class="filter-select-container" style="width: 140px; flex-shrink: 0;">
+        <div class="filter-select-container case-filter-status">
             <select id="status-filter" name="status" class="form-control-premium">
                 <option value="">Trạng thái</option>
                 <?php foreach ($statusLabels as $val => $label) { ?>
@@ -95,7 +105,7 @@
             </select>
         </div>
 
-        <div class="filter-select-container" style="width: 170px; flex-shrink: 0;">
+        <div class="filter-select-container case-filter-month">
             <select id="month-year-filter" class="form-control-premium">
                 <option value="">Chọn Tháng/Năm</option>
                 <?php 
@@ -114,7 +124,7 @@
                 ?>
             </select>
         </div>
-        <div class="filter-select-container" style="width: 130px; flex-shrink: 0;">
+        <div class="filter-select-container case-filter-tag">
             <select id="tag-filter" name="tag_id" class="form-control-premium">
                 <option value="">Nhãn dán</option>
                 <?php foreach ($availableTags as $tag) { ?>
@@ -127,7 +137,7 @@
 
 
         <?php if (has_permission('sys.admin') || strpos(strtolower(session()->get('role_name')), 'trưởng phòng') !== false) { ?>
-        <div class="filter-select-container" style="width: 220px; flex-shrink: 0;">
+        <div class="filter-select-container case-filter-lawyer">
             <select id="lawyer-filter" name="lawyer_id[]" class="form-control-premium" multiple="multiple">
                 <?php foreach ($availableLawyers as $lawyer) { ?>
                     <option value="<?= $lawyer['id'] ?>" <?= in_array($lawyer['id'], $lawyerIds) ? 'selected' : '' ?>>
@@ -152,11 +162,11 @@
             'statusLabels'  => $statusLabels
         ]) ?>
     </div>
-    <div id="quickTagModal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1100; align-items:center; justify-content:center;">
-        <div class="premium-card p-24" style="width:400px;">
+    <div id="quickTagModal" class="modal-overlay quick-tag-modal">
+        <div class="premium-card p-24 quick-tag-card">
             <div class="flex-row justify-between align-center m-b-20">
                 <h3 class="section-header-title">Gắn nhãn nhanh</h3>
-                <span class="close-btn-minimal" onclick="document.getElementById('quickTagModal').style.display='none'">&times;</span>
+                <span class="close-btn-minimal quick-tag-close">&times;</span>
             </div>
             <p class="text-sm m-b-15">Vụ việc: <strong id="quickTagName">--</strong></p>
             <form id="quickTagForm" class="flex-column gap-15">
@@ -164,7 +174,7 @@
                 <input type="hidden" name="entity_type" value="cases">
                 <div class="form-group-premium">
                     <label class="label-premium">Lựa chọn nhãn dán</label>
-                    <select name="tag_ids[]" id="quickTagSelect" class="form-control-premium" multiple="multiple" style="width: 100%;">
+                    <select name="tag_ids[]" id="quickTagSelect" class="form-control-premium quick-tag-select" multiple="multiple">
                         <?php if (isset($availableTags)) { 
                             foreach ($availableTags as $tag) { ?>
                                 <option value="<?= $tag['id'] ?>"><?= esc($tag['name']) ?></option>
@@ -172,8 +182,8 @@
                         } ?>
                     </select>
                 </div>
-                <div class="form-actions-row m-t-15" style="justify-content: flex-end; gap: 10px;">
-                    <button type="button" class="btn-secondary" onclick="document.getElementById('quickTagModal').style.display='none'">Hủy</button>
+                <div class="form-actions-row m-t-15 quick-tag-actions">
+                    <button type="button" class="btn-secondary quick-tag-close">Hủy</button>
                     <button type="submit" class="btn-premium">Cập nhật ngay</button>
                 </div>
             </form>

@@ -129,10 +129,11 @@ class NotificationService extends BaseService
         $roleId = $managerRole['id'];
 
         $managers = $this->userModel->select('users.id')
-                                    ->join('employees', 'employees.user_id = users.id')
+                                    ->join('employees', 'employees.user_id = users.id AND employees.deleted_at IS NULL')
                                     ->where('employees.department_id', $departmentId)
                                     ->where('users.role_id', $roleId) 
                                     ->where('users.active_status', 1)
+                                    ->where('users.deleted_at', null)
                                     ->get()->getResultArray();
         
         $ids = array_column($managers, 'id');
@@ -140,10 +141,11 @@ class NotificationService extends BaseService
         // Fallback: Nếu phòng đó không có sếp, gửi cho sếp phòng Pháp lý
         if (empty($ids) && $departmentId !== \Config\AppConstants::DEPT_PHAP_LY) {
             $managers = $this->userModel->select('users.id')
-                                    ->join('employees', 'employees.user_id = users.id')
+                                    ->join('employees', 'employees.user_id = users.id AND employees.deleted_at IS NULL')
                                     ->where('employees.department_id', \Config\AppConstants::DEPT_PHAP_LY)
                                     ->where('users.role_id', $roleId)
                                     ->where('users.active_status', 1)
+                                    ->where('users.deleted_at', null)
                                     ->get()->getResultArray();
             $ids = array_column($managers, 'id');
         }

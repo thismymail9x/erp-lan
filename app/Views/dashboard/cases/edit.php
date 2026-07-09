@@ -1,7 +1,11 @@
 <?= $this->extend('layouts/dashboard') ?>
 
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('css/cases.css') ?>">
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
-<div class="create-container">
+<div class="create-container case-edit-container case-form-container" data-payment-progress="<?= esc($case['payment_progress'] ?? '', 'attr') ?>">
     <div class="dashboard-header-wrapper">
         <div class="header-title-container">
             <h2 class="content-title text-center">Chỉnh sửa hồ sơ vụ việc</h2>
@@ -18,7 +22,7 @@
     <form action="<?= base_url('cases/update/' . $case['id']) ?>" method="POST" class="premium-form">
         <?= csrf_field() ?>
         
-        <div class="form-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+        <div class="form-grid case-edit-form-grid">
             <div class="form-group-premium">
                 <label for="title">Tên vụ việc / Tiêu đề hồ sơ</label>
                 <input type="text" name="title" id="title" required class="form-control-premium" value="<?= esc($case['title']) ?>">
@@ -46,7 +50,7 @@
                     <?php } ?>
                 </select>
                 <?php if ($canChangeFlow) { ?>
-                    <small class="text-apple-orange m-t-4" style="line-height: 1.4; display: block;"><i class="fas fa-exclamation-triangle"></i> Đổi quy trình sẽ tự động thiết lập lại Timeline từ đầu.</small>
+                    <small class="text-apple-orange m-t-4 case-edit-help"><i class="fas fa-exclamation-triangle"></i> Đổi quy trình sẽ tự động thiết lập lại Timeline từ đầu.</small>
                 <?php } else { ?>
                     <small class="text-danger-premium m-t-4"><i class="fas fa-lock"></i> Chỉ Trưởng phòng Pháp lý/Admin mới có quyền đổi quy trình.</small>
                 <?php } ?>
@@ -62,7 +66,7 @@
                 </select>
             </div>
 
-            <div style="grid-column: span 2; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+            <div class="case-edit-span-2 case-edit-staff-grid">
                 <div class="form-group-premium">
                     <label for="approvers">Người phê duyệt (Manager/Leader)</label>
                     <select name="approvers[]" id="approvers" class="form-control-premium select2-multi" multiple="multiple">
@@ -97,7 +101,28 @@
                 </div>
             </div>
 
-            <div class="form-group-premium" style="grid-column: span 2;">
+            <?php if (has_permission('sys.admin') || has_permission('kpi.consulting')) { ?>
+                <div class="form-group-premium case-kpi-section">
+                    <h4 class="text-apple-main font-weight-600 m-b-15"><i class="fas fa-chart-line m-r-8 text-apple-blue"></i> KPI tư vấn</h4>
+                </div>
+                <div class="form-group-premium">
+                    <label for="consultant_id">Nhân sự tư vấn chốt khách</label>
+                    <select name="consultant_id" id="consultant_id" class="form-control-premium select2-enable" data-search="true">
+                        <option value="">-- Chưa ghi nhận --</option>
+                        <?php foreach ($staffs as $s) { ?>
+                            <option value="<?= $s['id'] ?>" <?= (int)($case['consultant_id'] ?? 0) === (int)$s['id'] ? 'selected' : '' ?>><?= esc($s['full_name']) ?> (<?= esc($s['position']) ?>)</option>
+                        <?php } ?>
+                    </select>
+                </div>
+                <div class="form-group-premium">
+                    <label for="consultation_closed_at">Ngày ghi nhận chốt</label>
+                    <?php $closedAtValue = !empty($case['consultation_closed_at']) ? date('Y-m-d', strtotime($case['consultation_closed_at'])) : ''; ?>
+                    <input type="date" name="consultation_closed_at" id="consultation_closed_at" class="form-control-premium" value="<?= esc($closedAtValue) ?>">
+                    <small class="text-muted-dark m-t-4 case-kpi-note">KPI tháng được tính theo ngày ghi nhận chốt và giá trị hợp đồng.</small>
+                </div>
+            <?php } ?>
+
+            <div class="form-group-premium case-edit-span-2">
                 <label for="description">Kế hoạch vụ việc</label>
                 <textarea name="description" id="description" class="form-control-premium" rows="4"><?= esc($case['description']) ?></textarea>
             </div>
@@ -106,17 +131,17 @@
             $isHanhChinhOrAdmin = (session()->get('role_name') === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
             if ($isHanhChinhOrAdmin) { 
             ?>
-                <div class="form-group-premium" style="grid-column: span 2; margin-top: 10px; border-top: 1px dashed var(--border-color); padding-top: 20px;">
+                <div class="form-group-premium case-edit-span-2 case-edit-section-heading">
                     <h4 class="text-apple-main font-weight-600 m-b-15"><i class="fas fa-file-invoice-dollar m-r-8 text-apple-blue"></i> Chuyên mục Hành chính - Kế toán</h4>
                 </div>
-                <div class="form-group-premium" style="grid-column: span 2;">
+                <div class="form-group-premium case-edit-span-2">
                     <label for="contract_value">Giá trị hợp đồng (VNĐ)</label>
-                    <input type="text" name="contract_value" id="contract_value" class="form-control-premium" style="font-size: 1.1rem; font-weight: 600; color: var(--apple-blue);" value="<?= isset($case['contract_value']) ? number_format($case['contract_value'], 0, ',', '.') : '' ?>" onkeyup="this.value=this.value.replace(/[^\d]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
-                    <small class="text-muted-dark m-t-4" style="display:block;">Nhập số tiền đã chốt theo hợp đồng. Hệ thống sẽ tự động định dạng. Nhân viên pháp lý không nhìn thấy số liệu này.</small>
+                    <input type="text" name="contract_value" id="contract_value" class="form-control-premium case-money-input js-vnd-input" value="<?= isset($case['contract_value']) ? number_format($case['contract_value'], 0, ',', '.') : '' ?>">
+                    <small class="text-muted-dark m-t-4 case-note-block">Nhập số tiền đã chốt theo hợp đồng. Hệ thống sẽ tự động định dạng. Nhân viên pháp lý không nhìn thấy số liệu này.</small>
                 </div>
                 
-                <div class="form-group-premium" style="grid-column: span 2;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div class="form-group-premium case-edit-span-2">
+                    <div class="case-payment-header">
                         <label>Tiến độ thanh toán</label>
                         <button type="button" class="btn-secondary-sm text-xs" id="add-payment-btn"><i class="fas fa-plus"></i> Thêm</button>
                     </div>
@@ -138,75 +163,8 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        if (typeof jQuery !== 'undefined' && jQuery.fn.select2) {
-            $('.select2-multi').select2({
-                placeholder: "Chọn nhân sự...",
-                allowClear: true,
-                width: '100%'
-            });
-
-            $('.select2-enable').select2({
-                placeholder: "-- Chọn một lựa chọn --",
-                allowClear: true,
-                width: '100%'
-            });
-        }
-        
-        // --- Tài chính & Tiến độ thanh toán Repeater ---
-        initPaymentRepeater();
-    });
-
-    function initPaymentRepeater() {
-        const container = document.getElementById('payment-progress-container');
-        const addBtn = document.getElementById('add-payment-btn');
-        if (!container || !addBtn) return;
-
-        let rowCount = 0;
-        let existingData = [];
-        <?php if (!empty($case['payment_progress'])) { ?>
-            try {
-                let parsed = JSON.parse(<?= json_encode($case['payment_progress']) ?>);
-                if(Array.isArray(parsed)) existingData = parsed;
-            } catch(e) {}
-        <?php } ?>
-
-        function addRow(data = null) {
-            rowCount++;
-            let title = data ? data.title : ('Lần ' + rowCount);
-            let amount = data ? data.amount : '';
-            let deadline = data ? data.deadline : '';
-            
-            let isPaidHtml = '';
-            if (data && data.is_paid == '1') {
-                isPaidHtml = 'checked';
-            }
-            
-            const div = document.createElement('div');
-            div.className = 'payment-row m-b-8';
-            div.style.display = 'flex';
-            div.style.gap = '10px';
-            div.innerHTML = `
-                <input type="text" name="payments[${rowCount}][title]" class="form-control-premium text-sm" value="${title}" placeholder="Tiêu đề (VD: Lần 1, Đặt cọc)">
-                <input type="text" name="payments[${rowCount}][amount]" class="form-control-premium text-sm font-weight-600 text-apple-blue" value="${amount}" placeholder="Số tiền" onkeyup="this.value=this.value.replace(/[^\\d]/g,'').replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.')">
-                <input type="date" name="payments[${rowCount}][deadline]" class="form-control-premium text-sm" value="${deadline}" title="Thời hạn (Không bắt buộc)">
-                <div style="display:flex; align-items:center; gap: 5px;">
-                    <input type="checkbox" name="payments[${rowCount}][is_paid]" value="1" id="paid_${rowCount}" ${isPaidHtml} style="width:16px; height:16px; cursor:pointer;">
-                    <label for="paid_${rowCount}" style="margin:0; font-size:12px; cursor:pointer;" class="text-apple-main">Đã thu</label>
-                </div>
-                <button type="button" class="btn-secondary-sm text-apple-red" onclick="this.parentElement.remove()" title="Xóa đợt thanh toán"><i class="fas fa-trash"></i></button>
-            `;
-            container.appendChild(div);
-        }
-
-        if (existingData.length > 0) {
-            existingData.forEach(item => addRow(item));
-        } else {
-            addRow(); // Initial row
-        }
-
-        addBtn.addEventListener('click', () => addRow());
-    }
-</script>
+<script src="<?= base_url('js/cases_edit.js') ?>"></script>
 <?= $this->endSection() ?>
+
+
+

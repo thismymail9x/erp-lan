@@ -35,7 +35,7 @@ class PerformanceService extends BaseService
         // Logic: Lấy toàn bộ bước hoàn thành và tính thưởng dựa trên deadline
         $db = \Config\Database::connect();
         $builder = $db->table('case_steps cs');
-        $builder->select('SUM(CASE WHEN cs.completed_at <= cs.deadline THEN cs.kpi_reward ELSE 0 END) as total_kpi, COUNT(cs.id) as completed_count');
+        $builder->select('SUM(CASE WHEN cs.completed_at <= cs.deadline OR cs.kpi_override_approved = 1 THEN cs.kpi_reward ELSE 0 END) as total_kpi, COUNT(cs.id) as completed_count');
         $builder->where('cs.completed_by', $employeeId);
         $builder->where('cs.status', 'completed');
         $builder->where('cs.deleted_at', null);

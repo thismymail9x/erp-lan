@@ -33,10 +33,17 @@ class FeatureGuidelines extends BaseConfig
             ]
         ],
         'payroll' => [
-            'launch_date' => '2026-05-05',
+            'launch_date' => '2026-06-01',
             'guidance'    => [
-                'title'   => 'Hướng dẫn Tra cứu Bảng lương',
-                'content' => "• Bảng lương hiển thị chi tiết các khoản thu nhập: Lương cứng, phụ cấp, thưởng và các khoản khấu trừ bảo hiểm, thuế.\n• Bạn có thể xem lịch sử lương của các tháng trước đó bằng cách chọn thời gian.\n• Nếu có thắc mắc về số liệu, vui lòng liên hệ bộ phận Kế toán/Hành chính.\n• Thêm chi phí phát sinh trước ngày 05 hàng tháng."
+                'title'   => 'Hướng dẫn Bảng lương nâng cao',
+                'content' => "• Bảng lương hiển thị chi tiết các khoản thu nhập: Lương cứng, phụ cấp, thưởng và các khoản khấu trừ bảo hiểm, thuế.\n• MỚI: Hệ thống tự động áp dụng hệ số lương (%) theo từng giai đoạn: 85% Thử việc, 40% Thực tập, 60% Học việc, 100% Chính thức.\n• MỚI: Khi nhân viên hết thử việc vào giữa tháng, hệ thống tự chia 2 phần và tính lương chính xác theo từng mức.\n• MỚI: Nhân viên mới vào tháng trước sẽ được tự động tính truy lĩnh và cộng vào cột 'Khác' tháng hiện tại.\n• MỚI: Admin có thể thêm ngày công bù thủ công (cột 'Ngày bù') để xử lý delay chấm công cho nhân viên mới.\n• Thiết lập hệ số lương trong Hồ sơ nhân viên → mục 'Giai đoạn thử việc / Thực tập'."
+            ]
+        ],
+        'kpi' => [
+            'launch_date' => '2026-06-03',
+            'guidance'    => [
+                'title'   => 'Hướng dẫn KPI tư vấn',
+                'content' => "• KPI tư vấn được tính theo tổng giá trị hợp đồng đã chốt trong tháng.\n• Mốc 150.000.000 VNĐ tương ứng thưởng 5.000.000 VNĐ; vượt hoặc thiếu mốc được tăng giảm tuyến tính theo tỷ lệ.\n• Ghi nhận người tư vấn chốt và ngày chốt trong form hồ sơ vụ việc. Chỉ người có quyền kpi.consulting hoặc admin được cập nhật thông tin này."
             ]
         ],
         'cases' => [
@@ -44,6 +51,13 @@ class FeatureGuidelines extends BaseConfig
             'guidance'    => [
                 'title'   => 'Hướng dẫn Quản lý Vụ việc',
                 'content' => "• Theo dõi danh sách các vụ việc pháp lý bạn đang tham gia.\n• Sau khi được phân vụ việc thì chuyển trạng thái sang 'Đang xử lý' ở nút cập nhật trong chi tiết vụ việc.\n• Click vào từng vụ việc để xem chi tiết tiến độ, các bước thực hiện và tài liệu đính kèm.\n• Cập nhật kết quả công việc theo đúng quy trình đã đề ra."
+            ]
+        ],
+        'case-kpi-override' => [
+            'launch_date' => '2026-07-09',
+            'guidance'    => [
+                'title'   => 'Ghi nhận KPI ngoại lệ',
+                'content' => "• Deadline của bước vụ việc được tính đến 23:59:59 của ngày hạn định.\n• Quản lý hoặc người duyệt có thể ghi nhận KPI cho bước hoàn thành trễ nếu lý do giải trình hợp lý.\n• Báo cáo KPI vẫn giữ thời điểm hoàn thành thực tế và chỉ cộng thưởng khi bước đúng hạn hoặc đã được ghi nhận ngoại lệ."
             ]
         ],
         'finance' => [
@@ -54,12 +68,27 @@ class FeatureGuidelines extends BaseConfig
             ]
         ],
         'customers' => [
-            'launch_date' => '2026-01-01',
+            'launch_date' => '2026-07-03',
             'guidance'    => [
                 'title'   => 'Hướng dẫn Quản lý Khách hàng',
-                'content' => "• Lưu trữ thông tin cá nhân/tổ chức khách hàng, lịch sử giao dịch và liên hệ.\n• Phân loại khách hàng theo nhóm để có chiến lược chăm sóc phù hợp.\n• Tra cứu nhanh hồ sơ khách hàng khi cần liên hệ hoặc xử lý vụ việc."
+                'content' => "• Lưu trữ thông tin cá nhân/tổ chức khách hàng, lịch sử giao dịch và liên hệ.\n• MỚI: Bổ sung tính năng phân bổ nhân sự phụ trách chăm sóc tư vấn độc lập.\n• MỚI: Theo dõi trạng thái quà tặng và cập nhật nhanh ngay trên danh sách khách hàng.\n• Phân loại khách hàng theo nhóm để có chiến lược chăm sóc phù hợp.\n• Tra cứu nhanh hồ sơ khách hàng khi cần liên hệ hoặc xử lý vụ việc."
             ]
         ],
+        'customer-care' => [
+            'launch_date' => '2026-05-22',
+            'guidance'    => [
+                'title'   => 'Hướng dẫn Module CSKH',
+                'content' => "• Quản lý quy trình chăm sóc khách hàng cũ theo 3 giai đoạn tiêu chuẩn từ lúc kết thúc dịch vụ.\n• Tự động tạo checklist công việc hàng ngày/hàng tuần cho nhân viên CSKH phụ trách.\n• Theo dõi các chỉ số KPI thực tế (tỷ lệ quay lại, tỷ lệ giới thiệu, tỷ lệ phản hồi).\n• Quản lý chương trình khách hàng thân thiết, tích điểm và nâng hạng thành viên VIP tự động."
+            ]
+        ],
+        'sla-report' => [
+            'launch_date' => '2026-05-25',
+            'guidance'    => [
+                'title'   => 'Hướng dẫn Báo cáo & Cấu hình SLA',
+                'content' => "• Xem thống kê chi tiết tỷ lệ hoàn thành đúng hạn (SLA) của từng nhân viên tư vấn.\n• Xem danh sách Cảnh báo đỏ các khách hàng quá hạn chưa xử lý.\n• Quản lý cấu hình danh mục các bước trạng thái tư vấn và thời hạn SLA động (số giờ) cho mỗi bước."
+            ]
+        ],
+
         'knowledge' => [
             'launch_date' => '2026-05-13',
             'guidance'    => [
@@ -100,6 +129,34 @@ class FeatureGuidelines extends BaseConfig
             'guidance'    => [
                 'title'   => 'Hướng dẫn Hồ sơ cá nhân',
                 'content' => "• Quản lý thông tin cá nhân và quá trình công tác của bạn.\n• Cập nhật các thay đổi về thông tin liên lạc hoặc người thân khi cần thiết.\n• Theo dõi các quyết định khen thưởng, kỷ luật hoặc bổ nhiệm cá nhân."
+            ]
+        ],
+        'chat' => [
+            'launch_date' => '2026-05-21',
+            'guidance'    => [
+                'title'   => 'Hướng dẫn Trung tâm Tư Vấn Khách Hàng',
+                'content' => "• Quản lý tập trung TẤT CẢ hội thoại từ Zalo OA và Facebook Messenger trong 1 giao diện duy nhất.\n• Sử dụng tab lọc kênh (Tất cả / Zalo / Messenger) để chuyển đổi nhanh giữa các nền tảng.\n• MỚI (Giai đoạn 2): Tự động lọc trùng Lead qua SĐT/Email; Tự động phân tích từ khóa tin nhắn để gắn Lĩnh vực pháp lý và chấm điểm độ nóng của Lead (Nóng 🔥, Ấm ☀️, Lạnh ❄️).\n• MỚI (Giai đoạn 3): Tự động phân phối Lead cho nhân viên theo Chuyên môn và Tải công việc tối ưu; Quản lý Deadline phản hồi đầu tiên 2h nghiêm ngặt (tự động thu hồi & phân phối lại Lead cho nhân sự khác nếu quá hạn phản hồi)."
+            ]
+        ],
+        'zalo' => [
+            'launch_date' => '2026-05-15',
+            'guidance'    => [
+                'title'   => 'Hướng dẫn Cấu hình Zalo OA',
+                'content' => "• Trang cấu hình kết nối giữa hệ thống ERP và Zalo Official Account.\n• Nhập App ID, Secret Key và xác thực OAuth để kích hoạt liên kết.\n• Sau khi cấu hình xong, hội thoại Zalo sẽ xuất hiện tại Trung tâm Chat."
+            ]
+        ],
+        'messenger' => [
+            'launch_date' => '2026-05-20',
+            'guidance'    => [
+                'title'   => 'Hướng dẫn Cấu hình Facebook Messenger',
+                'content' => "• Trang cấu hình kết nối giữa hệ thống ERP và Facebook Page.\n• Nhập Page Access Token, App ID, App Secret và Verify Token.\n• Sau khi cấu hình xong, hội thoại Messenger sẽ xuất hiện tại Trung tâm Chat."
+            ]
+        ],
+        'quick-replies' => [
+            'launch_date' => '2026-05-16',
+            'guidance'    => [
+                'title'   => 'Hướng dẫn Câu trả lời nhanh',
+                'content' => "• Thiết lập các mẫu câu trả lời phổ biến để hỗ trợ khách hàng nhanh hơn.\n• Các mẫu này sẽ hiển thị trong ô chat Zalo/Messenger dưới dạng phím tắt.\n• Giúp chuẩn hóa nội dung tư vấn và tiết kiệm thời gian gõ phím cho nhân sự."
             ]
         ],
     ];

@@ -35,78 +35,8 @@
         ]) ?>
     </div>
 </div>
+<?= $this->endSection() ?>
 
-<script>
-    /**
-     * L.A.N ERP - Quản lý Danh sách Nhân sự
-     * Điều khiển tìm kiếm Real-time và Phân trang AJAX cho bộ phận nhân sự.
-     */
-
-    // 1. Khởi tạo tham chiếu DOM
-    const searchInput = document.getElementById('employee-search');
-    const tableContainer = document.getElementById('employees-table-container');
-    let searchTimeout; // Dùng cho Debounce (trì hoãn gửi request)
-
-    /**
-     * 2. Tìm kiếm Real-time (Thời gian thực).
-     * Gửi yêu cầu lọc sau 300ms kể từ lần gõ phím cuối cùng.
-     */
-    searchInput.addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            const url = new URL(window.location.href);
-            url.searchParams.set('search', this.value);
-            url.searchParams.set('page', 1); // Reset về trang 1
-            fetchByUrl(url);
-        }, 300);
-    });
-
-    /**
-     * 3. Phân trang và Sắp xếp qua AJAX.
-     * Lắng nghe sự kiện click trên các link phân trang hoặc sắp xếp.
-     */
-    tableContainer.addEventListener('click', function(e) {
-        const link = e.target.closest('.pagination a, .sort-link');
-        if (link) {
-            e.preventDefault();
-            const url = new URL(link.href);
-            fetchByUrl(url);
-        }
-    });
-
-    /**
-     * 4. Hàm thực thi Tải dữ liệu bằng AJAX.
-     * @param {URL} url - Địa chỉ API chứa các tham số lọc.
-     */
-    async function fetchByUrl(url) {
-        try {
-            // Hiệu ứng Visual: Làm mờ bảng khi đang tải
-            tableContainer.style.opacity = '0.5';
-            
-            // Luôn đảm bảo giá trị search được gửi kèm
-            if (!url.searchParams.has('search')) {
-                url.searchParams.set('search', searchInput.value);
-            }
-
-            // Gửi yêu cầu với header XMLHttpRequest
-            const response = await fetch(url, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-
-            // Lấy nội dung HTML trả về (từ index_table.php)
-            const html = await response.text();
-            
-            // Cập nhật DOM và khôi phục độ mờ
-            tableContainer.innerHTML = html;
-            tableContainer.style.opacity = '1';
-            
-            // Cập nhật URL trên browser
-            window.history.pushState(null, '', url);
-        } catch (err) {
-            console.error('Lỗi khi tải dữ liệu nhân sự:', err);
-            tableContainer.style.opacity = '1';
-        }
-    }
-</script>
-</div>
+<?= $this->section('scripts') ?>
+<script src="<?= base_url('js/employees.js') ?>"></script>
 <?= $this->endSection() ?>

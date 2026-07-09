@@ -1,5 +1,9 @@
 <?= $this->extend('layouts/dashboard') ?>
 
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('css/payroll.css') ?>">
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
 <div class="payroll-container">
     <div class="dashboard-header-wrapper">
@@ -7,22 +11,7 @@
             <h2 class="content-title">Quản lý Bảng lương</h2>
             <p class="content-subtitle">Tháng <?= $month ?></p>
         </div>
-        <div class="header-controls">
-            <form action="<?= base_url('payroll') ?>" method="get" class="d-flex gap-10">
-                <input type="month" name="month" value="<?= $month ?>" class="form-control-premium" onchange="this.form.submit()">
-            </form>
-            <a href="<?= base_url('payroll/config/' . $month) ?>" class="btn-secondary">
-                <i class="fas fa-calendar-alt"></i> Cấu hình ngày công
-            </a>
-            <a href="<?= base_url('payroll/calculate/' . $month) ?>" class="btn-premium">
-                <i class="fas fa-calculator"></i> Tính toán lương
-            </a>
-            <a href="<?= base_url('payroll/export/' . $month) ?>" class="btn-secondary">
-                <i class="fas fa-file-export"></i> Xuất file
-            </a>
         </div>
-    </div>
-
     <div class="stats-grid-premium m-b-20">
         <div class="stat-card-premium">
             <div class="stat-icon-wrapper stat-icon-blue">
@@ -40,9 +29,9 @@
             <div>
                 <div class="stat-label">Tổng quỹ lương thực lĩnh</div>
                 <div class="stat-value">
-                    <?php 
-                        $total = array_sum(array_column($payrolls, 'net_salary'));
-                        echo number_format($total) . ' đ';
+                    <?php
+                    $total = array_sum(array_column($payrolls, 'net_salary'));
+                    echo number_format($total) . ' đ';
                     ?>
                 </div>
             </div>
@@ -57,7 +46,34 @@
             </div>
         </div>
     </div>
-
+    <div class="header-controls filter-bar" style="justify-content: flex-end">
+            <form action="<?= base_url('payroll') ?>" method="get" class="d-flex gap-10 align-items-center">
+                <select name="department_id" class="form-control-premium" onchange="this.form.submit()" style="max-width: 200px;">
+                    <option value="">-- Tất cả phòng ban --</option>
+                    <?php foreach ($departments ?? [] as $dept): ?>
+                        <option value="<?= $dept['id'] ?>" <?= (isset($department_id) && $department_id == $dept['id']) ? 'selected' : '' ?>><?= esc($dept['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <select name="employee_id" class="form-control-premium" onchange="this.form.submit()" style="max-width: 200px;">
+                    <option value="">-- Tất cả nhân sự --</option>
+                    <?php foreach ($employees ?? [] as $emp): ?>
+                        <option value="<?= $emp['id'] ?>" <?= (isset($employee_id) && $employee_id == $emp['id']) ? 'selected' : '' ?>><?= esc($emp['full_name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <input type="month" name="month" value="<?= $month ?>" class="form-control-premium" onchange="this.form.submit()">
+            </form>
+            <a href="<?= base_url('payroll/config/' . $month) ?>" class="btn-secondary">
+                <i class="fas fa-calendar-alt"></i> Cấu hình ngày công
+            </a>
+            <form action="<?= base_url('payroll/calculate/' . $month) ?>" method="post" id="form-calculate" class="d-inline">
+                <button type="submit" class="btn-premium">
+                    <i class="fas fa-calculator"></i> Tính toán lương
+                </button>
+            </form>
+            <a href="<?= base_url('payroll/export/' . $month) ?>" class="btn-secondary">
+                <i class="fas fa-file-export"></i> Xuất file
+            </a>
+        </div>
     <?php 
         $holidays = json_decode($config['holidays_json'] ?: '{}', true);
         if (!empty($holidays)) { ?>
@@ -81,31 +97,29 @@
             <table class="premium-table payroll-table-wide">
                 <thead>
                     <tr>
-                        <th rowspan="2">STT</th>
-                        <th rowspan="2">Họ và tên</th>
-                        <th rowspan="2">Chức vụ</th>
+                        <th rowspan="2"><input type="checkbox" id="checkAll"></th>
+                        <th rowspan="2" class="col-name">Họ và tên</th>
                         <th rowspan="2">Lương đóng BH</th>
                         <th rowspan="2">Lương tháng</th>
                         <th rowspan="2">Ngày công chuẩn</th>
                         <th rowspan="2">Lương 1 ngày công</th>
                         <th colspan="3">Lương theo ngày công làm việc</th>
-                        <th rowspan="2">Phụ cấp chuyên cần</th>
-                        <th rowspan="2">Phụ cấp xăng xe</th>
-                        <th rowspan="2">Lương trách nhiệm</th>
-                        <th rowspan="2">Khác</th>
+                        <th rowspan="2" class="col-allowance-diligence">Phụ cấp chuyên cần</th>
+                        <th rowspan="2" class="col-allowance-petrol">Phụ cấp xăng xe</th>
+                        <th rowspan="2" class="col-salary-kpi">Lương trách nhiệm</th>
+                        <th rowspan="2" class="col-salary-other">Khác</th>
                         <th rowspan="2">Tổng lương</th>
                         <th colspan="5">Các khoản giảm trừ</th>
-                        <th rowspan="2">Lương thực lĩnh</th>
-                        <th rowspan="2">Ký nhận</th>
+                        <th rowspan="2" class="col-net-salary">Lương thực lĩnh</th>
                     </tr>
                     <tr>
                         <th>Số công</th>
-                        <th>Số tiền (TNCT)</th>
-                        <th>Vi phạm</th>
+                        <th>Ngày bù</th>
+                        <th>Thu nhập chịu thuế</th>
                         <th>BHXH vào CP (21.5%)</th>
                         <th>BHXH trừ lương (10.5%)</th>
                         <th>Giảm trừ phụ thuộc</th>
-                        <th>Thuế TNCN</th>
+                        <th class="col-pit-tax">Thuế TNCN</th>
                         <th>Tổng cộng</th>
                     </tr>
                 </thead>
@@ -113,41 +127,62 @@
                     <?php if (empty($payrolls)) { ?>
                         <tr><td colspan="20" class="text-center p-20">Chưa có dữ liệu bảng lương tháng này. Vui lòng bấm "Tính toán lương".</td></tr>
                     <?php } else { ?>
-                        <?php $stt = 1; foreach ($payrolls as $p) { ?>
+                        <?php foreach ($payrolls as $p) { ?>
                             <tr>
-                                <td class="text-center"><?= $stt++ ?></td>
+                                <td class="text-center"><input type="checkbox" class="emp-checkbox" value="<?= $p['employee_id'] ?>"></td>
                                 <td class="employee-cell" data-id="<?= $p['id'] ?>" style="cursor: pointer;" title="Click để xem/sửa ghi chú">
-                                    <strong><a href="javascript:void(0)" style="color: inherit; text-decoration: none; border-bottom: 1px dashed #ccc;"><?= esc($p['full_name']) ?></a></strong><br>
-                                    <small class="text-muted"><?= esc($p['dept_name']) ?></small>
-                                    
-                                    <div class="notes-display-wrapper mt-1" id="notes-display-<?= $p['id'] ?>">
-                                        <?php 
-                                            $notes = json_decode($p['notes_json'] ?? '[]', true);
-                                            if (!empty($notes)) {
-                                                foreach ($notes as $n) {
-                                                    echo '<div class="text-xs text-muted" style="font-style: italic; margin-top: 2px;"><i class="fas fa-level-up-alt fa-rotate-90 text-blue" style="margin-right: 4px;"></i>' . esc($n['text']) . '</div>';
-                                                }
-                                            }
-                                        ?>
-                                    </div>
-                                    <textarea class="raw-notes-data" id="raw-notes-<?= $p['id'] ?>" style="display:none;"><?= esc($p['notes_json'] ?? '[]') ?></textarea>
+                                     <strong><a href="javascript:void(0)" style="color: inherit; text-decoration: none; border-bottom: 1px dashed #ccc;"><?= esc($p['full_name']) ?></a></strong>
+                                     <?php
+                                         $snapshot = (float)($p['probation_rate_snapshot'] ?? 100);
+                                         if ($snapshot < 100) {
+                                             echo '<span class="probation-badge" title="Hệ số lương thử việc/thực tập">' . $snapshot . '%</span>';
+                                         }
+                                     ?><br>
+                                     <small class="text-muted"><?= esc($p['dept_name']) ?></small>
+                                     
+                                     <div class="notes-display-wrapper mt-1" id="notes-display-<?= $p['id'] ?>">
+                                         <?php 
+                                             $notes = json_decode($p['notes_json'] ?? '[]', true);
+                                             if (!empty($notes)) {
+                                                 foreach ($notes as $n) {
+                                                     echo '<div class="text-xs text-muted" style="font-style: italic; margin-top: 2px;"><i class="fas fa-level-up-alt fa-rotate-90 text-blue" style="margin-right: 4px;"></i>' . esc($n['text']) . '</div>';
+                                                 }
+                                             }
+                                         ?>
+                                     </div>
+                                     <textarea class="raw-notes-data" id="raw-notes-<?= $p['id'] ?>" style="display:none;"><?= esc($p['notes_json'] ?? '[]') ?></textarea>
                                 </td>
-                                <td><?= esc($p['position'] ?? 'Nhân viên') ?></td>
                                 <td class="text-right"><?= number_format($p['insurance_salary'] ?? 0) ?></td>
                                 <td class="text-right"><?= number_format($p['salary_base'] ?? 0) ?></td>
                                 <td class="text-center"><?= $p['total_standard_days'] ?? 26 ?></td>
                                 <td class="text-right"><?= number_format($p['salary_per_day'] ?? 0, 0) ?></td>
-                                <td class="text-center"><?= $p['actual_working_days'] ?? 0 ?></td>
-                                <td class="text-right"><?= number_format($p['taxable_income'] ?? 0) ?></td>
-                                <td class="text-center text-red">
-                                    <small><?= $p['attendance_violations'] ?? 0 ?> lượt</small>
+                                <?php
+                                     $actualWD = (float)($p['actual_working_days'] ?? 0);
+                                     $adjustWD = (float)($p['manual_adjust_days'] ?? 0);
+                                     $totalWD  = $actualWD + $adjustWD;
+                                 ?>
+                                <td class="text-center" id="td-total-wd-<?= $p['id'] ?>" title="Chấm công: <?= $actualWD ?> ngày<?= $adjustWD > 0 ? ' + Bù thủ công: ' . $adjustWD . ' ngày' : '' ?>">
+                                     <span id="total-wd-val-<?= $p['id'] ?>"><?= $totalWD ?></span><?= $adjustWD > 0 ? '<sup class="adjust-days-sup" id="adjust-wd-sup-' . $p['id'] . '">+' . $adjustWD . '</sup>' : '<sup class="adjust-days-sup" id="adjust-wd-sup-' . $p['id'] . '" style="display:none;"></sup>' ?>
                                 </td>
+                                <td class="text-center">
+                                     <?php if (!$config['is_closed']) { ?>
+                                         <input type="number" class="form-control-minimal edit-payroll-item"
+                                                data-id="<?= $p['id'] ?>"
+                                                data-field="manual_adjust_days"
+                                                value="<?= (float)($p['manual_adjust_days'] ?? 0) ?>"
+                                                min="0" max="31" step="0.5"
+                                                title="Nhập số ngày công cần bù thêm">
+                                     <?php } else { ?>
+                                         <?= (float)($p['manual_adjust_days'] ?? 0) ?>
+                                     <?php } ?>
+                                </td>
+                                <td class="text-right"><span id="taxable-income-<?= $p['id'] ?>"><?= number_format($p['taxable_income'] ?? 0) ?></span></td>
                                 <td class="text-right">
                                     <?php if (!$config['is_closed']) { ?>
                                         <input type="text" class="form-control-minimal edit-payroll-item format-vnd" 
                                                data-id="<?= $p['id'] ?>" data-field="diligence_allowance" 
                                                value="<?= number_format($p['diligence_allowance'] ?? 0) ?>" 
-                                               style="width: 85px; text-align: right;">
+                                               style="width: 75px; text-align: right;">
                                     <?php } else { ?>
                                         <?= number_format($p['diligence_allowance'] ?? 0) ?>
                                     <?php } ?>
@@ -157,7 +192,7 @@
                                         <input type="text" class="form-control-minimal edit-payroll-item format-vnd" 
                                                data-id="<?= $p['id'] ?>" data-field="petrol_allowance" 
                                                value="<?= number_format($p['petrol_allowance'] ?? 0) ?>" 
-                                               style="width: 85px; text-align: right;">
+                                               style="width: 75px; text-align: right;">
                                     <?php } else { ?>
                                         <?= number_format($p['petrol_allowance'] ?? 0) ?>
                                     <?php } ?>
@@ -167,7 +202,7 @@
                                         <input type="text" class="form-control-minimal edit-payroll-item format-vnd" 
                                                data-id="<?= $p['id'] ?>" data-field="salary_kpi" 
                                                value="<?= number_format($p['salary_kpi'] ?? 0) ?>" 
-                                               style="width: 85px; text-align: right;">
+                                               style="width: 75px; text-align: right;">
                                     <?php } else { ?>
                                         <?= number_format($p['salary_kpi'] ?? 0) ?>
                                     <?php } ?>
@@ -177,7 +212,7 @@
                                         <input type="text" class="form-control-minimal edit-payroll-item format-vnd" 
                                                data-id="<?= $p['id'] ?>" data-field="salary_bonus" 
                                                value="<?= number_format(($p['salary_bonus'] ?? 0) + ($p['salary_other'] ?? 0)) ?>" 
-                                               style="width: 85px; text-align: right;">
+                                               style="width: 75px; text-align: right;">
                                     <?php } else { ?>
                                         <?= number_format(($p['salary_bonus'] ?? 0) + ($p['salary_other'] ?? 0)) ?>
                                     <?php } ?>
@@ -193,7 +228,7 @@
                                         <input type="text" class="form-control-minimal edit-payroll-item format-vnd" 
                                                data-id="<?= $p['id'] ?>" data-field="pit_tax" 
                                                value="<?= number_format($p['pit_tax'] ?? 0) ?>" 
-                                               style="width: 90px; text-align: right; color: #ff3b30;">
+                                               style="width: 80px; text-align: right; color: #ff3b30;">
                                     <?php } else { ?>
                                         <?= number_format($p['pit_tax'] ?? 0) ?>
                                     <?php } ?>
@@ -201,15 +236,10 @@
                                 <td class="text-right text-red"><strong><span id="deduct-<?= $p['id'] ?>"><?= number_format($p['total_deductions'] ?? 0) ?></span></strong></td>
 
                                 <td class="text-right"><strong><span id="net-<?= $p['id'] ?>"><?= number_format($p['net_salary'] ?? 0) ?></span> đ</strong></td>
-                                <td class="text-center">
-                                    <?php if ($p['status'] === 'paid') { ?>
-                                        <i class="fas fa-check-circle text-green"></i>
-                                    <?php } ?>
-                                </td>
                             </tr>
                             <!-- Drop-down row for editing notes -->
                             <tr class="notes-edit-row" id="notes-edit-row-<?= $p['id'] ?>" style="display: none; background-color: #f8f9fa;">
-                                <td colspan="10" style="padding: 12px 15px; border-bottom: 2px solid #e5e5ea; border-left: 3px solid var(--apple-blue);">
+                                <td colspan="19" style="padding: 12px 15px; border-bottom: 2px solid #e5e5ea; border-left: 3px solid var(--apple-blue);">
                                     <div class="d-flex">
                                         <div style="min-width: 150px; font-weight: 600; font-size: 13px; color: #555; padding-top: 6px;">
                                             <i class="fas fa-comment-dots text-blue mr-1"></i> Ghi chú:
@@ -251,6 +281,45 @@
                         <?php } ?>
                     <?php } ?>
                 </tbody>
+                <?php if (!empty($payrolls)) { ?>
+                <tfoot>
+                    <tr style="background-color: #f5f5f7; font-weight: bold; border-top: 2px solid #d2d2d7;">
+                        <td colspan="2" class="text-center text-uppercase">TỔNG CỘNG</td>
+                        <td class="text-right" id="footer-insurance-salary"><?= number_format(array_sum(array_column($payrolls, 'insurance_salary'))) ?></td>
+                        <td class="text-right" id="footer-salary-base"><?= number_format(array_sum(array_column($payrolls, 'salary_base'))) ?></td>
+                        <td class="text-center"></td>
+                        <td class="text-right"></td>
+                        <td class="text-center" id="footer-total-working-days"><?= array_sum(array_column($payrolls, 'actual_working_days')) + array_sum(array_column($payrolls, 'manual_adjust_days')) ?></td>
+                        <td class="text-center"></td><!-- Ngày bù: không cộng tổng -->
+                        <td class="text-right" id="footer-taxable-income"><?= number_format(array_sum(array_column($payrolls, 'taxable_income'))) ?></td>
+                        <td class="text-right" id="footer-diligence-allowance"><?= number_format(array_sum(array_column($payrolls, 'diligence_allowance'))) ?></td>
+                        <td class="text-right" id="footer-petrol-allowance"><?= number_format(array_sum(array_column($payrolls, 'petrol_allowance'))) ?></td>
+                        <td class="text-right" id="footer-salary-kpi"><?= number_format(array_sum(array_column($payrolls, 'salary_kpi'))) ?></td>
+                        <td class="text-right" id="footer-salary-bonus">
+                            <?php 
+                                $totalBonus = array_sum(array_column($payrolls, 'salary_bonus')) + array_sum(array_column($payrolls, 'salary_other'));
+                                echo number_format($totalBonus);
+                            ?>
+                        </td>
+                        <td class="text-right" id="footer-total-gross">
+                            <?php
+                                $totalGross = array_sum(array_column($payrolls, 'taxable_income')) +
+                                              array_sum(array_column($payrolls, 'diligence_allowance')) +
+                                              array_sum(array_column($payrolls, 'petrol_allowance')) +
+                                              array_sum(array_column($payrolls, 'salary_kpi')) +
+                                              $totalBonus;
+                                echo number_format($totalGross);
+                            ?>
+                        </td>
+                        <td class="text-right text-muted" id="footer-si-employer"><?= number_format(array_sum(array_column($payrolls, 'si_employer'))) ?></td>
+                        <td class="text-right text-red" id="footer-si-employee"><?= number_format(array_sum(array_column($payrolls, 'si_employee'))) ?></td>
+                        <td class="text-right" id="footer-dependent-deduction"><?= number_format(array_sum(array_column($payrolls, 'dependent_deduction'))) ?></td>
+                        <td class="text-right text-red" id="footer-pit-tax"><?= number_format(array_sum(array_column($payrolls, 'pit_tax'))) ?></td>
+                        <td class="text-right text-red" id="footer-total-deductions"><?= number_format(array_sum(array_column($payrolls, 'total_deductions'))) ?></td>
+                        <td class="text-right text-green" id="footer-net-salary" style="font-size: 14px;"><?= number_format(array_sum(array_column($payrolls, 'net_salary'))) ?> đ</td>
+                    </tr>
+                </tfoot>
+                <?php } ?>
             </table>
         </div>
         
@@ -269,184 +338,8 @@
         </div>
     <?php } ?>
 </div>
+<?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-<script>
-$(document).ready(function() {
-    // Hàm định dạng số có dấu phẩy
-    function formatNumber(n) {
-        let isNegative = String(n).trim().startsWith('-');
-        let numberStr = String(n).replace(/\D/g, "");
-        if (!numberStr) return isNegative ? '-' : '';
-        return (isNegative ? '-' : '') + numberStr.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    }
-
-    // Sự kiện khi gõ vào các ô có class format-vnd
-    $('.format-vnd').on('input', function() {
-        var selection = window.getSelection().toString();
-        if (selection !== '') return;
-        var $this = $(this);
-        var input = $this.val();
-        var formatted = formatNumber(input);
-        $this.val(formatted);
-    });
-
-    // Sự kiện khi thay đổi giá trị (Blur hoặc Enter)
-    $('.edit-payroll-item').on('change', function() {
-        const id = $(this).data('id');
-        const row = $(this).closest('tr');
-        
-        const kpiRaw = row.find('[data-field="salary_kpi"]').val() || "0";
-        const bonusRaw = row.find('[data-field="salary_bonus"]').val() || "0";
-        const otherRaw = row.find('[data-field="salary_other"]').val() || "0";
-        const pitRaw = row.find('[data-field="pit_tax"]').val() || "0";
-        const petrolRaw = row.find('[data-field="petrol_allowance"]').val() || "0";
-        const diligenceRaw = row.find('[data-field="diligence_allowance"]').val() || "0";
-        
-        $.post('<?= base_url('payroll/update-item/') ?>' + id, {
-            salary_kpi: kpiRaw.replace(/,/g, ''),
-            salary_bonus: bonusRaw.replace(/,/g, ''),
-            salary_other: otherRaw.replace(/,/g, ''),
-            pit_tax: pitRaw.replace(/,/g, ''),
-            petrol_allowance: petrolRaw.replace(/,/g, ''),
-            diligence_allowance: diligenceRaw.replace(/,/g, ''),
-            salary_deduction: 0, 
-            notes: ''
-        }, function(resp) {
-            if (resp.code === 0) {
-                $('#net-' + id).text(resp.net_salary);
-                if (resp.total_deductions) {
-                    $('#deduct-' + id).text(formatNumber(resp.total_deductions));
-                }
-                if (resp.total_gross) {
-                    $('#total-gross-' + id).text(formatNumber(resp.total_gross));
-                }
-                $('#net-' + id).css('color', '#34c759').delay(500).queue(function(next){
-                    $(this).css('color', '');
-                    next();
-                });
-            } else {
-                alert(resp.error);
-            }
-        });
-    });
-
-    // === XỬ LÝ GHI CHÚ DROP-DOWN ===
-    $(document).on('click', '.employee-cell', function(e) {
-        if ($(e.target).closest('input, button, a.btn').length > 0) return;
-        const id = $(this).data('id');
-        $('#notes-edit-row-' + id).fadeToggle(150);
-    });
-
-    $(document).on('click', '.btn-add-note-input', function() {
-        const $container = $(this).closest('.notes-editor-container');
-        const $list = $container.find('.notes-inputs-list');
-        const newHtml = `
-            <div class="d-flex align-items-center gap-10 mb-2 note-input-item" style="display:none;">
-                <input type="text" class="form-control form-control-sm note-text-input" placeholder="Nhập nội dung ghi chú..." style="max-width: 500px;">
-                <button type="button" class="btn btn-sm btn-light btn-remove-note-input" title="Xóa" style="color: #ff3b30;"><i class="fas fa-trash"></i></button>
-            </div>
-        `;
-        const $newEl = $(newHtml);
-        $list.append($newEl);
-        $newEl.fadeIn(150);
-        $list.find('.btn-remove-note-input').show();
-        $newEl.find('input').focus();
-    });
-
-    $(document).on('click', '.btn-remove-note-input', function() {
-        const $list = $(this).closest('.notes-inputs-list');
-        $(this).closest('.note-input-item').fadeOut(150, function() {
-            $(this).remove();
-            if ($list.find('.note-input-item').length === 1) {
-                const $remainingInput = $list.find('.note-text-input');
-                if ($remainingInput.val().trim() === '') {
-                    $list.find('.btn-remove-note-input').hide();
-                }
-            } else if ($list.find('.note-input-item').length === 0) {
-                $list.closest('.notes-editor-container').find('.btn-add-note-input').trigger('click');
-            }
-        });
-    });
-
-    function updateNotesDisplay(id, notes) {
-        let html = '';
-        notes.forEach(n => {
-            html += `<div class="text-xs text-muted" style="font-style: italic; margin-top: 2px;">
-                        <i class="fas fa-level-up-alt fa-rotate-90 text-blue" style="margin-right: 4px;"></i>${n.text}
-                     </div>`;
-        });
-        $('#notes-display-' + id).html(html);
-    }
-
-    $(document).on('click', '.btn-save-notes', function() {
-        const $btn = $(this);
-        const $container = $btn.closest('.notes-editor-container');
-        const id = $container.data('id');
-        let notes = [];
-        const now = new Date();
-        const dateStr = now.toLocaleDateString('vi-VN') + ' ' + now.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'});
-        
-        $container.find('.note-text-input').each(function() {
-            const text = $(this).val().trim();
-            if (text) {
-                notes.push({ id: Date.now() + Math.random(), text: text, date: dateStr });
-            }
-        });
-        
-        const notesJsonStr = JSON.stringify(notes);
-        const origHtml = $btn.html();
-        $btn.html('<i class="fas fa-spinner fa-spin"></i> Đang lưu...').prop('disabled', true);
-        
-        $.post('<?= base_url('payroll/save-notes/') ?>' + id, {
-            notes_json: notesJsonStr
-        }, function(res) {
-            $btn.html(origHtml).prop('disabled', false);
-            if (res.code === 0) {
-                $('#raw-notes-' + id).val(notesJsonStr);
-                updateNotesDisplay(id, notes);
-                $('#notes-edit-row-' + id).fadeOut(200);
-            } else {
-                alert('Có lỗi xảy ra khi lưu ghi chú');
-            }
-        });
-    });
-});
-</script>
-<style>
-.payroll-table-wide {
-    min-width: 1500px; /* Đảm bảo bảng đủ rộng cho tất cả các cột */
-}
-.table-responsive {
-    overflow-x: auto;
-    border-radius: 12px;
-}
-.premium-table thead th {
-    background-color: #f5f5f7;
-    color: #1d1d1f;
-    font-weight: 600;
-    text-align: center;
-    vertical-align: middle;
-    border: 1px solid #d2d2d7;
-}
-.premium-table tbody td {
-    vertical-align: middle;
-    border: 1px solid #f5f5f7;
-}
-.text-red { color: #ff3b30 !important; }
-.text-green { color: #34c759 !important; }
-.form-control-minimal {
-    border: 1px solid #d2d2d7;
-    border-radius: 6px;
-    padding: 4px 8px;
-    font-size: 13px;
-    outline: none;
-    background-color: #fff;
-}
-.form-control-minimal:focus {
-    border-color: var(--apple-blue);
-    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.1);
-}
-</style>
-<?= $this->endSection() ?>
+<script src="<?= base_url('js/payroll.js') ?>"></script>
 <?= $this->endSection() ?>

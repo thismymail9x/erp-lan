@@ -21,6 +21,7 @@ class UserModel extends BaseModel
 
     // Các quy tắc xác thực dữ liệu (Validation)
     protected $validationRules = [
+        'id'       => 'permit_empty|numeric',
         'email'    => 'required|valid_email|is_unique[users.email,id,{id}]',
         'password' => 'required|min_length[6]',
         'role_id'  => 'required|is_not_unique[roles.id]',

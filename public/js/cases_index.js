@@ -120,6 +120,48 @@ $(document).ready(function () {
         });
     }
 
+    $(document).on('click', '.case-stat-filter', function () {
+        filterByStat($(this).data('status') || '');
+    });
+
+    $(document).on('click', '.quick-tag-close', function () {
+        $('#quickTagModal').removeClass('is-open');
+    });
+
+    $(document).on('click', '.js-open-quick-tag', function () {
+        openQuickTag($(this).data('case-id'), $(this).data('case-name'));
+    });
+
+    $(document).on('click', '.js-confirm-link', function (e) {
+        const message = $(this).data('confirm-message') || 'Bạn có chắc chắn muốn thực hiện thao tác này?';
+        if (!confirm(message)) {
+            e.preventDefault();
+        }
+    });
+
+    $(document).on('click', '.js-case-bulk-delete', function () {
+        const selectedIds = $('.record-check:checked').map(function () {
+            return $(this).val();
+        }).get();
+
+        if (selectedIds.length === 0) {
+            alert('Vui lòng chọn ít nhất một hồ sơ.');
+            return;
+        }
+
+        if (!confirm('Bạn có chắc chắn muốn xóa hàng loạt các hồ sơ đã chọn?')) {
+            return;
+        }
+
+        $.post(baseUrl + '/cases/bulk-delete', { ids: selectedIds }, function (resp) {
+            if (resp.status === 'success') {
+                location.reload();
+            } else {
+                alert(resp.message || 'Không thể xóa hàng loạt.');
+            }
+        });
+    });
+
     async function fetchByUrl(url) {
         try {
             tableContainer.style.opacity = '0.5';
@@ -192,7 +234,7 @@ function openQuickTag(id, name) {
     if (document.getElementById('quickTagEntityId')) {
         document.getElementById('quickTagEntityId').value = id;
         document.getElementById('quickTagName').innerText = name;
-        document.getElementById('quickTagModal').style.display = 'flex';
+        document.getElementById('quickTagModal').classList.add('is-open');
 
         $.get(baseUrl + '/tags/get-entity-tags', { entity_id: id, entity_type: 'cases' }, function (tags) {
             const currentIds = tags.map(t => t.id);
@@ -220,7 +262,7 @@ $(document).ready(function () {
                         tagsHtml += `<a href="${baseUrl}/tags/show/${t.id}" class="tag-badge-premium" style="background-color: ${t.color}15; color: ${t.color}; border: 1px solid ${t.color}30; text-decoration: none;"><i class="fas fa-tag m-r-4" style="font-size: 8px;"></i> ${t.name}</a>`;
                     });
                     $('#tags-row-' + entityId).html(tagsHtml);
-                    document.getElementById('quickTagModal').style.display = 'none';
+                    document.getElementById('quickTagModal').classList.remove('is-open');
                 }
             });
         });

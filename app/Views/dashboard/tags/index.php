@@ -1,16 +1,7 @@
 <?= $this->extend('layouts/dashboard') ?>
 
 <?= $this->section('styles') ?>
-<style>
-    .tag-color-circle {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        display: inline-block;
-        margin-right: 8px;
-        border: 1px solid rgba(0,0,0,0.1);
-    }
-</style>
+<link rel="stylesheet" href="<?= base_url('css/tags.css') ?>">
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
@@ -82,9 +73,11 @@
                                 </td>
                                 <td class="table-cell-center">
                                     <div class="actions-group">
-                                        <a href="<?= base_url('tags/show/' . $tag['id']) ?>" class="btn-secondary-sm" title="Xem danh sách chi tiết các mục được gắn nhãn">
-                                            <i class="fas fa-list"></i>
-                                        </a>
+                                        <?php if (has_permission('sys.admin')) { ?>
+                                            <a href="<?= base_url('tags/show/' . $tag['id']) ?>" class="btn-secondary-sm" title="Xem danh sách chi tiết các mục được gắn nhãn">
+                                                <i class="fas fa-list"></i>
+                                            </a>
+                                        <?php } ?>
                                         <?php 
                                             $canEdit = (has_permission('sys.admin') || $tag['owner_id'] == session()->get('employee_id'));
                                             if ($canEdit) { 
@@ -132,7 +125,7 @@
                         <?php if ($isPowerUser) { ?>
                             <option value="global">Dùng chung</option>
                         <?php } ?>
-                        <option value="private" selected>Dùng riêng</option>
+                        <option value="private" selected>Cá nhân</option>
                     </select>
                 </div>
             </div>
@@ -177,7 +170,7 @@
                     <label class="label-premium">Loại</label>
                     <select name="type" id="edit_type" class="form-control-premium">
                         <option value="global">Dùng chung</option>
-                        <option value="private">Dùng riêng</option>
+                        <option value="private">Cá nhân</option>
                     </select>
                 </div>
             </div>
@@ -199,15 +192,8 @@
         </form>
     </div>
 </div>
+<?= $this->endSection() ?>
 
-<script>
-    function openEditTag(tag) {
-        document.getElementById('editTagForm').action = '<?= base_url('tags/update') ?>/' + tag.id;
-        document.getElementById('edit_name').value = tag.name;
-        document.getElementById('edit_color').value = tag.color;
-        document.getElementById('edit_type').value = tag.type;
-        document.getElementById('edit_module_scope').value = tag.module_scope;
-        document.getElementById('editTagModal').style.display = 'flex';
-    }
-</script>
+<?= $this->section('scripts') ?>
+<script src="<?= base_url('js/tags.js') ?>"></script>
 <?= $this->endSection() ?>

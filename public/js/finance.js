@@ -34,7 +34,7 @@ $(document).ready(function() {
     async function fetchByUrl(url, pushToHistory = true) {
         if (!tableContainer) return;
         
-        // Hủy yêu cầu trước đó nếu đang chạy
+        // Há»§y yÃªu cáº§u trÆ°á»›c Ä‘Ã³ náº¿u Ä‘ang cháº¡y
         if (abortController) {
             abortController.abort();
         }
@@ -42,8 +42,8 @@ $(document).ready(function() {
 
         try {
             console.log('Fetching Finance:', url.toString());
-            $('#finance-loader').show();
-            tableContainer.style.opacity = '0.5';
+            $('#finance-loader').removeClass('finance-hidden');
+            tableContainer.classList.add('finance-loading');
 
             const fetchUrl = new URL(url.toString());
             fetchUrl.searchParams.set('ajax', '1');
@@ -54,27 +54,27 @@ $(document).ready(function() {
             });
 
             if (!response.ok) {
-                throw new Error('Mạng không ổn định hoặc lỗi máy chủ (HTTP ' + response.status + ')');
+                throw new Error('M\u1ea1ng kh\u00f4ng \u1ed5n \u0111\u1ecbnh ho\u1eb7c l\u1ed7i m\u00e1y ch\u1ee7 (HTTP ' + response.status + ')');
             }
 
             const contentType = response.headers.get("content-type");
             if (!contentType || !contentType.includes("application/json")) {
-                // Nếu server trả về HTML thay vì JSON (có thể do redirect login hoặc lỗi 500)
-                window.location.reload(); // Tải lại trang để hiện trang login hoặc lỗi gốc
+                // Náº¿u server tráº£ vá» HTML thay vÃ¬ JSON (cÃ³ thá»ƒ do redirect login hoáº·c lá»—i 500)
+                window.location.reload(); // Táº£i láº¡i trang Ä‘á»ƒ hiá»‡n trang login hoáº·c lá»—i gá»‘c
                 return;
             }
 
             const data = await response.json();
             
-            // Cập nhật bảng dữ liệu
+            // Cáº­p nháº­t báº£ng dá»¯ liá»‡u
             tableContainer.innerHTML = data.html;
             
-            // Cập nhật các chỉ số thống kê ở header
+            // Cáº­p nháº­t cÃ¡c chá»‰ sá»‘ thá»‘ng kÃª á»Ÿ header
             if (data.stats) {
                 updateStats(data.stats);
             }
             
-            // Cập nhật URL trình duyệt
+            // Cáº­p nháº­t URL trÃ¬nh duyá»‡t
             if (pushToHistory) {
                 window.history.pushState(null, '', url);
             }
@@ -83,12 +83,12 @@ $(document).ready(function() {
                 console.log('Fetch aborted');
             } else {
                 console.error('Fetch error:', err);
-                alert('Có lỗi xảy ra khi tải dữ liệu: ' + err.message);
+                alert('C\u00f3 l\u1ed7i x\u1ea3y ra khi t\u1ea3i d\u1eef li\u1ec7u: ' + err.message);
             }
         } finally {
             if (!abortController.signal.aborted) {
-                $('#finance-loader').hide();
-                tableContainer.style.opacity = '1';
+                $('#finance-loader').addClass('finance-hidden');
+                tableContainer.classList.remove('finance-loading');
             }
         }
     }
@@ -103,34 +103,33 @@ $(document).ready(function() {
         for (const [id, val] of Object.entries(elements)) {
             const el = document.getElementById(id);
             if (el) {
-                // Hi ứng nháy nhẹ để người dùng biết số liệu đã cập nhật
-                el.style.transition = 'opacity 0.2s';
-                el.style.opacity = '0';
+                // Hi á»©ng nhÃ¡y nháº¹ Ä‘á»ƒ ngÆ°á»i dÃ¹ng biáº¿t sá»‘ liá»‡u Ä‘Ã£ cáº­p nháº­t
+                el.classList.add('finance-stat-updating');
                 setTimeout(() => {
                     el.innerText = val;
-                    el.style.opacity = '1';
+                    el.classList.remove('finance-stat-updating');
                 }, 200);
             }
         }
     }
 
-    // Xử lý nút Back/Forward của trình duyệt
+    // Xá»­ lÃ½ nÃºt Back/Forward cá»§a trÃ¬nh duyá»‡t
     window.addEventListener('popstate', function() {
         const url = new URL(window.location.href);
         
-        // Cập nhật lại giá trị các ô input/select từ URL
+        // Cáº­p nháº­t láº¡i giÃ¡ trá»‹ cÃ¡c Ã´ input/select tá»« URL
         $('#finance-search').val(url.searchParams.get('search') || '');
         $('#month-filter').val(url.searchParams.get('month') || '');
         $('#year-filter').val(url.searchParams.get('year') || new Date().getFullYear());
         $('#payment-status-filter').val(url.searchParams.get('payment_status') || '');
-        $('#clear-finance-search').toggle(!!$('#finance-search').val());
+        $('#clear-finance-search').toggleClass('finance-hidden', !$('#finance-search').val());
         
         fetchByUrl(url, false);
     });
 
     // Event Listeners
     $('#finance-search').on('input', function() {
-        $('#clear-finance-search').toggle(!!this.value);
+        $('#clear-finance-search').toggleClass('finance-hidden', !this.value);
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(triggerSearch, 500);
     });
@@ -144,7 +143,7 @@ $(document).ready(function() {
         $('#month-filter').val('');
         $('#year-filter').val(new Date().getFullYear());
         $('#payment-status-filter').val('');
-        $('#clear-finance-search').hide();
+        $('#clear-finance-search').addClass('finance-hidden');
         triggerSearch();
     });
 
@@ -161,5 +160,5 @@ $(document).ready(function() {
     });
 
     // Initial state
-    $('#clear-finance-search').toggle(!!$('#finance-search').val());
+    $('#clear-finance-search').toggleClass('finance-hidden', !$('#finance-search').val());
 });

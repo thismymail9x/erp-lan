@@ -19,7 +19,7 @@
     </div>
 
     <!-- Search/Filter Bar (Apple Style Row) -->
-    <form action="<?= base_url('knowledge') ?>" method="GET" class="search-filter-bar m-b-24">
+    <form action="<?= base_url('knowledge') ?>" method="GET" class="search-filter-bar filter-bar">
         <div class="search-input-group">
             <i class="fas fa-search"></i>
             <input type="text" name="search" placeholder="Tìm kiếm kinh nghiệm..." value="<?= esc(request()->getGet('search')) ?>">
@@ -94,94 +94,8 @@
         </div>
     </div>
 </div>
+<?= $this->endSection() ?>
 
-<style>
-.k-main-layout { display: flex; gap: 24px; align-items: flex-start; }
-.k-feed-side { flex: 1; min-width: 0; }
-.k-sidebar-side { width: 280px; flex-shrink: 0; position: sticky; top: 20px; }
-
-.leaderboard-item { display: flex; align-items: center; padding: 16px; border-bottom: 1px solid #f2f2f7; transition: all 0.2s; }
-.leaderboard-item:last-child { border-bottom: none; }
-.leaderboard-item:hover { background: #f9f9fb; }
-.expert-rank { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; margin-right: 12px; background: #f2f2f7; color: #8e8e93; }
-.rank-1 { background: #ffcc00; color: #fff; }
-.rank-2 { background: #c0c0c0; color: #fff; }
-.rank-3 { background: #cd7f32; color: #fff; }
-.expert-info { flex: 1; }
-.expert-name { font-weight: 600; font-size: 14px; color: #1d1d1f; }
-.expert-pos { font-size: 11px; color: #8e8e93; }
-.expert-score { text-align: right; }
-.score-val { font-weight: bold; color: #ff9500; font-size: 14px; margin-right: 2px; }
-
-.benefit-list { padding: 0; list-style: none; }
-.benefit-list li { font-size: 13px; color: #48484a; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
-
-@media (max-width: 992px) {
-    .k-main-layout { flex-direction: column; }
-    .k-sidebar-side { width: 100%; }
-}
-</style>
-
-<script>
-$(document).ready(function() {
-    let debounceTimer;
-    const filterForm = $('.search-filter-bar');
-    const resultsContainer = $('#knowledge-feed-results');
-
-    function performSearch() {
-        const formData = filterForm.serialize();
-        resultsContainer.css('opacity', '0.5');
-
-        $.ajax({
-            url: window.location.pathname,
-            type: 'GET',
-            data: formData,
-            success: function(response) {
-                resultsContainer.html(response);
-                resultsContainer.css('opacity', '1');
-            },
-            error: function() {
-                resultsContainer.css('opacity', '1');
-                console.error('Lỗi khi tải kết quả tìm kiếm.');
-            }
-        });
-    }
-
-    // Sự kiện khi nhập liệu (Search)
-    filterForm.find('input[name="search"]').on('input', function() {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(performSearch, 500);
-    });
-
-    // Hỗ trợ nhấn Enter để tìm kiếm ngay lập tức
-    filterForm.find('input[name="search"]').on('keypress', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            clearTimeout(debounceTimer);
-            performSearch();
-        }
-    });
-
-    // Sự kiện khi thay đổi select (Category/Tag)
-    filterForm.find('select').on('change', performSearch);
-
-    // Xử lý chuyển trang (Pagination) qua AJAX
-    $(document).on('click', '#knowledge-pagination a', function(e) {
-        e.preventDefault();
-        const url = $(this).attr('href');
-        resultsContainer.css('opacity', '0.5');
-
-        $.ajax({
-            url: url,
-            type: 'GET',
-            success: function(response) {
-                resultsContainer.html(response);
-                resultsContainer.css('opacity', '1');
-                $('html, body').animate({ scrollTop: $(".knowledge-feed-container").offset().top - 100 }, 500);
-            }
-        });
-    });
-});
-</script>
-</div>
+<?= $this->section('scripts') ?>
+<script src="<?= base_url('js/knowledge.js') ?>"></script>
 <?= $this->endSection() ?>

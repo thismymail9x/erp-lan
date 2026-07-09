@@ -336,3 +336,1080 @@
     background: rgba(0,0,0,0.1);
     border-radius: 10px;
 }
+
+/* Case detail responsive cleanup */
+.case-detail-container {
+    min-width: 0;
+}
+
+.case-detail-container .dashboard-header-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.case-detail-container .header-title-container,
+.case-detail-container .profile-main,
+.case-detail-container .profile-sidebar {
+    min-width: 0;
+}
+
+.case-detail-container .content-title {
+    overflow-wrap: anywhere;
+}
+
+.case-detail-container .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.case-detail-container .nav-tabs-premium {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+}
+
+.case-detail-container .nav-tab-item {
+    min-height: 40px;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.case-progress-width {
+    width: 0;
+}
+
+.active-step-heading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.active-step-duration {
+    font-weight: 600;
+}
+
+.case-action-row,
+.case-inline-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.case-action-row form {
+    margin: 0;
+}
+
+.btn-approve-step {
+    background: var(--apple-main);
+    border-color: var(--apple-main);
+}
+
+.btn-reject-step,
+.btn-danger-action {
+    background: var(--apple-red);
+    border-color: var(--apple-red);
+}
+
+.badge-awaiting-approval {
+    padding: 8px 15px;
+    border-color: var(--apple-orange);
+}
+
+.checklist-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.case-finance-card {
+    background: rgba(var(--apple-blue-rgb), 0.03);
+    border-color: rgba(var(--apple-blue-rgb), 0.2);
+}
+
+.case-card-header-row,
+.case-member-header,
+.case-log-row,
+.case-comment-row,
+.case-document-header,
+.case-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.case-payment-list {
+    padding-left: 20px;
+    margin: 0;
+}
+
+.case-payment-text,
+.case-description-text,
+.case-member-list,
+.case-comment-text {
+    line-height: 1.5;
+}
+
+.case-description-text {
+    line-height: 1.6;
+}
+
+.case-payment-note {
+    margin-left: 8px;
+}
+
+.badge-vat-issued {
+    background: rgba(0, 122, 255, 0.1);
+    color: var(--apple-blue);
+    border-color: rgba(0, 122, 255, 0.2);
+}
+
+.case-info-wide {
+    grid-column: span 2;
+}
+
+.case-member-role {
+    min-width: 85px;
+    text-align: center;
+}
+
+.case-member-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.case-member-support {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+.case-roadmap-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.case-roadmap-action-sm {
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 32px;
+    cursor: pointer;
+}
+
+.roadmap-duration-badge {
+    vertical-align: middle;
+    padding: 2px 8px;
+    font-weight: 600;
+}
+
+.roadmap-docs-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.roadmap-doc-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(0,0,0,0.03);
+    color: var(--apple-text-muted);
+    font-weight: 500;
+}
+
+.roadmap-reward-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.roadmap-reward-badge {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+}
+
+.roadmap-zero-reward {
+    opacity: 0.5;
+}
+
+.btn-delete-step {
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(255,59,48,0.1);
+    border: 1px solid rgba(255,59,48,0.2);
+}
+
+.btn-delete-step i {
+    font-size: 12px;
+}
+
+.comment-feed {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.case-doc-actions,
+.case-doc-row-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.case-doc-row-actions {
+    gap: 8px;
+    justify-content: center;
+}
+
+.case-status-card {
+    background: rgba(0,0,0,0.02);
+    border-radius: 12px;
+}
+
+.case-status-badge-large {
+    padding: 10px 20px;
+    font-size: 1.125rem;
+}
+
+.case-tags-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.case-tags-edit-link {
+    text-decoration: none;
+}
+
+.tags-container-minimal {
+    gap: 8px;
+}
+
+.tag-badge-premium[data-tag-color] {
+    border: 1px solid transparent;
+}
+
+.tag-badge-premium i {
+    font-size: 8px;
+}
+
+.case-sidebar-button {
+    justify-content: flex-start;
+}
+
+.case-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.case-modal.modal-lg {
+    z-index: 1100;
+}
+
+.case-modal.image-preview-modal {
+    background: rgba(0,0,0,0.85);
+    z-index: 2000;
+    backdrop-filter: blur(5px);
+}
+
+.case-modal.is-open {
+    display: flex;
+}
+
+.case-modal-card {
+    width: min(100%, 500px);
+    position: relative;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+}
+
+.case-modal-card-sm {
+    width: min(100%, 450px);
+}
+
+.case-modal-card-lg {
+    width: min(100%, 650px);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.case-modal-title {
+    margin: 0;
+}
+
+.case-form-label {
+    display: block;
+}
+
+.case-select-full {
+    width: 100%;
+}
+
+.case-textarea-reminder {
+    min-height: 120px;
+}
+
+.case-textarea-status {
+    min-height: 100px;
+}
+
+.case-form-actions-end {
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.case-upload-actions {
+    margin-top: 20px;
+    justify-content: flex-end;
+}
+
+.tags-selector-list {
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.case-checkbox-label {
+    cursor: pointer;
+}
+
+.case-checkbox-input {
+    width: 18px;
+    height: 18px;
+    margin-right: 12px;
+    cursor: pointer;
+}
+
+.case-modal-separator {
+    opacity: 0.1;
+}
+
+.case-quick-tag-title {
+    color: var(--apple-text-muted);
+}
+
+.case-quick-tag-grid {
+    display: grid;
+    grid-template-columns: 1fr 100px;
+    gap: 10px;
+}
+
+.case-input-compact {
+    height: 38px;
+}
+
+.case-color-input {
+    height: 38px;
+    padding: 2px;
+    width: 100%;
+}
+
+.case-select-compact {
+    width: auto;
+    height: 32px;
+    padding: 0 10px;
+}
+
+.case-btn-xs {
+    font-size: 11px;
+}
+
+.case-two-col-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.vault-list-container {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.vault-radio-col {
+    width: 40px;
+}
+
+.vault-row {
+    cursor: pointer;
+}
+
+.vault-row.is-selected {
+    background: rgba(0, 113, 227, 0.05);
+}
+
+.image-preview-content {
+    position: relative;
+    max-width: 90%;
+    max-height: 90%;
+}
+
+.image-preview-close {
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 30px;
+    cursor: pointer;
+}
+
+.image-preview-frame {
+    background: white;
+    padding: 10px;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+
+.image-preview-img {
+    max-width: 100%;
+    max-height: 80vh;
+    display: block;
+    border-radius: 8px;
+}
+
+.image-preview-title {
+    text-align: center;
+    padding-top: 10px;
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+@media (max-width: 1024px) {
+    .case-detail-container {
+        padding: 0;
+    }
+
+    .case-detail-container .dashboard-header-wrapper {
+        flex-direction: column;
+    }
+
+    .case-detail-container .header-controls {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .case-info-wide {
+        grid-column: span 1;
+    }
+}
+
+@media (max-width: 768px) {
+    .case-detail-container {
+        margin: 0 -4px;
+    }
+
+    .case-detail-container .content-title {
+        font-size: 20px;
+        line-height: 1.25;
+    }
+
+    .case-detail-container .content-subtitle {
+        font-size: 13px;
+    }
+
+    .case-detail-container .header-controls,
+    .case-roadmap-actions,
+    .case-doc-actions,
+    .case-inline-actions,
+    .case-action-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        width: 100%;
+    }
+
+    .case-detail-container .header-controls > *,
+    .case-roadmap-actions > *,
+    .case-doc-actions > *,
+    .case-inline-actions > *,
+    .case-action-row > *,
+    .case-action-row button,
+    .case-action-row a {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    .profile-grid-premium {
+        gap: 14px;
+    }
+
+    .premium-card,
+    .case-progress-wrapper,
+    .step-checklist-card {
+        border-radius: 10px;
+    }
+
+    .horizontal-stepper {
+        padding: 20px 4px;
+    }
+
+    .horizontal-stepper::before {
+        left: 24px;
+        right: 24px;
+        top: 39px;
+    }
+
+    .h-step-item {
+        min-width: 84px;
+    }
+
+    .h-step-dot {
+        width: 34px;
+        height: 34px;
+        margin-bottom: 8px;
+    }
+
+    .h-step-label {
+        max-width: 78px;
+        font-size: 10px;
+    }
+
+    .active-step-heading,
+    .case-card-header-row,
+    .case-member-header,
+    .case-document-header,
+    .roadmap-content,
+    .case-log-row,
+    .case-comment-row {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .checklist-item,
+    .case-member-row {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .checklist-actions,
+    .roadmap-reward-row,
+    .case-doc-row-actions {
+        justify-content: flex-start;
+        width: 100%;
+    }
+
+    .checklist-actions > *,
+    .case-doc-row-actions > * {
+        min-height: 40px;
+    }
+
+    .comment-feed {
+        max-height: 55vh;
+        padding-right: 0;
+    }
+
+    .case-quick-tag-grid,
+    .case-two-col-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .case-select-compact {
+        width: 100%;
+    }
+
+    .case-modal {
+        align-items: flex-start;
+        overflow-y: auto;
+    }
+
+    .case-modal-card,
+    .case-modal-card-sm,
+    .case-modal-card-lg {
+        width: 100%;
+        max-height: none;
+    }
+
+    .case-form-actions-end,
+    .case-upload-actions,
+    .case-modal .form-actions-row {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .case-form-actions-end > *,
+    .case-upload-actions > *,
+    .case-modal .form-actions-row > * {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    .image-preview-content {
+        max-width: 100%;
+        max-height: none;
+        margin-top: 48px;
+    }
+
+    .image-preview-close {
+        top: -44px;
+        right: 0;
+    }
+}
+
+/* Case edit responsive form */
+.case-form-container {
+    min-width: 0;
+}
+
+.case-form-container .dashboard-header-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.case-form-container .header-title-container {
+    min-width: 0;
+}
+
+.case-form-container .content-title,
+.case-form-container .content-subtitle {
+    overflow-wrap: anywhere;
+}
+
+.case-edit-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.case-edit-span-2,
+.case-kpi-section {
+    grid-column: span 2;
+}
+
+.case-edit-staff-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.case-edit-help,
+.case-note-block {
+    display: block;
+    line-height: 1.4;
+}
+
+.case-edit-section-heading {
+    margin-top: 10px;
+    border-top: 1px dashed var(--border-color);
+    padding-top: 20px;
+}
+
+.case-money-input {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--apple-blue);
+}
+
+.case-payment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.payment-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1.2fr) minmax(110px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(150px, 2fr) auto auto auto;
+    gap: 10px;
+    align-items: center;
+}
+
+.case-payment-check {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.case-payment-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.case-payment-check-label {
+    margin: 0;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.case-payment-remove {
+    min-width: 32px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+    border-color: rgba(255, 59, 48, 0.2);
+    background: rgba(255, 59, 48, 0.05);
+}
+
+.case-form-container .select2-container {
+    max-width: 100%;
+}
+
+@media (max-width: 1024px) {
+    .case-edit-staff-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .payment-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        background: #fff;
+    }
+}
+
+@media (max-width: 768px) {
+    .case-form-container {
+        margin: 0 -4px;
+    }
+
+    .case-form-container .dashboard-header-wrapper {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .case-form-container .header-back-btn,
+    .case-form-container .header-back-btn a {
+        width: 100%;
+    }
+
+    .case-form-container .header-back-btn a,
+    .case-form-container .form-actions-premium button,
+    .case-payment-header button {
+        min-height: 44px;
+    }
+
+    .case-form-container .content-title {
+        font-size: 20px;
+        line-height: 1.25;
+        text-align: left !important;
+    }
+
+    .case-form-container .content-subtitle {
+        font-size: 13px;
+        text-align: left !important;
+    }
+
+    .case-form-container .premium-card-lg,
+    .case-form-container .premium-card {
+        padding: 14px;
+        border-radius: 12px;
+    }
+
+    .case-edit-form-grid,
+    .payment-row {
+        grid-template-columns: 1fr;
+    }
+
+    .case-edit-span-2,
+    .case-kpi-section {
+        grid-column: span 1;
+    }
+
+    .case-payment-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .case-payment-header button,
+    .case-payment-remove,
+    .case-form-container .form-actions-premium button {
+        width: 100%;
+    }
+
+    .case-payment-remove {
+        height: 44px;
+    }
+
+    .case-payment-check {
+        min-height: 36px;
+    }
+
+    .case-payment-checkbox {
+        width: 20px;
+        height: 20px;
+    }
+
+    .case-payment-check-label {
+        font-size: 13px;
+    }
+
+    .case-form-container .select2-container .select2-selection--multiple,
+    .case-form-container .select2-container .select2-selection--single {
+        min-height: 44px;
+    }
+}
+
+
+/* Case form header: prevent back button overlapping title on mobile/tablet. */
+.case-form-container .header-back-btn {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: flex-end;
+}
+
+@media (max-width: 1024px) {
+    .case-form-container .dashboard-header-wrapper {
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .case-form-container .header-title-container,
+    .case-form-container .header-back-btn {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .case-form-container .header-back-btn {
+        justify-content: flex-start;
+        order: 2;
+    }
+
+    .case-form-container .content-title,
+    .case-form-container .content-subtitle {
+        text-align: left !important;
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .case-form-container .header-back-btn a {
+        justify-content: center;
+    }
+}
+
+/* Case form mobile hard overrides: global header-back-btn is absolute and premium-card-lg has 40px !important. */
+.case-form-container .header-back-btn {
+    position: static !important;
+    inset: auto !important;
+    z-index: auto !important;
+}
+
+@media (max-width: 1024px) {
+    .case-form-container .dashboard-header-wrapper {
+        position: static;
+        margin-bottom: 12px;
+    }
+
+    .case-form-container .premium-card-lg {
+        padding: 18px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .case-form-container {
+        padding-top: 0;
+    }
+
+    .case-form-container .dashboard-header-wrapper {
+        margin-bottom: 10px;
+    }
+
+    .case-form-container .premium-card-lg,
+    .case-form-container .premium-card {
+        padding: 10px !important;
+        border-radius: 10px;
+    }
+
+    .case-edit-form-grid {
+        gap: 8px;
+    }
+
+    .case-form-container .form-group-premium {
+        margin-bottom: 8px;
+    }
+}
+
+/* Case payment row desktop containment */
+@media (min-width: 1025px) {
+    .case-form-container .payment-row {
+        grid-template-columns: minmax(120px, 1.1fr) minmax(110px, 0.9fr) minmax(120px, 0.9fr) minmax(120px, 1fr) minmax(140px, 1.4fr) 72px 104px 36px;
+        gap: 8px;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .case-form-container .payment-row .form-control-premium {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .case-form-container .case-payment-check {
+        min-width: 0;
+        overflow: hidden;
+        gap: 4px;
+    }
+
+    .case-form-container .case-payment-check-label {
+        font-size: 11px;
+        white-space: normal;
+        line-height: 1.15;
+    }
+
+    .case-form-container .case-payment-remove {
+        width: 32px;
+        min-width: 32px;
+        justify-self: end;
+    }
+}
+
+.case-stat-filter {
+    cursor: pointer;
+}
+
+.case-stats-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.case-stats-grid .stat-card-premium {
+    min-width: 0;
+    padding: 10px;
+    gap: 10px;
+}
+
+.case-stats-grid .stat-icon-wrapper {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    font-size: 17px;
+}
+
+.case-stats-grid .stat-label {
+    font-size: 0.72rem;
+    line-height: 1.25;
+}
+
+.case-stats-grid .stat-value {
+    font-size: 1.25rem;
+    line-height: 1.1;
+}
+
+@media (max-width: 1199px) {
+    .case-stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+}
+
+.stat-icon-waiting {
+    color: #5856d6;
+    background: rgba(88, 86, 214, 0.1);
+}
+
+.stat-icon-paused {
+    color: var(--apple-orange);
+    background: rgba(255, 149, 0, 0.1);
+}
+
+.stat-icon-overdue {
+    color: var(--apple-red);
+    background: rgba(255, 59, 48, 0.1);
+}
+
+.case-overdue-label {
+    color: var(--apple-red);
+}
+
+.case-search-box {
+    flex: 1;
+    min-width: 200px;
+}
+
+.case-filter-status {
+    width: 140px;
+    flex-shrink: 0;
+}
+
+.case-filter-month {
+    width: 170px;
+    flex-shrink: 0;
+}
+
+.case-filter-tag {
+    width: 130px;
+    flex-shrink: 0;
+}
+
+.case-filter-lawyer {
+    width: 220px;
+    flex-shrink: 0;
+}
+
+.quick-tag-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1100;
+    align-items: center;
+    justify-content: center;
+}
+
+.quick-tag-modal.is-open {
+    display: flex;
+}
+
+.quick-tag-card {
+    width: 400px;
+}
+
+.quick-tag-select {
+    width: 100%;
+}
+
+.quick-tag-actions {
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.case-record-check {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}

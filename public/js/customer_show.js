@@ -127,3 +127,42 @@ function filterVault() {
         });
     }
 }
+
+/**
+ * API: Chuyển đổi trạng thái tư vấn và SLA của khách hàng qua AJAX (Không cần tải lại thủ công)
+ */
+function transitionCustomerStatus(customerId, statusKey) {
+    if (!statusKey) return;
+    
+    if (!confirm('Bạn có chắc chắn muốn chuyển trạng thái tư vấn/chăm sóc của khách hàng này sang bước tiếp theo?')) {
+        location.reload();
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('status_key', statusKey);
+    // Sử dụng csrfToken và csrfHash từ layout chung của hệ thống
+    if (typeof csrfToken !== 'undefined' && typeof csrfHash !== 'undefined') {
+        formData.append(csrfToken, csrfHash);
+    }
+    
+    fetch(baseUrl + "/customers/transition-status/" + customerId, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.status === 'success') {
+            // Hiển thị thông báo thành công và reload lại trang để đồng bộ
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('Có lỗi xảy ra: ' + result.message);
+            location.reload();
+        }
+    })
+    .catch(err => {
+        alert('Lỗi kết nối mạng: ' + err.message);
+        location.reload();
+    });
+}

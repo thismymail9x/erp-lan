@@ -56,6 +56,22 @@ class LeaveRequestModel extends BaseModel
             $builder->where('e.department_id', $filters['department_id']);
         }
 
+        if (!empty($filters['month'])) {
+            $firstDay = $filters['month'] . '-01';
+            $lastDay  = date('Y-m-t', strtotime($firstDay));
+            $builder->groupStart()
+                    ->where('leave_requests.start_date <=', $lastDay)
+                    ->where('leave_requests.end_date >=', $firstDay)
+                    ->groupEnd();
+        }
+
+        if (!empty($filters['search'])) {
+            $builder->groupStart()
+                    ->like('leave_requests.reason', $filters['search'])
+                    ->orLike('e.full_name', $filters['search'])
+                    ->groupEnd();
+        }
+
         return $builder->orderBy('leave_requests.created_at', 'DESC');
     }
 }

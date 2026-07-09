@@ -218,6 +218,22 @@ p.premium-subtitle {
     text-decoration: underline;
 }
 
+.auth-link-row {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 14px;
+    color: var(--apple-text-muted);
+}
+
+.auth-link-row.compact {
+    margin-top: 16px;
+}
+
+.auth-link-row .bottom-link {
+    display: inline;
+    margin: 0;
+}
+
 /* Alerts */
 .alert {
     padding: 14px;

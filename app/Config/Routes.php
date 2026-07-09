@@ -9,7 +9,6 @@ $routes->get('/', 'AuthController::login'); // Trang chủ, chuyển hướng đ
 $routes->get('fix', 'FixController::index'); // Sửa lỗi chung (tạm thời)
 $routes->get('perm-fix', 'PermFixController::index'); // Sửa lỗi phân quyền
 $routes->get('perm-fix/sync', 'PermFixController::sync'); // Cập nhật lại hệ thống (đồng bộ quyền)
-$routes->get('perm-fix/contacts', 'PermFixController::fixContacts'); // Khởi tạo danh bạ liên hệ
 $routes->get('dump-perms', 'PermFixController::dumpPerms'); // Xem cấu trúc quyền hiện tại
 $routes->get('run-migrations', 'Migrator::index'); // Chạy migrate cơ sở dữ liệu
 $routes->get('check-db', 'Migrator::check'); // Kiểm tra cấu trúc database
@@ -71,6 +70,7 @@ $routes->group('attendance', function($routes) {
     $routes->post('submit', 'AttendanceController::submit'); // Gửi thông tin điểm danh
     $routes->get('export', 'AttendanceController::export'); // Xuất file dữ liệu điểm danh
     $routes->post('bulk-update', 'AttendanceController::bulkUpdate'); // Cập nhật trạng thái điểm danh hàng loạt
+    $routes->post('update-status/(:num)', 'AttendanceController::updateStatus/$1'); // Admin sửa trạng thái 1 bản ghi
     $routes->get('get-office-token', 'AttendanceController::getOfficeToken'); // Lấy mã token văn phòng
 });
 
@@ -86,6 +86,7 @@ $routes->group('cases', function($routes) {
     $routes->post('import-doc/(:num)', 'CaseController::importDocument/$1'); // Import tài liệu vụ việc
     $routes->post('complete-step/(:num)', 'CaseController::completeStep/$1'); // Hoàn thành một bước trong quy trình
     $routes->post('approve-step/(:num)', 'CaseController::approveStep/$1'); // Phê duyệt một bước
+    $routes->post('approve-step-kpi/(:num)', 'CaseController::approveStepKpi/$1'); // Ghi nhận KPI ngoại lệ cho step hoàn thành
     $routes->post('reject-step/(:num)', 'CaseController::rejectStep/$1'); // Từ chối một bước
     $routes->post('add-comment/(:num)', 'CaseController::addComment/$1'); // Thêm bình luận vào vụ việc
     $routes->get('sync-rewards/(:num)', 'CaseController::syncRewards/$1'); // Đồng bộ điểm thưởng/KPI vụ việc
@@ -135,10 +136,33 @@ $routes->group('customers', function($routes) {
     $routes->post('import-doc/(:num)', 'CustomerController::importDocument/$1'); // Import tài liệu cho khách hàng
     $routes->get('stale', 'CustomerController::stale'); // Lấy danh sách khách hàng lâu chưa tương tác
     
+    $routes->post('update-care-staff/(:num)', 'CustomerController::updateCareStaff/$1'); // Cập nhật nhân sự tư vấn qua AJAX
+    $routes->post('update-gift-status/(:num)', 'CustomerController::updateGiftStatus/$1'); // Cập nhật trạng thái quà tặng qua AJAX
+    $routes->post('transition-status/(:num)', 'CustomerController::transitionStatus/$1'); // Chuyển đổi trạng thái tư vấn & SLA nhanh qua AJAX
     $routes->post('update/(:num)', 'CustomerController::update/$1'); // Cập nhật thông tin khách hàng
     $routes->get('delete/(:num)', 'CustomerController::delete/$1'); // Xóa khách hàng
     $routes->post('bulk-delete', 'CustomerController::bulkDelete'); // Xóa nhiều khách hàng
 });
+
+// Customer Care (CSKH) Routes
+$routes->group('customer-care', function($routes) {
+    $routes->get('/', 'CustomerCareController::index');
+    $routes->get('customers', 'CustomerCareController::customers');
+    $routes->get('care-plan/(:num)', 'CustomerCareController::carePlan/$1');
+    $routes->post('init-plan/(:num)', 'CustomerCareController::initPlan/$1');
+    $routes->post('complete-task/(:num)', 'CustomerCareController::completeTask/$1');
+    $routes->post('add-task/(:num)', 'CustomerCareController::addTask/$1');
+    $routes->get('delete-task/(:num)', 'CustomerCareController::deleteTask/$1');
+    $routes->get('daily-checklist', 'CustomerCareController::dailyChecklist');
+    $routes->get('weekly-checklist', 'CustomerCareController::weeklyChecklist');
+    $routes->get('monthly-report', 'CustomerCareController::monthlyReport');
+    $routes->get('sla-report', 'CustomerCareController::slaReport'); // Báo cáo & Cấu hình SLA chăm sóc khách hàng
+    $routes->post('save-sla-setting', 'CustomerCareController::saveSlaSetting'); // API Lưu/Sửa cấu hình SLA
+    $routes->post('delete-sla-setting/(:num)', 'CustomerCareController::deleteSlaSetting/$1'); // API Xóa cấu hình SLA
+    $routes->get('loyalty/(:num)', 'CustomerCareController::loyalty/$1');
+    $routes->post('update-segment/(:num)', 'CustomerCareController::updateSegment/$1');
+});
+
 
 // Workflow Management Routes
 $routes->group('workflows', function($routes) {
@@ -208,6 +232,7 @@ $routes->group('leave-requests', function($routes) {
 // KPI Management Routes
 $routes->group('kpi', function($routes) {
     $routes->get('/', 'KpiController::index'); // Thống kê, Quản lý KPI
+    $routes->get('consulting', 'KpiController::consulting'); // KPI tư vấn theo giá trị hợp đồng chốt
 });
 
 // Payroll Management Routes
@@ -215,7 +240,8 @@ $routes->group('payroll', function($routes) {
     $routes->get('/', 'PayrollController::index'); // Danh sách bảng lương
     $routes->get('config/(:any)', 'PayrollController::config/$1'); // Giao diện cấu hình thiết lập lương
     $routes->post('config/(:any)', 'PayrollController::config/$1'); // Lưu cấu hình thiết lập lương
-    $routes->get('calculate/(:any)', 'PayrollController::calculate/$1'); // Tính toán, chốt số liệu lương
+    $routes->get('calculate/(:any)', 'PayrollController::calculate/$1'); // Tính toán, chốt số liệu lương (GET)
+    $routes->post('calculate/(:any)', 'PayrollController::calculate/$1'); // Tính toán, chốt số liệu lương (POST cho chọn nhân sự)
     $routes->get('close/(:any)', 'PayrollController::close/$1'); // Chốt sổ bảng lương tháng
     $routes->get('export/(:any)', 'PayrollController::export/$1'); // Xuất file excel bảng lương
     $routes->post('update-item/(:num)', 'PayrollController::updateItem/$1'); // Cập nhật thủ công một mục lương
@@ -227,7 +253,7 @@ $routes->group('payroll', function($routes) {
 
 // Work Schedule Management Routes
 $routes->group('work-schedules', function($routes) {
-    $routes->get('/', 'WorkScheduleController::index'); // Giao diện lịch trình chính
+    $routes->get('/', 'WorkScheduleController::index'); // Redirect giao diện cũ về Dashboard
     $routes->get('events', 'WorkScheduleController::events'); // API lấy danh sách sự kiện
     $routes->post('store', 'WorkScheduleController::store'); // Lưu lịch trình mới
     $routes->get('detail/(:num)', 'WorkScheduleController::detail/$1'); // Lấy chi tiết lịch trình
@@ -244,6 +270,83 @@ $routes->group('contacts', function($routes) {
     $routes->post('toggle-private', 'ContactController::togglePrivateBatch'); // Bật/tắt Private hàng loạt
 });
 
+// Unified Chat Center Routes (Trung tâm Tư vấn Hợp nhất Zalo + Messenger)
+$routes->group('chat', function($routes) {
+    $routes->get('/', 'ChatController::index');                   // Trang chính hợp nhất (dual-mode: HTML + AJAX JSON)
+    $routes->get('ajax-chat', 'ChatController::ajaxChat');        // Polling tin nhắn mới + cập nhật danh sách
+    $routes->post('send-message', 'ChatController::sendMessage'); // Gửi tin nhắn (tự chọn kênh Zalo/Messenger)
+    $routes->post('assign-staff', 'ChatController::assignStaff'); // Gán nhân sự chăm sóc
+    $routes->post('update-tags', 'ChatController::updateTags');   // Cập nhật nhãn hội thoại
+    $routes->post('create-tag', 'ChatController::createTag');     // Tạo nhãn mới nhanh
+    $routes->post('bulk-delete', 'ChatController::bulkDelete');   // Xóa mềm nhiều hội thoại
+    $routes->get('load-more', 'ChatController::loadMoreMessages'); // Tải thêm tin nhắn cũ (infinite scroll)
+    $routes->post('update-insights', 'ChatController::updateLeadInsights'); // Cập nhật độ nóng & thông tin lead chi tiết
+    $routes->post('instant-create-customer', 'ChatController::instantCreateCustomer'); // Tạo nhanh Hồ sơ khách hàng CRM qua AJAX
+    $routes->post('upload-media', 'ChatController::uploadMedia'); // Tải lên hình ảnh/tệp tin
+    $routes->post('sync-history', 'ChatController::syncHistory'); // Đồng bộ lịch sử tin nhắn Zalo
+    $routes->post('sync-profile', 'ChatController::syncProfile'); // Đồng bộ tên + avatar Zalo
+    $routes->post('log-call', 'ChatController::logCall');         // Ghi nhận lịch sử cuộc gọi
+    $routes->post('log-call-v2', 'ChatController::logCallV2');    // Ghi nhận cuộc gọi V2 (đầy đủ: kết quả, thời lượng, hỗ trợ cả 2 kênh)
+});
+
+// Zalo OA Integration Routes
+$routes->group('zalo', function($routes) {
+    $routes->get('/', 'ZaloController::index'); // Quản lý tập trung Zalo OA
+    $routes->get('config', 'ZaloController::config'); // Cấu hình Zalo
+    $routes->get('auth', 'ZaloController::auth'); // Bắt đầu xác thực
+    $routes->get('callback', 'ZaloController::callback'); // Nhận token từ Zalo
+    $routes->post('webhook', 'ZaloController::webhook'); // Webhook nhận sự kiện từ Zalo
+    $routes->get('simulate', 'ZaloController::simulateWebhook'); // Giả lập Webhook để test Local
+    $routes->get('logs', 'ZaloController::logs'); // Xem log Webhook
+    $routes->get('campaigns', 'ZaloController::campaigns'); // Quản lý chiến dịch Remarketing ZNS
+    $routes->get('zns-templates', 'ZaloController::znsTemplates'); // Quản lý Zalo ZNS template
+    $routes->post('zns-templates/sync', 'ZaloController::znsSyncTemplate'); // Đồng bộ thông tin mẫu tin ZNS từ Zalo API
+    $routes->post('zns-templates/save-mappings', 'ZaloController::znsSaveTemplateMappings'); // Lưu cấu hình ánh xạ mặc định cho ZNS template
+    $routes->post('zns-templates/delete/(:num)', 'ZaloController::znsDeleteTemplate/$1'); // Xóa ZNS template
+    $routes->get('campaigns/create', 'ZaloController::znsCampaignCreate'); // Tạo chiến dịch ZNS mới
+    $routes->post('campaigns/save', 'ZaloController::znsCampaignSave'); // Lưu chiến dịch ZNS
+    $routes->post('campaigns/execute/(:num)', 'ZaloController::znsCampaignExecute/$1'); // Thực thi chiến dịch ZNS
+    $routes->get('campaigns/detail/(:num)', 'ZaloController::znsCampaignDetail/$1'); // Xem chi tiết chiến dịch và log
+    $routes->post('zns/send-quick', 'ZaloController::znsSendQuick'); // Gửi ZNS nhanh từ danh sách khách hàng
+    $routes->get('performance', 'ZaloController::performance'); // Báo cáo hiệu suất, đánh giá sao
+    $routes->get('ajax-chat', 'ZaloController::ajaxChat'); // Lấy dữ liệu chat mới qua AJAX
+    $routes->post('assign-staff', 'ZaloController::assignStaff'); // Gán nhân sự chăm sóc
+    $routes->post('update-tags', 'ZaloController::updateTags'); // Cập nhật nhãn hội thoại
+    $routes->post('create-tag', 'ZaloController::createTag'); // Tạo nhãn mới nhanh từ giao diện chat
+    $routes->post('send-message', 'ZaloController::sendMessage'); // Gửi tin nhắn
+    $routes->post('sync', 'ZaloController::sync'); // Đồng bộ lịch sử hội thoại
+    $routes->get('load-more-messages', 'ZaloController::loadMoreMessages'); // Tải thêm tin nhắn cũ
+    $routes->get('download-attachment', 'ZaloController::downloadAttachment'); // Tải tệp tin đính kèm
+    $routes->get('view-temp/(:any)', 'ZaloController::viewTemp/$1'); // Xem ảnh tạm thời vừa upload
+    $routes->post('upload-media', 'ZaloController::uploadMedia'); // Tải lên hình ảnh/tệp tin
+    $routes->post('log-call', 'ZaloController::logCall'); // Ghi nhận cuộc gọi
+    $routes->post('sync-profile', 'ZaloController::syncProfile'); // Đồng bộ profile khách hàng
+
+    // Quản lý câu trả lời nhanh
+    $routes->group('quick-replies', function($routes) {
+        $routes->get('/', 'ConsultationQuickReplyController::index');
+        $routes->post('store', 'ConsultationQuickReplyController::store');
+        $routes->get('delete/(:num)', 'ConsultationQuickReplyController::delete/$1');
+        $routes->get('search', 'ConsultationQuickReplyController::search');
+    });
+});
+
+// Facebook Messenger Integration Routes
+// Lưu ý: webhook GET/POST phải để NGOÀI group auth (public endpoint cho Meta gọi vào)
+$routes->match(['GET', 'POST'], 'messenger/webhook', 'MessengerController::webhook'); // Endpoint Webhook công khai cho Meta
+
+$routes->group('messenger', function($routes) {
+    $routes->get('/', 'MessengerController::index');             // Trang chat tổng hợp
+    $routes->get('config', 'MessengerController::config');      // Cấu hình Page Token
+    $routes->post('save-config', 'MessengerController::saveConfig'); // Lưu cấu hình
+    $routes->get('simulate', 'MessengerController::simulateWebhook'); // Giả lập webhook để test
+    $routes->get('ajax-chat', 'MessengerController::ajaxChat'); // AJAX polling tin nhắn
+    $routes->post('send-message', 'MessengerController::sendMessage'); // Gửi tin nhắn
+    $routes->post('assign-staff', 'MessengerController::assignStaff'); // Gán nhân sự
+    $routes->post('update-tags', 'MessengerController::updateTags');   // Cập nhật nhãn
+    $routes->get('load-more', 'MessengerController::loadMoreMessages'); // Tải thêm tin nhắn cũ
+});
+
 
 // Utility Routes
 $routes->get('db-check', 'DbCheck::index'); // Kiểm tra kết nối database
@@ -254,4 +357,8 @@ $routes->get('workflowseeder', 'WorkflowSeeder::seed'); // Đổ dữ liệu m�
 $routes->group('cron', function($routes) {
     $routes->get('payment-reminders', 'CronController::paymentReminders'); // Cron job tự động nhắc thanh toán
     $routes->get('check-workflows', 'CronController::checkWorkflows'); // Cron job kiểm tra tiến độ workflow
+    $routes->get('sync-zalo-conversations', 'CronController::syncZaloConversations'); // Cron job tự động quét & đồng bộ Zalo
+    $routes->get('check-chat-deadlines', 'CronController::checkChatDeadlines'); // Cron job kiểm tra deadline phản hồi 2h chat
+    $routes->get('care-reminders', 'CronController::careReminders'); // Cron job tự động nhắc nhở CSKH
+    $routes->get('birthday-greetings', 'CronController::birthdayGreetings'); // Cron job chúc mừng sinh nhật khách hàng
 });

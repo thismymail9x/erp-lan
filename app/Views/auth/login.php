@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="zalo-platform-site-verification" content="U_sP2OtN5o9mvQyEhk4f5qlrla2dWsiOCJ0o" />
     <title>Đăng nhập | L.A.N ERP</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="<?= base_url('css/premium_auth.css') ?>">
@@ -50,12 +51,12 @@
             <button type="submit" class="btn-premium">Tiếp tục</button>
         </form>
 
-        <div style="text-align: center; margin-top: 24px;">
+        <div class="auth-link-row">
             <a href="<?= base_url('forgot-password') ?>" class="bottom-link">Bạn đã quên mật khẩu?</a>
         </div>
 
-        <div style="text-align: center; margin-top: 16px; font-size: 14px; color: var(--apple-text-muted);">
-            Chưa có tài khoản? <a href="<?= base_url('register') ?>" class="bottom-link" style="display:inline; margin:0;">Tạo ngay</a>
+        <div class="auth-link-row compact">
+            Chưa có tài khoản? <a href="<?= base_url('register') ?>" class="bottom-link">Tạo ngay</a>
         </div>
     </div>
 </body>

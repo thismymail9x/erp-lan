@@ -3,8 +3,6 @@
 namespace App\Controllers;
 
 use App\Services\WorkScheduleService;
-use App\Models\EmployeeModel;
-use App\Models\DepartmentModel;
 use Config\AppConstants;
 
 /**
@@ -33,15 +31,11 @@ class WorkScheduleController extends BaseController
     ];
 
     protected $service;
-    protected $employeeModel;
-    protected $deptModel;
 
     public function initController(\CodeIgniter\HTTP\RequestInterface $request, \CodeIgniter\HTTP\ResponseInterface $response, \Psr\Log\LoggerInterface $logger)
     {
         parent::initController($request, $response, $logger);
         $this->service = new WorkScheduleService();
-        $this->employeeModel = new EmployeeModel();
-        $this->deptModel = new DepartmentModel();
     }
 
     /**
@@ -49,18 +43,7 @@ class WorkScheduleController extends BaseController
      */
     public function index()
     {
-        if (!has_permission('work_schedule.view')) {
-            return redirect()->to('/dashboard')->with('error', 'Bạn không có quyền xem lịch trình.');
-        }
-
-        $data = [
-            'title' => 'Lịch làm việc & Công tác | L.A.N ERP',
-            'departments' => $this->deptModel->findAll(),
-            'employees' => get_available_employees(),
-            'current_employee_id' => session()->get('employee_id')
-        ];
-
-        return view('dashboard/work_schedules/index', $data);
+        return redirect()->to('/dashboard');
     }
 
     /**
@@ -84,6 +67,7 @@ class WorkScheduleController extends BaseController
         
         $events = [];
         foreach ($schedules as $item) {
+            $requiresVehicle = !empty($item['requires_vehicle']);
             $typeLabel = ($item['type'] === 'business_trip') ? 'Công tác' : 'Tại văn phòng';
             $color = ($item['type'] === 'business_trip') ? '#ff3b30' : '#007aff';
 
@@ -101,14 +85,16 @@ class WorkScheduleController extends BaseController
 
             $events[] = [
                 'id' => $item['id'],
-                'title' => "[{$typeLabel}] {$item['employee_name']}: {$item['title']}",
+                'title' => ($requiresVehicle ? "[Đăng ký xe] " : '') . "[{$typeLabel}] {$item['employee_name']}: {$item['title']}",
                 'start' => $item['start_at'],
                 'end' => $item['end_at'],
-                'color' => ($item['type'] === 'business_trip') ? '#10b981' : '#f59e0b', // Công tác: Green, Văn phòng: Yellow
+                'color' => $requiresVehicle ? '#2563eb' : (($item['type'] === 'business_trip') ? '#10b981' : '#f59e0b'), // Đăng ký xe: Blue, Công tác: Green, Văn phòng: Yellow
                 'location' => $item['location'],
+                'classNames' => $requiresVehicle ? ['ws-event-vehicle'] : [],
                 'extendedProps' => [
                     'type' => $item['type'],
                     'type_label' => $typeLabel,
+                    'requires_vehicle' => $requiresVehicle,
                     'employee_name' => $item['employee_name'],
                     'creator_name' => $item['creator_name'],
                     'location' => $item['location'],
@@ -148,9 +134,22 @@ class WorkScheduleController extends BaseController
             }
             
             $leaves = $leaveQuery->findAll();
+            $leaveTypeLabels = [
+                'annual' => 'Nghỉ phép năm',
+                'sick' => 'Nghỉ ốm',
+                'personal' => 'Nghỉ có lương',
+                'unpaid' => 'Nghỉ không lương',
+                'maternity' => 'Nghỉ thai sản',
+                'wedding' => 'Nghỉ cưới',
+                'funeral' => 'Nghỉ tang',
+            ];
             foreach ($leaves as $leave) {
                 $start = $leave['start_date'];
                 $end = $leave['end_date'];
+                $baseLeaveLabel = $leaveTypeLabels[$leave['leave_type'] ?? ''] ?? 'Nghỉ phép';
+                $leaveLabel = !empty($leave['is_emergency'])
+                    ? 'Nghỉ gấp - ' . $baseLeaveLabel
+                    : $baseLeaveLabel;
                 $timeDisplay = 'Cả ngày';
                 
                 if ($leave['leave_duration'] === 'morning_half') {
@@ -169,15 +168,15 @@ class WorkScheduleController extends BaseController
 
                 $events[] = [
                     'id' => 'leave_' . $leave['id'],
-                    'title' => "[Nghỉ phép] " . $leave['employee_name'],
+                    'title' => "[{$leaveLabel}] " . $leave['employee_name'],
                     'start' => $start,
                     'end' => $end,
                     'color' => '#e74c3c', // Màu đỏ cho nghỉ phép
                     'extendedProps' => [
                         'type' => 'leave',
-                        'type_label' => 'Nghỉ cá nhân',
                         'employee_name' => $leave['employee_name'],
-                        'location' => 'Nghỉ phép',
+                        'type_label' => $leaveLabel,
+                        'location' => '',
                         'time_display' => $timeDisplay,
                         'date_display' => date('d/m', strtotime($leave['start_date'])) . ' - ' . date('d/m/Y', strtotime($leave['end_date'])),
                         'is_same_day' => ($leave['start_date'] === $leave['end_date'])
@@ -212,6 +211,8 @@ class WorkScheduleController extends BaseController
         }
 
         $data = $this->request->getPost();
+        // Checkbox không gửi value khi bỏ chọn, nên backend phải chuẩn hóa về 0/1.
+        $data['requires_vehicle'] = $this->request->getPost('requires_vehicle') ? 1 : 0;
         
         // Chuyển đổi định dạng datetime-local từ HTML sang MySQL
         $data['start_at'] = str_replace('T', ' ', $data['start_at']) . ':00';
@@ -263,6 +264,8 @@ class WorkScheduleController extends BaseController
         }
 
         $data = $this->request->getPost();
+        // Không tin frontend: checkbox vắng mặt phải được hiểu là không đăng ký xe.
+        $data['requires_vehicle'] = $this->request->getPost('requires_vehicle') ? 1 : 0;
         
         $rules = [
             'type'     => 'required',

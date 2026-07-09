@@ -33,6 +33,7 @@ class CustomerModel extends BaseModel
     // 2. Định nghĩa các quy tắc kiểm tra dữ liệu (Validation)
     // Đảm bảo dữ liệu đầu vào luôn sạch và không bị trùng lặp các thông tin quan trọng.
     protected $validationRules      = [
+        'id'              => 'permit_empty|numeric',
         'name'            => 'required|min_length[3]|max_length[255]',
         'phone'           => 'required|min_length[9]|max_length[20]|is_unique_not_deleted[customers.phone,id,{id}]',
         'email'           => 'permit_empty|valid_email',
@@ -70,11 +71,12 @@ class CustomerModel extends BaseModel
         'phone', 'phone_secondary', 'email', 'email_secondary',
         'address', 'address_json', 
         'company_name', 'tax_code', 'biz_registration_number', 'rep_position',
-        'tags', 'source', 'referred_by', 'created_by', 'is_blacklist', 'blacklist_reason',
+        'tags', 'source', 'referred_by', 'created_by', 'assigned_care_staff_id', 'is_blacklist', 'blacklist_reason',
+        // Các trường CSKH mới (Không bao gồm province)
+        'customer_segment', 'zalo_phone', 'occupation', 'care_status', 'has_received_gift', 'service_completed_date', 'referral_count',
         // Các trường cache phục vụ thống kê (Dashboard)
         'total_revenue', 'total_cases', 'success_rate', 'last_contact_date', 'notes_internal'
     ];
-
 
     // 4. Cấu hình tự động quản lý thời gian
     protected $useTimestamps = true;

@@ -66,23 +66,33 @@ class CustomerController extends BaseController
         $search = $this->request->getGet('q');         // Từ khóa tìm kiếm
         $type = $this->request->getGet('type');       // Phân loại: Cá nhân / Doanh nghiệp
         $tagId = $this->request->getGet('tag_id');     // Lọc theo tag
+        $month = $this->request->getGet('month');      // Lọc theo tháng tạo khách hàng
+        $year = $this->request->getGet('year');        // Lọc theo năm tạo khách hàng
+        $careStaffId = $this->request->getGet('care_staff_id'); // Lọc theo nhân sự tư vấn
+        $careStatus = $this->request->getGet('care_status');   // Lọc theo trạng thái tư vấn (SLA)
         
-        $query = $this->customerModel;
+        // Sửa đổi: Đếm số vụ việc và lấy thông tin SLA đang hoạt động bằng các subquery động hiệu năng cao
+        $query = $this->customerModel->select('customers.*, employees.full_name as care_staff_name, 
+            (SELECT COUNT(*) FROM cases WHERE cases.customer_id = customers.id AND cases.deleted_at IS NULL) as total_cases,
+            (SELECT due_time FROM customer_sla_history WHERE customer_sla_history.customer_id = customers.id AND customer_sla_history.end_time IS NULL AND customer_sla_history.deleted_at IS NULL LIMIT 1) as active_sla_due_time,
+            (SELECT sla_status FROM customer_sla_history WHERE customer_sla_history.customer_id = customers.id AND customer_sla_history.end_time IS NULL AND customer_sla_history.deleted_at IS NULL LIMIT 1) as active_sla_status,
+            (SELECT start_time FROM customer_sla_history WHERE customer_sla_history.customer_id = customers.id AND customer_sla_history.end_time IS NULL AND customer_sla_history.deleted_at IS NULL LIMIT 1) as active_sla_start_time')
+                                     ->join('employees', 'employees.id = customers.assigned_care_staff_id AND employees.deleted_at IS NULL', 'left');
 
         // 2. LOGIC TÌM KIẾM ĐA LUỒNG (Multi-field Search):
         // Cho phép tìm kiếm bằng Tên, Số điện thoại, Số CCCD/Hộ chiếu hoặc Mã khách hàng nội bộ.
         if ($search) {
             $query->groupStart()
-                  ->like('name', $search)
-                  ->orLike('phone', $search)
-                  ->orLike('identity_number', $search)
-                  ->orLike('code', $search)
+                  ->like('customers.name', $search)
+                  ->orLike('customers.phone', $search)
+                  ->orLike('customers.identity_number', $search)
+                  ->orLike('customers.code', $search)
                   ->groupEnd();
         }
 
         // 3. Phân loại đối tượng khách hàng
         if ($type) {
-            $query->where('type', $type);
+            $query->where('customers.type', $type);
         }
 
         // 4. Lọc theo Tag (Sử dụng bảng trung gian entity_tags)
@@ -92,6 +102,24 @@ class CustomerController extends BaseController
                         ->where('entity_type', 'customers')
                         ->where('tag_id', $tagId);
             });
+        }
+
+        // 5. Lọc theo thời gian tạo (Tháng / Năm) để hỗ trợ bộ lọc nâng cao
+        if ($month) {
+            $query->where('MONTH(customers.created_at)', $month);
+        }
+        if ($year) {
+            $query->where('YEAR(customers.created_at)', $year);
+        }
+
+        // 6. Lọc theo nhân sự tư vấn phụ trách chăm sóc
+        if ($careStaffId) {
+            $query->where('customers.assigned_care_staff_id', $careStaffId);
+        }
+
+        // Lọc theo trạng thái tư vấn (SLA)
+        if ($careStatus) {
+            $query->where('customers.care_status', $careStatus);
         }
 
         // --- BẢO MẬT: LỌC DỮ LIỆU DANH SÁCH (Data Isolation) ---
@@ -108,38 +136,46 @@ class CustomerController extends BaseController
                 $myTeamIds = array_column($myTeamIds, 'id');
                 $myTeamIds[] = $myEmpId; // Bao gồm sếp
 
-                $query->whereIn('customers.id', function($builder) use ($myTeamIds, $myDeptId) {
-                    $builder->select('customer_id')->from('cases')->groupStart();
-                        // A. Khách hàng của TEAM (Sếp + Quân)
-                        $builder->groupStart()
-                            ->whereIn('assigned_lawyer_id', $myTeamIds)
-                            ->orWhereIn('assigned_staff_id', $myTeamIds)
-                            ->orWhereIn('id', function($sub) use ($myTeamIds) {
-                                return $sub->select('case_id')->from('case_members')->whereIn('employee_id', $myTeamIds);
-                            })
-                        ->groupEnd();
+                $query->groupStart()
+                    ->whereIn('customers.assigned_care_staff_id', $myTeamIds)
+                    ->orWhereIn('customers.created_by', $myTeamIds)
+                    ->orWhereIn('customers.id', function($builder) use ($myTeamIds, $myDeptId) {
+                        $builder->select('customer_id')->from('cases')->groupStart();
+                            // A. Khách hàng của TEAM (Sếp + Quân)
+                            $builder->groupStart()
+                                ->whereIn('assigned_lawyer_id', $myTeamIds)
+                                ->orWhereIn('assigned_staff_id', $myTeamIds)
+                                ->orWhereIn('id', function($sub) use ($myTeamIds) {
+                                    return $sub->select('case_id')->from('case_members')->whereIn('employee_id', $myTeamIds);
+                                })
+                            ->groupEnd();
 
-                            // B. NGOẠI LỆ PHÁP LÝ: Thấy khách hàng của vụ việc mồ côi
-                            if ($myDeptId == \Config\AppConstants::DEPT_PHAP_LY) {
-                                $builder->orGroupStart()
-                                    ->where('assigned_lawyer_id IS NULL')
-                                    ->where('assigned_staff_id IS NULL')
-                                ->groupEnd();
-                            }
-                        $builder->groupEnd();
-                });
+                                // B. NGOẠI LỆ PHÁP LÝ: Thấy khách hàng của vụ việc mồ côi
+                                if ($myDeptId == \Config\AppConstants::DEPT_PHAP_LY) {
+                                    $builder->orGroupStart()
+                                        ->where('assigned_lawyer_id IS NULL')
+                                        ->where('assigned_staff_id IS NULL')
+                                    ->groupEnd();
+                                }
+                            $builder->groupEnd();
+                    })
+                ->groupEnd();
             } else {
-                // NHÂN VIÊN bình thường: Phụ trách chính hoặc là thành viên
-                $query->whereIn('customers.id', function($builder) use ($myEmpId) {
-                    $builder->select('customer_id')->from('cases')
-                        ->groupStart()
-                            ->where('assigned_lawyer_id', $myEmpId)
-                            ->orWhere('assigned_staff_id', $myEmpId)
-                            ->orWhereIn('id', function($sub) use ($myEmpId) {
-                                return $sub->select('case_id')->from('case_members')->where('employee_id', $myEmpId);
-                            })
-                        ->groupEnd();
-                });
+                // NHÂN VIÊN bình thường: Phụ trách chính, thành viên, người tạo hoặc nhân viên tư vấn/chăm sóc
+                $query->groupStart()
+                    ->where('customers.assigned_care_staff_id', $myEmpId)
+                    ->orWhere('customers.created_by', $myEmpId)
+                    ->orWhereIn('customers.id', function($builder) use ($myEmpId) {
+                        $builder->select('customer_id')->from('cases')
+                            ->groupStart()
+                                ->where('assigned_lawyer_id', $myEmpId)
+                                ->orWhere('assigned_staff_id', $myEmpId)
+                                ->orWhereIn('id', function($sub) use ($myEmpId) {
+                                    return $sub->select('case_id')->from('case_members')->where('employee_id', $myEmpId);
+                                })
+                            ->groupEnd();
+                    })
+                ->groupEnd();
             }
         }
 
@@ -162,11 +198,82 @@ class CustomerController extends BaseController
             }
         }
 
+        // Sắp xếp động
+        $sort = $this->request->getGet('sort') ?: 'created_at';
+        $order = $this->request->getGet('order') ?: 'desc';
+
+        $allowedSorts = ['code', 'name', 'care_staff_name', 'total_cases', 'created_at'];
+        if (!in_array($sort, $allowedSorts)) {
+            $sort = 'created_at';
+        }
+        $order = strtolower($order) === 'asc' ? 'ASC' : 'DESC';
+
+        if ($sort === 'care_staff_name') {
+            $query->orderBy('employees.full_name', $order);
+        } elseif ($sort === 'total_cases') {
+            $query->orderBy('total_cases', $order);
+        } else {
+            $query->orderBy('customers.' . $sort, $order);
+        }
+
+        $customers = $query->paginate(15);
+        if (!empty($customers)) {
+            $customerIds = array_column($customers, 'id');
+            $db = \Config\Database::connect();
+            
+            // Tải các tài khoản Zalo liên kết
+            $zaloFollowers = $db->table('zalo_followers')
+                ->whereIn('customer_id', $customerIds)
+                ->where('deleted_at IS NULL')
+                ->get()
+                ->getResultArray();
+                
+            // Tải các tài khoản FB Messenger liên kết
+            $messengerContacts = $db->table('messenger_contacts')
+                ->whereIn('customer_id', $customerIds)
+                ->where('deleted_at IS NULL')
+                ->get()
+                ->getResultArray();
+                
+            // Phân loại theo customer_id
+            $zaloByCustomer = [];
+            foreach ($zaloFollowers as $zf) {
+                $zaloByCustomer[$zf['customer_id']][] = $zf;
+            }
+            
+            $messengerByCustomer = [];
+            foreach ($messengerContacts as $mc) {
+                $messengerByCustomer[$mc['customer_id']][] = $mc;
+            }
+            
+            // Đồng bộ dữ liệu vào từng khách hàng
+            foreach ($customers as &$c) {
+                $c['zalo_channels'] = $zaloByCustomer[$c['id']] ?? [];
+                $c['messenger_channels'] = $messengerByCustomer[$c['id']] ?? [];
+            }
+        }
+
+        // Tải cấu hình danh mục SLA động cho bộ chọn nhanh tại danh sách KH
+        $slaSettingModel = new \App\Models\CustomerSlaSettingModel();
+        $slaSettings = $slaSettingModel->where('deleted_at', null)->orderBy('sort_order', 'ASC')->findAll();
+
+        // Tải danh sách mẫu tin ZNS đang hoạt động để phục vụ gửi nhanh (Zalo ZNS Bulk)
+        $znsTemplateModel = new \App\Models\ZnsTemplateModel();
+        $znsTemplates = [];
+        try {
+            $znsTemplates = $znsTemplateModel->getActiveTemplates();
+        } catch (\Exception $e) {
+            log_message('error', 'CustomerController::index - getActiveTemplates error: ' . $e->getMessage());
+        }
+
         $data = [
-            'customers'     => $query->orderBy('created_at', 'DESC')->paginate(15),
+            'customers'     => $customers,
             'pager'         => $this->customerModel->pager,
             'stats'         => $this->customerService->getDashboardStats($statsEmpId, $statsDeptId, $statsManagerId), 
             'availableTags' => $this->tagService->getAvailableTags('customers', has_permission('sys.admin') ? -1 : null),
+            'employees'     => get_available_employees(),
+            'slaSettings'   => $slaSettings,
+            'znsTemplates'  => $znsTemplates,
             'title'         => 'Quản lý khách hàng | L.A.N ERP'
         ];
 
@@ -185,6 +292,7 @@ class CustomerController extends BaseController
     {
         $data = [
             'availableTags' => $this->tagService->getAvailableTags('customers', has_permission('sys.admin') ? -1 : null),
+            'employees'     => get_available_employees(),
             'title' => 'Tiếp nhận khách hàng mới | L.A.N ERP'
         ];
 
@@ -235,9 +343,19 @@ class CustomerController extends BaseController
             $roleName = session()->get('role_name');
             $db = \Config\Database::connect();
             
+            // Lấy ID các nhân viên báo cáo cho mình nếu là Trưởng phòng
+            $myTeamIds = [$myEmpId];
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG) {
+                $team = $db->table('employees')->where('manager_id', $myEmpId)->select('id')->get()->getResultArray();
+                $myTeamIds = array_merge($myTeamIds, array_column($team, 'id'));
+            }
+
+            // Kiểm tra xem user (hoặc thành viên trong đội) có là Người tạo hoặc Người phụ trách chăm sóc trực tiếp không
+            $isDirectOwner = in_array($customer['created_by'], $myTeamIds) || in_array($customer['assigned_care_staff_id'], $myTeamIds);
+            
             $isLegalManager = ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG && $myDeptId == \Config\AppConstants::DEPT_PHAP_LY);
 
-            if (!$isLegalManager) {
+            if (!$isDirectOwner && !$isLegalManager) {
                 // XÂY DỰNG QUERY KIỂM TRA (Check if this customer has any case assigned to current user OR department)
                 $checkQuery = $db->table('cases')->where('customer_id', $id);
 
@@ -258,7 +376,7 @@ class CustomerController extends BaseController
                         $checkQuery->where('1=0', null, false);
                     }
                 } else {
-                    // NHÂN VIÊN: Họ phải là member hoặc nhân sự chính
+                    // NHÂN VIÊN: Họ phải là member hoặc nhân sự chính trong vụ việc của KH
                     $checkQuery->groupStart()
                         ->where('assigned_lawyer_id', $myEmpId)
                         ->orWhere('assigned_staff_id', $myEmpId)
@@ -290,7 +408,7 @@ class CustomerController extends BaseController
         } else {
             $roleName = session()->get('role_name');
             $myEmpId = session()->get('employee_id');
-            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG || $customer['created_by'] == $myEmpId) {
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG || $customer['created_by'] == $myEmpId || $customer['assigned_care_staff_id'] == $myEmpId) {
                 $canEdit = true;
             }
         }
@@ -302,14 +420,137 @@ class CustomerController extends BaseController
         $documentModel = new \App\Models\DocumentModel(); // Sử dụng kho tài liệu DMS trung tâm
 
         // 4. Chuẩn bị dữ liệu hiển thị theo cấu trúc Tabbed UI
+        $careStaffName = null;
+        $db = \Config\Database::connect();
+        if (!empty($customer['assigned_care_staff_id'])) {
+            $emp = $db->table('employees')->where('id', $customer['assigned_care_staff_id'])->where('deleted_at IS NULL')->select('full_name')->get()->getRow();
+            if ($emp) {
+                $careStaffName = $emp->full_name;
+            }
+        }
+
+        // Truy xuất Lịch sử nhắn tin chat (Zalo OA + Facebook Messenger) hợp nhất của khách hàng
+        $chatHistory = [];
+
+        // 1. Lấy tin nhắn Zalo
+        $zaloFollowers = $db->table('zalo_followers')
+            ->where('customer_id', $id)
+            ->where('deleted_at IS NULL')
+            ->get()
+            ->getResultArray();
+
+        if (!empty($zaloFollowers)) {
+            $followerIds = array_column($zaloFollowers, 'id');
+            $zaloMessages = $db->table('zalo_messages')
+                ->whereIn('follower_id', $followerIds)
+                ->orderBy('created_at', 'ASC')
+                ->get()
+                ->getResultArray();
+
+            foreach ($zaloMessages as $msg) {
+                $chatHistory[] = [
+                    'id'           => $msg['id'],
+                    'channel'      => 'zalo',
+                    'message_text' => $msg['message_text'],
+                    'is_staff'     => ($msg['sender_type'] === 'oa'),
+                    'staff_name'   => ($msg['sender_type'] === 'oa') ? 'Zalo OA' : null,
+                    'created_at'   => $msg['created_at']
+                ];
+            }
+        }
+
+        // 2. Lấy tin nhắn Messenger
+        $messengerContacts = $db->table('messenger_contacts')
+            ->where('customer_id', $id)
+            ->where('deleted_at IS NULL')
+            ->get()
+            ->getResultArray();
+
+        if (!empty($messengerContacts)) {
+            $contactIds = array_column($messengerContacts, 'id');
+            $messengerMessages = $db->table('messenger_messages')
+                ->whereIn('contact_id', $contactIds)
+                ->where('deleted_at IS NULL')
+                ->orderBy('created_at', 'ASC')
+                ->get()
+                ->getResultArray();
+
+            // Lấy danh sách nhân viên để hiển thị tên người trả lời Messenger
+            $employees = [];
+            $empList = $db->table('employees')
+                ->select('user_id, full_name')
+                ->where('deleted_at IS NULL')
+                ->get()
+                ->getResultArray();
+            foreach ($empList as $emp) {
+                if (!empty($emp['user_id'])) {
+                    $employees[$emp['user_id']] = $emp['full_name'];
+                }
+            }
+
+            foreach ($messengerMessages as $msg) {
+                $isStaff = ($msg['sender_type'] === 'page');
+                $staffName = 'Facebook Page';
+                if ($isStaff && !empty($msg['mid_staff_id']) && isset($employees[$msg['mid_staff_id']])) {
+                    $staffName = $employees[$msg['mid_staff_id']];
+                }
+
+                $chatHistory[] = [
+                    'id'           => $msg['id'],
+                    'channel'      => 'messenger',
+                    'message_text' => $msg['message_text'],
+                    'is_staff'     => $isStaff,
+                    'staff_name'   => $isStaff ? $staffName : null,
+                    'created_at'   => $msg['created_at']
+                ];
+            }
+        }
+
+        // Sắp xếp lịch sử nhắn tin theo trình tự thời gian tăng dần
+        if (!empty($chatHistory)) {
+            usort($chatHistory, function ($a, $b) {
+                return strtotime($a['created_at']) <=> strtotime($b['created_at']);
+            });
+        }
+
+        $carePlanModel = new \App\Models\CustomerCarePlanModel();
+        $careTaskModel = new \App\Models\CustomerCareTaskModel();
+        $loyaltyModel  = new \App\Models\CustomerLoyaltyModel();
+
+        $carePlans = $carePlanModel->getByCustomer($id);
+        $careTasks = $careTaskModel->getByCustomer($id);
+        $loyalty   = $loyaltyModel->getByCustomer($id);
+
+        // Tải dữ liệu tiến trình SLA động cho giao diện
+        $slaSettingModel = new \App\Models\CustomerSlaSettingModel();
+        $slaHistoryModel = new \App\Models\CustomerSlaHistoryModel();
+        
+        $activeSla   = $slaHistoryModel->getActiveSla($id);
+        $slaHistory  = $slaHistoryModel->where('customer_id', $id)
+                                       ->where('deleted_at', null)
+                                       ->orderBy('start_time', 'DESC')
+                                       ->findAll();
+        $slaSettings = $slaSettingModel->where('is_active', 1)
+                                       ->where('deleted_at', null)
+                                       ->orderBy('sort_order', 'ASC')
+                                       ->findAll();
+
         $data = [
-            'customer'     => $customer,
-            'cases'        => $caseModel->where('customer_id', $id)->findAll(),
-            'interactions' => $interactionModel->getByCustomer($id),
-            'payments'     => $paymentModel->where('customer_id', $id)->findAll(),
-            'documents'    => $documentModel->where('customer_id', $id)->findAll(),
-            'tags'         => $this->tagService->getTagsByEntity($id, 'customers'),
-            'title'        => 'Hồ sơ khách hàng: ' . $customer['name'] . ' | L.A.N ERP'
+            'customer'      => $customer,
+            'cases'         => $caseModel->where('customer_id', $id)->findAll(),
+            'interactions'  => $interactionModel->getByCustomer($id),
+            'payments'      => $paymentModel->where('customer_id', $id)->findAll(),
+            'documents'     => $documentModel->where('customer_id', $id)->findAll(),
+            'tags'          => $this->tagService->getTagsByEntity($id, 'customers'),
+            'careStaffName' => $careStaffName,
+            'chatHistory'   => $chatHistory,
+            'carePlans'     => $carePlans,
+            'careTasks'     => $careTasks,
+            'loyalty'       => $loyalty,
+            'activeSla'     => $activeSla,
+            'slaHistory'    => $slaHistory,
+            'slaSettings'   => $slaSettings,
+            'title'         => 'Hồ sơ khách hàng: ' . $customer['name'] . ' | L.A.N ERP'
         ];
 
         return view('dashboard/customers/show', $data);
@@ -440,6 +681,22 @@ class CustomerController extends BaseController
     {
         $data = $this->request->getPost();
         
+        // --- BẢO MẬT API: CHẶN CẬP NHẬT TRÁI PHÉP ---
+        $isAdminOrManager = false;
+        if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
+            $isAdminOrManager = true;
+        } else {
+            $roleName = session()->get('role_name');
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG) {
+                $isAdminOrManager = true;
+            }
+        }
+
+        if (!$isAdminOrManager) {
+            unset($data['assigned_care_staff_id']);
+            unset($data['care_status']);
+        }
+        
         // 1. QUY TẮC ĐỊNH DANH (Robust Auto-Coding):
         if (empty($data['code'])) {
             $year = date('Y');
@@ -452,7 +709,7 @@ class CustomerController extends BaseController
                 $parts = explode('-', $latest['code']);
                 $num = (int)end($parts) + 1;
             }
-            $data['code'] = 'KH-' . $year . '-' . str_pad($num, 3, '0', STR_PAD_LEFT);
+            $data['code'] = 'LAN-' . $data['phone'] ;
         }
 
         // 2. Tiền xử lý TAG
@@ -471,6 +728,24 @@ class CustomerController extends BaseController
 
                 if (is_array($tags) && !empty($tags)) {
                     $this->tagService->syncTags($customerId, 'customers', $tags);
+                }
+
+                // Đồng bộ hóa liên hệ chat (Zalo/Messenger) theo SĐT
+                $phone = $data['phone'] ?? '';
+                $phoneSecondary = $data['phone_secondary'] ?? null;
+                $this->customerService->syncChatContactsByPhone($customerId, $phone, $phoneSecondary);
+
+                // Tự động phân nhóm khách hàng dựa trên dữ liệu nhập
+                $this->customerService->autoSegmentCustomer($customerId);
+
+                // Khởi tạo quy trình SLA động bắt đầu bằng trạng thái mặc định "Chưa tư vấn"
+                $slaService = new \App\Services\CustomerSlaService();
+                $slaService->transitionStatus($customerId, 'chua_tu_van');
+
+                // Khởi tạo kế hoạch CSKH tự động nếu có ngày hoàn thành dịch vụ
+                if (!empty($data['service_completed_date'])) {
+                    $careService = new \App\Services\CustomerCareService();
+                    $careService->initializeCarePlan($customerId, 'phase1');
                 }
 
                 return redirect()->to(base_url('customers'))->with('success', 'Hồ sơ khách hàng mới đã được thiết lập thành công.');
@@ -502,7 +777,7 @@ class CustomerController extends BaseController
         } else {
             $roleName = session()->get('role_name');
             $myEmpId = session()->get('employee_id');
-            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG || $customer['created_by'] == $myEmpId) {
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG || $customer['created_by'] == $myEmpId || $customer['assigned_care_staff_id'] == $myEmpId) {
                 $canEdit = true;
             }
         }
@@ -515,6 +790,7 @@ class CustomerController extends BaseController
             'customer'      => $customer,
             'availableTags' => $this->tagService->getAvailableTags('customers', has_permission('sys.admin') ? -1 : null),
             'selectedTags'  => array_column($this->tagService->getTagsByEntity($id, 'customers'), 'id'),
+            'employees'     => get_available_employees(),
             'title'         => 'Chỉnh sửa hồ sơ: ' . $customer['name'] . ' | L.A.N ERP'
         ];
 
@@ -531,14 +807,14 @@ class CustomerController extends BaseController
             return redirect()->to(base_url('customers'))->with('error', 'Hồ sơ không tồn tại.');
         }
 
-        // --- BẢO MẬT API: CHẶN CẬP NHẬT TRÁI PHÉP ---
+        // --- BẢO MẬT API: CHẶN CẬP NHẬT TRÁP PHÉP ---
         $canEdit = false;
         if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
             $canEdit = true;
         } else {
             $roleName = session()->get('role_name');
             $myEmpId = session()->get('employee_id');
-            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG || $customer['created_by'] == $myEmpId) {
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG || $customer['created_by'] == $myEmpId || $customer['assigned_care_staff_id'] == $myEmpId) {
                 $canEdit = true;
             }
         }
@@ -548,6 +824,28 @@ class CustomerController extends BaseController
         }
 
         $data = $this->request->getPost();
+        
+        // --- BẢO MẬT API: CHẶN CẬP NHẬT TRÁI PHÉP ---
+        $isAdminOrManager = false;
+        if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
+            $isAdminOrManager = true;
+        } else {
+            $roleName = session()->get('role_name');
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG) {
+                $isAdminOrManager = true;
+            }
+        }
+
+        $myEmpId = session()->get('employee_id');
+        $isCaretaker = (!empty($customer['assigned_care_staff_id']) && $customer['assigned_care_staff_id'] == $myEmpId);
+
+        if (!$isAdminOrManager) {
+            unset($data['assigned_care_staff_id']);
+            if (!$isCaretaker) {
+                unset($data['care_status']);
+                unset($data['has_received_gift']);
+            }
+        }
         
         // Tiền xử lý TAGS cho bảng customers (metadata)
         $tags = $this->request->getPost('tags');
@@ -560,6 +858,11 @@ class CustomerController extends BaseController
             if (is_array($tags)) {
                 $this->tagService->syncTags($id, 'customers', $tags);
             }
+
+            // Đồng bộ hóa liên hệ chat (Zalo/Messenger) theo SĐT
+            $phone = $data['phone'] ?? '';
+            $phoneSecondary = $data['phone_secondary'] ?? null;
+            $this->customerService->syncChatContactsByPhone($id, $phone, $phoneSecondary);
 
             return redirect()->to(base_url('customers/show/' . $id))->with('success', 'Hồ sơ khách hàng đã được cập nhật.');
         }
@@ -692,5 +995,220 @@ class CustomerController extends BaseController
             'status' => 'success',
             'message' => $msg
         ]);
+    }
+
+    /**
+     * API: Cập nhật nhân sự tư vấn qua AJAX trực tiếp từ danh sách (Inline Editing).
+     * Đảm bảo tính toàn vẹn dữ liệu và kiểm tra phân quyền chặt chẽ trước khi cập nhật.
+     */
+    public function updateCareStaff($id)
+    {
+        // 1. Kiểm tra sự tồn tại của hồ sơ khách hàng
+        $customer = $this->customerModel->find($id);
+        if (!$customer) {
+            return $this->response->setJSON([
+                'code' => 1,
+                'message' => 'Hồ sơ khách hàng không tồn tại trên hệ thống.'
+            ]);
+        }
+
+        // 2. PHÂN QUYỀN BẢO MẬT (Access Control Verification):
+        // Chỉ những người có quyền quản trị hoặc trưởng phòng mới được phép thay đổi.
+        $canEdit = false;
+        if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
+            $canEdit = true;
+        } else {
+            $roleName = session()->get('role_name');
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG) {
+                $canEdit = true;
+            }
+        }
+
+        if (!$canEdit) {
+            return $this->response->setJSON([
+                'code' => 1,
+                'message' => 'Cảnh báo bảo mật: Bạn không có quyền chỉnh sửa nhân sự phụ trách chăm sóc khách hàng này.'
+            ]);
+        }
+
+        // 3. Nhận và tiền xử lý dữ liệu đầu vào (Rule #6 - Nullify blank values)
+        $assignedCareStaffId = $this->request->getPost('assigned_care_staff_id');
+        if ($assignedCareStaffId === '') {
+            $assignedCareStaffId = null;
+        }
+
+        // 4. Nếu có chọn nhân viên cụ thể, kiểm tra xem nhân viên đó có hợp lệ và hoạt động hay không
+        $careStaffName = '';
+        if ($assignedCareStaffId !== null) {
+            $db = \Config\Database::connect();
+            $emp = $db->table('employees')
+                      ->where('id', $assignedCareStaffId)
+                      ->where('deleted_at IS NULL')
+                      ->select('full_name')
+                      ->get()->getRow();
+            if (!$emp) {
+                return $this->response->setJSON([
+                    'code' => 1,
+                    'message' => 'Nhân viên được chọn không hợp lệ hoặc đã bị khóa khỏi hệ thống.'
+                ]);
+            }
+            $careStaffName = $emp->full_name;
+        }
+
+        // 5. Thực thi cập nhật cơ sở dữ liệu
+        $updateData = [
+            'assigned_care_staff_id' => $assignedCareStaffId,
+            'updated_at' => date('Y-m-d H:i:s')
+        ];
+
+        if ($this->customerModel->update($id, $updateData)) {
+            // Cập nhật assigned_staff_id trong SLA history đang hoạt động (active)
+            $historyModel = new \App\Models\CustomerSlaHistoryModel();
+            $activeSla = $historyModel->getActiveSla($id);
+            if ($activeSla) {
+                $historyModel->update($activeSla['id'], [
+                    'assigned_staff_id' => $assignedCareStaffId,
+                    // Nếu trước đây due_time là null (vì chưa gán nhân sự), thì nay gán nhân sự, tính due_time mới!
+                    'due_time' => ($activeSla['due_time'] === null && $activeSla['sla_duration'] > 0 && $assignedCareStaffId !== null) 
+                        ? date('Y-m-d H:i:s', strtotime("+{$activeSla['sla_duration']} hours")) 
+                        : $activeSla['due_time'],
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+            } else if ($assignedCareStaffId !== null) {
+                // Khởi động tiến trình SLA động đầu tiên
+                $slaService = new \App\Services\CustomerSlaService();
+                $slaService->transitionStatus($id, $customer['care_status'] ?: 'chua_tu_van');
+            }
+
+            return $this->response->setJSON([
+                'code' => 0,
+                'message' => 'Đã cập nhật nhân sự phụ trách chăm sóc tư vấn thành công.',
+                'care_staff_name' => $careStaffName
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'code' => 1,
+            'message' => 'Lỗi hệ thống: Không thể cập nhật thông tin trong cơ sở dữ liệu.'
+        ]);
+    }
+
+    /**
+     * API: Chuyển đổi trạng thái tư vấn & SLA nhanh qua AJAX.
+     * Xác thực kỹ lưỡng phân quyền trước khi thực thi (Rule #7 - Chống Tampering).
+     */
+    /**
+     * API: Cap nhat nhanh trang thai da tang qua/chua tang qua cua khach hang.
+     * Endpoint nay chi nhan gia tri 0/1 va van kiem tra quyen tren tung ho so
+     * de tranh nguoi dung sua ID tren front-end roi cap nhat trai phep.
+     */
+    public function updateGiftStatus($customerId)
+    {
+        $customer = $this->customerModel->find($customerId);
+        if (!$customer) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Ho so khach hang khong ton tai tren he thong.'
+            ]);
+        }
+
+        $canEdit = false;
+        if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
+            $canEdit = true;
+        } else {
+            $roleName = session()->get('role_name');
+            $myEmpId = session()->get('employee_id');
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG || (!empty($customer['assigned_care_staff_id']) && $customer['assigned_care_staff_id'] == $myEmpId)) {
+                $canEdit = true;
+            }
+        }
+
+        if (!$canEdit) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Ban khong co quyen cap nhat trang thai qua tang cua khach hang nay.'
+            ]);
+        }
+
+        $validation = \Config\Services::validation();
+        $validation->setRules([
+            'has_received_gift' => 'required|in_list[0,1]'
+        ]);
+
+        if (!$validation->run($this->request->getPost())) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Trang thai qua tang khong hop le.'
+            ]);
+        }
+
+        $hasReceivedGift = $this->request->getPost('has_received_gift');
+        $giftStatus = (int) $hasReceivedGift;
+        $updated = $this->customerService->updateGiftStatus((int) $customerId, $giftStatus === 1);
+        if (!$updated) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Khong the cap nhat trang thai qua tang.'
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'message' => $giftStatus === 1 ? 'Da danh dau khach hang da duoc tang qua.' : 'Da chuyen ve trang thai chua tang qua.',
+            'data' => [
+                'has_received_gift' => $giftStatus,
+                'label' => $giftStatus === 1 ? 'Da tang' : 'Chua tang'
+            ]
+        ]);
+    }
+
+    /**
+     * API: Chuyen doi trang thai tu van va SLA nhanh qua AJAX.
+     * Van kiem tra quyen theo tung ho so truoc khi cap nhat.
+     */
+    public function transitionStatus($customerId)
+    {
+        // 1. Kiểm tra sự tồn tại của khách hàng
+        $customer = $this->customerModel->find($customerId);
+        if (!$customer) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Hồ sơ khách hàng không tồn tại trên hệ thống.'
+            ]);
+        }
+
+        // 2. PHÂN QUYỀN BẢO MẬT (IDOR & Access Control):
+        // Chỉ những người có quyền quản trị, trưởng phòng, hoặc nhân sự trực tiếp phụ trách chăm sóc mới được phép thay đổi.
+        $canEdit = false;
+        if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
+            $canEdit = true;
+        } else {
+            $roleName = session()->get('role_name');
+            $myEmpId = session()->get('employee_id');
+            if ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG || (!empty($customer['assigned_care_staff_id']) && $customer['assigned_care_staff_id'] == $myEmpId)) {
+                $canEdit = true;
+            }
+        }
+
+        if (!$canEdit) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Cảnh báo bảo mật: Bạn không có quyền chuyển đổi trạng thái của khách hàng này.'
+            ]);
+        }
+
+        // 3. Thực thi chuyển trạng thái
+        $statusKey = $this->request->getPost('status_key');
+        if (empty($statusKey)) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Chưa chọn trạng thái mới.'
+            ]);
+        }
+
+        $slaService = new \App\Services\CustomerSlaService();
+        $result = $slaService->transitionStatus($customerId, $statusKey, session()->get('user_id'));
+
+        return $this->response->setJSON($result);
     }
 }

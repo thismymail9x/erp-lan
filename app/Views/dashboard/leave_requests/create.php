@@ -80,7 +80,7 @@
 
                 <div class="form-group-premium">
                     <label class="label-premium"><i class="fas fa-comment-dots"></i> Lý do nghỉ <span class="text-red">*</span></label>
-                    <input type="text" name="reason" required class="form-control-premium" placeholder="VD: Việc gia đình, ốm đau..." value="<?= old('reason') ?>">
+                    <input type="text" name="reason" required class="form-control-premium" value="<?= old('reason') ?>">
                 </div>
 
                 <div class="form-group-premium" style="grid-column: span 2;">
@@ -107,137 +107,6 @@
     </div>
 </div>
 <?= $this->endSection() ?>
-
 <?= $this->section('scripts') ?>
-<script>
-    const startDate = document.getElementById('start_date');
-    const endDate = document.getElementById('end_date');
-    const isEmergency = document.getElementById('is_emergency');
-    const totalDaysSpan = document.getElementById('totalDays');
-    const calcSummary = document.getElementById('calcSummary');
-    const noticeWarning = document.getElementById('noticeWarning');
-    const warningMessage = document.getElementById('warningMessage');
-    const submitBtn = document.querySelector('.btn-premium[type="submit"]');
-
-    function checkValidation() {
-        const startVal = startDate.value;
-        const endVal = endDate.value;
-
-        const durationRadios = document.querySelectorAll('input[name="leave_duration"]');
-        let isHalfDay = false;
-        durationRadios.forEach(radio => {
-            if (radio.checked && radio.value !== 'full_day') {
-                isHalfDay = true;
-            }
-        });
-
-        const endDateGroup = document.getElementById('end_date_group');
-        
-        // --- RÀO CHẮN THÔNG MINH (Smart Fence) ---
-        // Tự động đẩy min của ngày kết thúc theo ngày bắt đầu
-        if (startVal) {
-            endDate.setAttribute('min', startVal);
-        }
-
-        if (isHalfDay) {
-            endDateGroup.style.display = 'none';
-            if (startVal) {
-                endDate.value = startVal; // Đồng bộ end_date
-            }
-        } else {
-            endDateGroup.style.display = 'block';
-        }
-
-        const endValActual = endDate.value;
-        const start = new Date(startVal);
-        const end = new Date(endValActual);
-        const today = new Date();
-        today.setHours(0,0,0,0);
-
-        // 1. Kiểm tra logic ngày kết thúc (Hard Block)
-        if (endValActual && startVal && end < start) {
-            endDate.style.borderColor = "#ff3b30";
-            endDate.style.background = "rgba(255, 59, 48, 0.05)";
-            warningMessage.innerText = "Lỗi: Ngày kết thúc không thể sớm hơn ngày bắt đầu!";
-            noticeWarning.style.display = 'flex';
-            noticeWarning.className = "lan-status-box lan-status-error";
-            submitBtn.disabled = true;
-            submitBtn.style.opacity = "0.5";
-            submitBtn.style.cursor = "not-allowed";
-            return;
-        } else {
-            endDate.style.borderColor = "";
-            endDate.style.background = "";
-            noticeWarning.className = "lan-status-box lan-status-warning";
-            submitBtn.disabled = false;
-            submitBtn.style.opacity = "1";
-            submitBtn.style.cursor = "pointer";
-        }
-
-        const diffTime = Math.abs(end - start);
-        let daysToLeave = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        
-        if (isHalfDay) {
-            daysToLeave = 0.5;
-        }
-        
-        if (!isNaN(daysToLeave) && endValActual && startVal) {
-            totalDaysSpan.innerText = daysToLeave;
-            calcSummary.style.display = 'block';
-        } else {
-            calcSummary.style.display = 'none';
-        }
-        
-        // 2. Kiểm tra thời gian báo trước (Notice Period)
-        const noticeTime = start - today;
-        const noticeDays = Math.floor(noticeTime / (1000 * 60 * 60 * 24));
-        
-        let isValidNotice = true;
-        let errMsg = "";
-
-        if (startVal && endVal && !isEmergency.checked) {
-            if (daysToLeave === 1 && noticeDays < 1) {
-                isValidNotice = false;
-                errMsg = "Nghỉ 1 ngày cần báo trước ít nhất 1 ngày làm việc.";
-            } else if (daysToLeave >= 2 && daysToLeave < 5 && noticeDays < 3) {
-                isValidNotice = false;
-                errMsg = "Nghỉ từ 2-4 ngày cần báo trước ít nhất 3 ngày làm việc.";
-            } else if (daysToLeave >= 5 && noticeDays < 7) {
-                isValidNotice = false;
-                errMsg = "Nghỉ từ 5 ngày trở lên cần báo trước ít nhất 7 ngày làm việc.";
-            }
-        }
-
-        if (!isValidNotice) {
-            warningMessage.innerText = errMsg;
-            noticeWarning.style.display = 'flex';
-            submitBtn.disabled = true;
-            submitBtn.style.opacity = "0.5";
-        } else if (endVal && startVal && end >= start) {
-            // Chỉ hiển thị warning nếu vi phạm notice, nếu không phải ẩn đi (trừ trường hợp đã bị lỗi end < start ở trên)
-            if (errMsg === "") {
-                noticeWarning.style.display = 'none';
-                submitBtn.disabled = false;
-                submitBtn.style.opacity = "1";
-            }
-        }
-    }
-
-    startDate.addEventListener('change', checkValidation);
-    endDate.addEventListener('change', checkValidation);
-    isEmergency.addEventListener('change', checkValidation);
-    
-    document.querySelectorAll('input[name="leave_duration"]').forEach(radio => {
-        radio.addEventListener('change', checkValidation);
-    });
-    
-    checkValidation(); // Khởi tạo lần đầu
-
-    // Select2
-    if (typeof jQuery !== 'undefined' && jQuery.fn.select2) {
-        $('.select2-enable').select2({
-            width: '100%'
-        });
-    }
-</script>
+<script src="<?= base_url('js/leave_requests.js') ?>"></script>
 <?= $this->endSection() ?>

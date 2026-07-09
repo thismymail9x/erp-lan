@@ -6,6 +6,11 @@ $(document).ready(function() {
             allowClear: true,
             width: '100%'
         });
+
+        $('.select2-enable').select2({
+            width: '100%',
+            placeholder: "-- Vui lòng chọn --"
+        });
     }
 
     // 2. Khởi tạo các trình soạn thảo theo cấu trúc mới

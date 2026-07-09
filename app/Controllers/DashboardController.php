@@ -29,8 +29,22 @@ class DashboardController extends BaseController
         $db = \Config\Database::connect();
         
         $kpiYear = $this->request->getGet('year') ?? date('Y');
-        // Đối với Admin, ta lấy tổng công ty để hiển thị ở Dashboard chính
+        $kpiMonth = $this->request->getGet('month') ?? date('Y-m');
+        $canViewConsultingKpi = (has_permission('kpi.consulting') || has_permission('kpi.view_all') || has_permission('kpi.view_team') || $isAdmin);
+        // KPI vụ việc cũ vẫn tính theo bước công việc.
         $kpiStats = $kpiService->getMotivationStats($isAdmin ? null : $employeeId, ['year' => $kpiYear]);
+        // KPI tư vấn là chỉ số bổ sung theo tháng chốt hợp đồng.
+        $consultingKpiEmployeeId = $employeeId;
+        $consultingKpiFilters = ['month' => $kpiMonth];
+        if ($isAdmin || has_permission('kpi.view_all')) {
+            $consultingKpiEmployeeId = null;
+        } elseif (has_permission('kpi.view_team')) {
+            $consultingKpiEmployeeId = null;
+            $consultingKpiFilters['manager_id'] = $employeeId;
+        }
+        $consultingKpiStats = $canViewConsultingKpi
+            ? $kpiService->getConsultingMotivationStats($consultingKpiEmployeeId, $consultingKpiFilters)
+            : null;
         $stats = [];
         // --- A. Vụ việc & Khách hàng (Sử dụng Service chuyên trách) ---
         $caseService     = new \App\Services\CaseService();
@@ -54,6 +68,7 @@ class DashboardController extends BaseController
             'total_cases'      => $caseStats['total'],
             'waiting_cases'    => $caseStats['waiting'],
             'processing_cases' => $caseStats['processing'],
+            'paused_cases'     => $caseStats['paused'] ?? 0,
             'completed_cases'  => $caseStats['completed'],
             'overdue_cases'    => $caseStats['overdue'],
             'customers'        => $customerStats['total_customers'],
@@ -148,6 +163,7 @@ class DashboardController extends BaseController
             'attendanceStatus' => $attendanceStatus,
             'stats'            => $stats,
             'kpiStats'         => $kpiStats,
+            'consultingKpiStats' => $consultingKpiStats,
             'deptStats'        => $deptStats,
             'isAdmin'          => $isAdmin,
             'isManager'        => $isManager,
@@ -156,6 +172,8 @@ class DashboardController extends BaseController
             'isSaleDept'       => $isSaleDept,
             'currentMonthDisplay' => date('m/Y'),
             'kpiYear'          => $kpiYear,
+            'kpiMonth'         => $kpiMonth,
+            'canViewConsultingKpi' => $canViewConsultingKpi,
             'departments'      => $db->table('departments')->get()->getResultArray(),
             'employees'        => get_available_employees(),
             'current_employee_id' => $employeeId,

@@ -78,6 +78,35 @@ $(document).ready(function() {
         $(this).hide();
     });
 
+    $(document).on('click', '.js-open-contact-modal', function() {
+        openContactModal();
+    });
+
+    $(document).on('click', '.js-close-contact-modal', function() {
+        closeContactModal();
+    });
+
+    $(document).on('click', '.js-contact-batch-private', function() {
+        handleBatchAction(Number($(this).data('status')));
+    });
+
+    $(document).on('click', '.js-edit-contact', function() {
+        const raw = $(this).attr('data-contact') || '{}';
+        let contact = {};
+
+        try {
+            contact = JSON.parse(raw);
+        } catch (err) {
+            console.error('Invalid contact payload:', err);
+        }
+
+        openContactModal($(this).data('contact-id'), contact);
+    });
+
+    $(document).on('click', '.js-delete-contact', function() {
+        deleteContact($(this).data('contact-id'));
+    });
+
     $('#btn-reset-filters').on('click', function() {
         console.log('--- RESET FILTERS ---');
         $('#contact-search').val('');

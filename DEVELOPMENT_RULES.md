@@ -80,4 +80,24 @@
 - Khong viết css inline, tạo class cho nó. Ko lẫn lộn css và js vào html, tach riêng file rồi nhúng vào
 ---
 
-*Cập nhật lần cuối: 12/05/2026 — Phiên bản đầy đủ Bộ 11 Quy tắc.*
+## 12. Trải nghiệm Người dùng Mới (New Feature Visibility)
+- **Hệ thống Badge "New":** Mọi module/tính năng mới khi ra mắt BẮT BUỘC phải được khai báo trong `app/Config/FeatureGuidelines.php`.
+- **Thông tin khai báo:** 
+    - `launch_date`: Ngày phát hành (Badge sẽ tự động hiển thị trong 14 ngày kể từ ngày này).
+    - `guidance`: Phải có tiêu đề và nội dung hướng dẫn (Bullet points) để hiển thị trong Modal hướng dẫn tại trang.
+- **Mục đích:** Giúp người dùng nhận diện tính năng mới và nắm bắt cách dùng nhanh chóng (Compliance Rule #12).
+
+---
+
+## 13. Tối ưu hóa di động (Mobile Optimization & Responsiveness)
+- **Mobile-First Priority:** Mọi giao diện phát triển mới BẮT BUỘC phải hoạt động hoàn hảo trên thiết bị di động. Hệ thống ERP không chỉ dùng trên Laptop mà còn được nhân sự sử dụng khi di chuyển.
+- **Fluid Layout:** Sử dụng Flexbox, Grid và các đơn vị tương đối (%, vh, rem) thay vì fixed pixel cho các container chính.
+- **Media Queries:** Phải có ít nhất 2 điểm breakpoint:
+    - **Tablet (max-width: 1024px):** Điều chỉnh cột, giảm padding.
+    - **Mobile (max-width: 768px):** Chuyển sang layout dọc (stack), ẩn các thành phần không cần thiết (vd: `hide-mobile`), hoặc sử dụng cơ chế toggle/back-button cho các view chi tiết (như Chat, Danh sách).
+- **Touch Targets:** Các nút bấm, link trên mobile phải có kích thước tối thiểu 44x44px để dễ dàng thao tác bằng ngón tay.
+- **Performance:** Hạn chế load các thư viện nặng chỉ dành cho desktop khi ở view mobile.
+
+---
+- tuyệt đội không được làm lỗi font tiếng việt
+*Cập nhật lần cuối: 16/05/2026 — Phiên bản đầy đủ Bộ 13 Quy tắc.*

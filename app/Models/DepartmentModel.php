@@ -26,6 +26,7 @@ class DepartmentModel extends BaseModel
 
     // Validation
     protected $validationRules      = [
+        'id'   => 'permit_empty|numeric',
         'name' => 'required|is_unique[departments.name,id,{id}]|min_length[2]',
     ];
     protected $validationMessages   = [];

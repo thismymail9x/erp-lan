@@ -30,6 +30,31 @@ class Migrator extends BaseController
                     'file'  => '2026-05-06-200000_AddOtherAndNotesToPayrolls.php',
                     'class' => 'App\Database\Migrations\AddOtherAndNotesToPayrolls',
                     'version' => '2026-05-06-200000'
+                ],
+                [
+                    'file'  => '2026-05-19-110000_AddCareStaffToCustomers.php',
+                    'class' => 'App\Database\Migrations\AddCareStaffToCustomers',
+                    'version' => '2026-05-19-110000'
+                ],
+                [
+                    'file'  => '2026-05-20-103000_CreateMessengerTables.php',
+                    'class' => 'App\Database\Migrations\CreateMessengerTables',
+                    'version' => '2026-05-20-103000'
+                ],
+                [
+                    'file'  => '2026-05-21-170000_UpdateChatTablesForAssignment.php',
+                    'class' => 'App\Database\Migrations\UpdateChatTablesForAssignment',
+                    'version' => '2026-05-21-170000'
+                ],
+                [
+                    'file'  => '2026-05-22-104500_CreateCskhTables.php',
+                    'class' => 'App\Database\Migrations\CreateCskhTables',
+                    'version' => '2026-05-22-104500'
+                ],
+                [
+                    'file'  => '2026-05-25-185100_CreateCustomerSlaSettingsTables.php',
+                    'class' => 'App\Database\Migrations\CreateCustomerSlaSettingsTables',
+                    'version' => '2026-05-25-185100'
                 ]
             ];
 
@@ -38,8 +63,12 @@ class Migrator extends BaseController
                 if (file_exists($file)) {
                     require_once $file;
                     $migration = new $m['class']();
-                    $migration->up();
-                    echo "<p style='color: green;'>✅ Thực thi thành công: <b>{$m['file']}</b></p>";
+                    try {
+                        $migration->up();
+                        echo "<p style='color: green;'>✅ Thực thi thành công: <b>{$m['file']}</b></p>";
+                    } catch (\Throwable $ex) {
+                        echo "<p style='color: orange;'>⚠️ Bỏ qua (Đã tồn tại/Lỗi cấu trúc): <b>{$m['file']}</b> - " . esc($ex->getMessage()) . "</p>";
+                    }
                     
                     // Đánh dấu vào bảng migrations
                     $db->query("INSERT INTO migrations (version, class, `group`, namespace, time, batch) 
@@ -93,7 +122,7 @@ class Migrator extends BaseController
         echo "<h2>KIỂM TRA TỔNG THỂ DATABASE (" . count($allTables) . " bảng)</h2>";
         echo "<hr>";
         
-        $targetTables = ['leave_requests', 'employees', 'cases', 'workflow_templates', 'knowledge_base', 'roles'];
+        $targetTables = ['leave_requests', 'employees', 'cases', 'workflow_templates', 'knowledge_base', 'roles', 'customers'];
         
         foreach ($allTables as $t) {
             $isTarget = in_array($t, $targetTables);
@@ -106,7 +135,7 @@ class Migrator extends BaseController
                 echo "<table border='1' cellpadding='5' style='border-collapse: collapse; font-size: 13px; font-family: sans-serif; min-width: 600px;'>
                         <tr style='background: #f4f4f4;'><th>Tên cột (Field)</th><th>Kiểu (Type)</th><th>Độ dài</th><th>Ghi chú (Comment)</th></tr>";
                 foreach ($fields as $f) {
-                    $isNew = in_array($f->name, ['is_emergency', 'handover_to', 'manager_id', 'approval_note', 'handover_content', 'summary', 'problem', 'solution', 'red_flags', 'contract_value', 'payment_progress']);
+                    $isNew = in_array($f->name, ['is_emergency', 'handover_to', 'manager_id', 'approval_note', 'handover_content', 'summary', 'problem', 'solution', 'red_flags', 'contract_value', 'payment_progress', 'assigned_care_staff_id']);
                     $style = $isNew ? "style='background: #e8f5e9; font-weight: bold; color: #2e7d32;'" : "";
                     
                     echo "<tr $style>

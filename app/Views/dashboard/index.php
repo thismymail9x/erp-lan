@@ -2,167 +2,48 @@
 
 <?= $this->section('styles') ?>
 <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
-<style>
-    /* 1. GIỮ NGUYÊN CSS GỐC CỦA DASHBOARD (KPI, Stats, Hero) */
-    .attendance-hero { padding: 30px; border-radius: 20px; color: #fff; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-    .hero-primary { background: linear-gradient(135deg, #007aff 0%, #0056b3 100%); }
-    .hero-warning { background: linear-gradient(135deg, #ff9500 0%, #ffcc00 100%); }
-    .hero-success { background: linear-gradient(135deg, #34c759 0%, #28a745 100%); }
-    .hero-content h2 { margin: 0 0 5px 0; font-size: 1.6rem; font-weight: 800; }
-    .hero-content p { margin: 0; opacity: 0.9; font-weight: 500; }
-    .btn-attendance-main { background: #fff; color: #007aff; padding: 12px 24px; border-radius: 12px; font-weight: 700; text-decoration: none; display: flex; align-items: center; gap: 10px; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(255,255,255,0.3); }
-    .btn-attendance-main:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255,255,255,0.4); }
-
-    .motivation-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; }
-    .motivation-title h3 { margin: 0; font-size: 1.15rem; }
-    .motivation-total { text-align: right; }
-    .total-label { display: block; font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
-    .total-value { font-size: 1.5rem; font-weight: 800; }
-    .kpi-progress-container { margin-bottom: 25px; }
-    .kpi-progress-info { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px; color: #334155; }
-    .kpi-progress-bar-bg { height: 14px; background: #f1f5f9; border-radius: 50px; overflow: hidden; }
-    .kpi-progress-bar-fill { height: 100%; background: linear-gradient(90deg, #3b82f6 0%, #10b981 100%); border-radius: 50px; transition: width 1s ease-in-out; }
-    .kpi-stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
-    .kpi-stat-item { background: #f8fafc; padding: 15px; border-radius: 12px; }
-    .kpi-stat-label { font-size: 0.75rem; color: #64748b; margin-bottom: 5px; font-weight: 600; }
-    .kpi-stat-val { font-size: 1.1rem; font-weight: 800; }
-
-    /*.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; }*/
-    .stat-card { background: #fff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); transition: all 0.3s ease; border: 1px solid #f1f5f9; }
-    .stat-card:hover { transform: translateY(-5px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: #007aff; }
-    .stat-icon { width: 40px; height: 40px; border-radius: 10px; background: rgba(0,122,255,0.05); color: #007aff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; margin-bottom: 15px; }
-    .stat-value { font-size: 1.5rem; font-weight: 800; color: #1d1d1f; margin-bottom: 2px; }
-    .stat-label { font-size: 0.8rem; font-weight: 600; color: #8e8e93; }
-
-    /* 2. CSS CHO PHẦN LỊCH TRÌNH (BÊ NGUYÊN TỪ MODULE CŨ) */
-    .calendar-container-card { background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: grid; grid-template-columns: 280px 1fr; height: 750px; overflow: hidden; margin-bottom: 24px; border: 1px solid #f1f5f9; }
-    .calendar-sidebar { background: #f8fafc; border-right: 1px solid #eef2f6; padding: 16px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
-    .calendar-main { padding: 24px; position: relative; }
-    #calendar { height: 100%; }
-    
-    /* Select2 Custom Fix */
-    .select2-container { width: 100% !important; }
-    .select2-container--default .select2-selection--single { height: 40px !important; border: 1px solid #e2e8f0 !important; border-radius: 8px !important; transition: all 0.2s; }
-    .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 38px !important; padding-left: 12px !important; color: #1e293b !important; font-size: 0.9rem; }
-    .select2-container--default .select2-selection--single .select2-selection__arrow { height: 38px !important; }
-    .select2-container--default.select2-container--focus .select2-selection--single { border-color: #007aff !important; }
-    
-    .sidebar-section-title { font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
-    .btn-create-ws { background: #007aff; color: #fff; border: none; padding: 12px; border-radius: 10px; font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2); }
-    .btn-create-ws:hover { background: #0062cc; transform: translateY(-1px); }
-    .btn-create-leave { background: #e74c3c; color: #fff; border: none; padding: 12px; border-radius: 10px; font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(231, 76, 60, 0.2); text-decoration: none; margin-top: 10px; }
-    
-    .type-legend { display: flex; flex-direction: column; gap: 8px; }
-    .legend-item { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: #475569; cursor: pointer; padding: 5px 8px; border-radius: 6px; transition: all 0.2s; opacity: 0.6; }
-    .legend-item.active { opacity: 1; background: #fff; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
-    .legend-color { width: 12px; height: 12px; border-radius: 3px; }
-    
-    /* FullCalendar Apple Style Fix */
-    :root { --fc-border-color: #f1f5f9; --fc-daygrid-dot-event-hover-bg-color: #f8fafc; --fc-button-bg-color: #fff; --fc-button-border-color: #e2e8f0; --fc-button-text-color: #475569; }
-    .fc .fc-toolbar-title { font-size: 1.1rem; font-weight: 700; color: #1d1d1f; }
-    .fc .fc-button { padding: 8px 16px; font-size: 0.85rem; font-weight: 600; border-radius: 10px; transition: all 0.2s; }
-    .fc .fc-button-primary { background-color: #fff !important; border-color: #e2e8f0 !important; color: #475569 !important; box-shadow: none !important; }
-    .fc .fc-button-primary:hover { background-color: #f8fafc !important; border-color: #cbd5e1 !important; color: #1e293b !important; }
-    .fc .fc-button-primary:not(:disabled).fc-button-active, 
-    .fc .fc-button-primary:not(:disabled):active { background-color: #f1f5f9 !important; border-color: #94a3b8 !important; color: #0f172a !important; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05) !important; }
-    .fc-event { border: none; padding: 2px 4px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-
-    /* Modal CSS (BÊ NGUYÊN) */
-    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 1000; }
-    .modal-content-custom { background: #fff; width: 500px; border-radius: 16px; padding: 24px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2); animation: modalFadeIn 0.3s ease-out; }
-    @keyframes modalFadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .modal-header h3 { margin: 0; font-size: 1.2rem; font-weight: 700; }
-    .close-modal { background: #f1f5f9; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #64748b; }
-    .form-group { margin-bottom: 16px; }
-    .form-group label { display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
-    .form-control-custom { width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; outline: none; transition: border 0.2s; }
-    .form-control-custom:focus { border-color: #007aff; }
-    .row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .modal-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
-    .btn-secondary-custom { background: #f1f5f9; color: #475569; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; }
-    .btn-primary-custom { background: #007aff; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; }
-    
-    /* Tippy Style */
-    .tippy-box[data-theme~='light-border'] { background-color: #fff; color: #1d1d1f; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: 2px solid #007aff; border-radius: 12px; }
-
-    /* 3. MOBILE RESPONSIVE */
-    @media (max-width: 991px) {
-        .calendar-container-card { grid-template-columns: 1fr; height: auto; }
-        .calendar-sidebar { border-right: none; border-bottom: 1px solid #eef2f6; padding: 16px; order: 2; gap: 12px; }
-        .calendar-main { padding: 15px; height: 600px; order: 1; border-bottom: 1px solid #f1f5f9; }
-        
-        .filter-section { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .legend-section { margin-top: 5px; }
-        .type-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
-        
-        .modal-content-custom { width: 95%; max-width: 95%; padding: 20px; }
-        .row-grid { grid-template-columns: 1fr !important; gap: 0; }
-        .stats-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
-        .hero-content h2 { font-size: 1.3rem; }
-        .btn-attendance-main { padding: 10px 16px; font-size: 0.9rem; }
-        
-        /* FullCalendar Mobile Adjustments */
-        .fc .fc-toolbar { flex-direction: column; gap: 10px; }
-        .fc .fc-toolbar-title { font-size: 1rem; }
-        .fc .fc-button { padding: 6px 10px; font-size: 0.75rem; }
-    }
-    
-    @media (max-width: 576px) {
-        .filter-section { grid-template-columns: 1fr; gap: 10px; }
-        .stats-grid { grid-template-columns: 1fr 1fr; }
-        .calendar-main { height: 500px; }
-        .attendance-hero { flex-direction: column; align-items: flex-start; gap: 15px; }
-    }
-
-    @media (max-width: 400px) {
-        .stats-grid { grid-template-columns: 1fr; }
-        .kpi-stats-row { grid-template-columns: 1fr; gap: 10px; }
-    }
-</style>
+<link rel="stylesheet" href="<?= base_url('css/dashboard_home.css') ?>?v=20260708">
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
 
-<!-- 1. HERO SECTION (GIỮ NGUYÊN) -->
 <?php if ($attendanceStatus && $attendanceStatus['status'] === 'CHECKED_OUT') { ?>
     <div class="attendance-hero hero-success">
         <div class="hero-content">
-            <h2>Hoàn thành ngày làm việc!</h2>
-            <p>Đã Check-out lúc <b><?= $attendanceStatus['check_out_time'] ?></b>. Chúc bạn buổi tối vui vẻ!</p>
+            <h2>Ho&#224;n th&#224;nh ng&#224;y l&#224;m vi&#7879;c!</h2>
+            <p>&#272;&#227; Check-out l&#250;c <b><?= $attendanceStatus['check_out_time'] ?></b>. Ch&#250;c b&#7841;n bu&#7893;i t&#7889;i vui v&#7867;!</p>
         </div>
-        <div class="hero-badge">ĐÃ XONG</div>
+        <div class="hero-badge">&#272;&#195; XONG</div>
     </div>
 <?php } elseif ($attendanceStatus && $attendanceStatus['status'] === 'CHECKED_IN') { ?>
     <div class="attendance-hero hero-warning">
         <div class="hero-content">
-            <h2>Đang làm việc (In: <?= $attendanceStatus['check_in_time'] ?>)</h2>
-            <p>Đừng quên Check-out trước khi ra về để ghi nhận đủ giờ làm nhé.</p>
+            <h2>&#272;ang l&#224;m vi&#7879;c (In: <?= $attendanceStatus['check_in_time'] ?>)</h2>
+            <p>&#272;&#7915;ng qu&#234;n Check-out tr&#432;&#7899;c khi ra v&#7873; &#273;&#7875; ghi nh&#7853;n &#273;&#7911; gi&#7901; l&#224;m nh&#233;.</p>
         </div>
         <a href="<?= base_url('attendance') ?>" class="btn-attendance-main text-orange">
-            <i class="fas fa-sign-out-alt"></i> Kết thúc ngày
+            <i class="fas fa-sign-out-alt"></i> K&#7871;t th&#250;c ng&#224;y
         </a>
     </div>
 <?php } else { ?>
     <div class="attendance-hero hero-primary">
         <div class="hero-content">
-            <h2>Bắt đầu ngày làm việc?</h2>
-            <p>Vui lòng ghi nhận vị trí và ảnh chụp để hoàn tất điểm danh.</p>
+            <h2>B&#7855;t &#273;&#7847;u ng&#224;y l&#224;m vi&#7879;c?</h2>
+            <p>Vui l&#242;ng ghi nh&#7853;n v&#7883; tr&#237; v&#224; &#7843;nh ch&#7909;p &#273;&#7875; ho&#224;n t&#7845;t &#273;i&#7875;m danh.</p>
         </div>
         <a href="<?= base_url('attendance') ?>" class="btn-attendance-main">
-            <i class="fas fa-camera"></i> Điểm danh
+            <i class="fas fa-camera"></i> &#272;i&#7875;m danh
         </a>
     </div>
 <?php } ?>
 
-<!-- 2. KPI WIDGET (GIỮ NGUYÊN CSS GỐC) -->
 <div class="motivation-widget premium-card m-b-24">
     <div class="motivation-header">
         <div class="motivation-title">
-            <h3><i class="fas fa-coins text-gold"></i> KPI năm 
+            <h3><i class="fas fa-coins text-gold"></i> KPI n&#259;m
                 <form action="<?= base_url('dashboard') ?>" method="GET" style="display: inline-block;">
                     <select name="year" onchange="this.form.submit()" style="border: none; background: transparent; font-size: 1.1rem; font-weight: 700; color: #1d1d1f; cursor: pointer; outline: none;">
-                        <?php 
+                        <?php
                         $startYear = 2026;
                         $endYear = max(date('Y') + 1, 2027);
                         for ($y = $startYear; $y <= $endYear; $y++) { ?>
@@ -171,162 +52,206 @@
                     </select>
                 </form>
             </h3>
-            <p class="text-muted">Hoàn thành các bước trong hồ sơ để tối ưu hóa thu nhập.</p>
+            <p class="text-muted">Ho&#224;n th&#224;nh c&#225;c b&#432;&#7899;c trong h&#7891; s&#417; &#273;&#7875; t&#7889;i &#432;u h&#243;a thu nh&#7853;p.</p>
         </div>
         <div class="motivation-total">
-            <span class="total-label">Tổng mục tiêu:</span>
-            <span class="total-value text-blue"><?= number_format($kpiStats['total']) ?> vnđ</span>
+            <span class="total-label">T&#7893;ng m&#7909;c ti&#234;u:</span>
+            <span class="total-value text-blue"><?= number_format($kpiStats['total']) ?> vnd</span>
         </div>
     </div>
-    
+
     <div class="motivation-body">
         <div class="kpi-progress-container">
             <div class="kpi-progress-info">
-                <span>Tiến độ mục tiêu</span>
+                <span>Ti&#7871;n &#273;&#7897; m&#7909;c ti&#234;u</span>
                 <span><?= $kpiStats['percent'] ?>%</span>
             </div>
             <div class="kpi-progress-bar-bg">
-                <div class="kpi-progress-bar-fill" style="width: <?= $kpiStats['percent'] ?>%;"></div>
+                <div class="kpi-progress-bar-fill" style="width: <?= min(100, (float)$kpiStats['percent']) ?>%;"></div>
             </div>
         </div>
-        
+
         <div class="kpi-stats-row">
             <div class="kpi-stat-item">
-                <div class="kpi-stat-label">KPI nhận</div>
-                <div class="kpi-stat-val text-green">+ <?= number_format($kpiStats['earned']) ?> vnđ</div>
+                <div class="kpi-stat-label">KPI nh&#7853;n</div>
+                <div class="kpi-stat-val text-green">+ <?= number_format($kpiStats['earned']) ?> vnd</div>
             </div>
             <div class="kpi-stat-item">
-                <div class="kpi-stat-label">KPI còn</div>
-                <div class="kpi-stat-val text-orange">~ <?= number_format($kpiStats['potential']) ?> vnđ</div>
+                <div class="kpi-stat-label">KPI c&#242;n</div>
+                <div class="kpi-stat-val text-orange">~ <?= number_format($kpiStats['potential']) ?> vnd</div>
             </div>
             <div class="kpi-stat-item" onclick="window.location.href='<?= base_url('cases?status=missed_kpi' . ($isAdmin ? '' : '&lawyer_id[]=' . session()->get('employee_id'))) ?>'" style="cursor: pointer;">
-                <div class="kpi-stat-label">KPI bỏ lỡ <i class="fas fa-external-link-alt" style="font-size: 0.6rem;"></i></div>
-                <div class="kpi-stat-val text-red">- <?= number_format($kpiStats['lost']) ?> vnđ</div>
+                <div class="kpi-stat-label">KPI b&#7887; l&#7905; <i class="fas fa-external-link-alt" style="font-size: 0.6rem;"></i></div>
+                <div class="kpi-stat-val text-red">- <?= number_format($kpiStats['lost']) ?> vnd</div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- 3. STATS GRID (GIỮ NGUYÊN CSS GỐC) -->
-<div class="stats-grid">
+<?php if (!empty($canViewConsultingKpi) && !empty($consultingKpiStats)) { ?>
+    <div class="motivation-widget premium-card m-b-24">
+        <div class="motivation-header">
+            <div class="motivation-title">
+                <h3><i class="fas fa-headset text-blue"></i> KPI t&#432; v&#7845;n th&#225;ng
+                    <form action="<?= base_url('dashboard') ?>" method="GET" style="display: inline-block;">
+                        <input type="month" name="month" value="<?= esc($kpiMonth) ?>" onchange="this.form.submit()" style="border: none; background: transparent; font-size: 1.1rem; font-weight: 700; color: #1d1d1f; cursor: pointer; outline: none;">
+                    </form>
+                </h3>
+            </div>
+            <div class="motivation-total">
+                <span class="total-label">Doanh thu th&#7921;c thu:</span>
+                <span class="total-value text-blue"><?= number_format($consultingKpiStats['contract_value']) ?> vnd</span>
+            </div>
+        </div>
+
+        <div class="motivation-body">
+            <div class="kpi-progress-container">
+                <div class="kpi-progress-info">
+                    <span>Ti&#7871;n &#273;&#7897; m&#7909;c ti&#234;u th&#225;ng</span>
+                    <span><?= esc($consultingKpiStats['percent']) ?>%</span>
+                </div>
+                <div class="kpi-progress-bar-bg">
+                    <div class="kpi-progress-bar-fill" style="width: <?= min(100, (float)$consultingKpiStats['percent']) ?>%;"></div>
+                </div>
+            </div>
+
+            <div class="kpi-stats-row">
+                <div class="kpi-stat-item">
+                    <div class="kpi-stat-label">Tr&#7843; k&#7923; l&#432;&#417;ng t&#7899;i</div>
+                    <div class="kpi-stat-val text-green">+ <?= number_format($consultingKpiStats['next_payroll_payout']) ?> vnd</div>
+                </div>
+                <div class="kpi-stat-item">
+                    <div class="kpi-stat-label">T&#237;ch l&#361;y cu&#7889;i n&#259;m</div>
+                    <div class="kpi-stat-val text-orange">~ <?= number_format($consultingKpiStats['annual_accrual']) ?> vnd</div>
+                </div>
+                <div class="kpi-stat-item" onclick="window.location.href='<?= base_url('kpi/consulting?month=' . urlencode($kpiMonth)) ?>'" style="cursor: pointer;">
+                    <div class="kpi-stat-label">Th&#432;&#7903;ng v&#432;&#7907;t m&#7889;c <i class="fas fa-external-link-alt" style="font-size: 0.6rem;"></i></div>
+                    <div class="kpi-stat-val text-blue"><?= number_format($consultingKpiStats['milestone_bonus']) ?> vnd</div>
+                </div>
+            </div>
+        </div>
+    </div>
+<?php } ?>
+
+<div class="stats-grid dashboard-home-stats-grid">
     <?php
     $canSeeAllStats = ($isAdmin || $isManager || $isLegalDept || has_permission('case.view_all'));
     ?>
 
     <?php if ($canSeeAllStats): ?>
-        <!-- WIDGETS TỔNG QUAN (ADMIN, MANAGER, LEGAL) -->
         <div class="stat-card" onclick="window.location.href='<?= base_url('cases') ?>'" style="cursor: pointer;">
             <div class="stat-icon"><i class="fas fa-folder-open"></i></div>
             <div class="stat-value"><?= number_format($stats['total_cases'] ?? 0) ?></div>
-            <div class="stat-label">Tổng vụ việc</div>
+            <div class="stat-label">T&#7893;ng v&#7909; vi&#7879;c</div>
         </div>
         <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=cho_tiep_nhan') ?>'" style="cursor: pointer;">
             <div class="stat-icon text-orange"><i class="fas fa-hourglass-start"></i></div>
             <div class="stat-value"><?= number_format($stats['waiting_cases'] ?? 0) ?></div>
-            <div class="stat-label">Chờ tiếp nhận</div>
+            <div class="stat-label">Ch&#7901; ti&#7871;p nh&#7853;n</div>
         </div>
         <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=dang_xu_ly') ?>'" style="cursor: pointer;">
             <div class="stat-icon text-blue"><i class="fas fa-spinner fa-spin"></i></div>
             <div class="stat-value"><?= number_format($stats['processing_cases'] ?? 0) ?></div>
-            <div class="stat-label">Đang xử lý</div>
+            <div class="stat-label">&#272;ang x&#7917; l&#253;</div>
+        </div>
+        <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=tam_dung') ?>'" style="cursor: pointer;">
+            <div class="stat-icon text-orange"><i class="fas fa-pause-circle"></i></div>
+            <div class="stat-value"><?= number_format($stats['paused_cases'] ?? 0) ?></div>
+            <div class="stat-label">T&#7841;m d&#7915;ng</div>
         </div>
         <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=da_hoan_thanh') ?>'" style="cursor: pointer;">
             <div class="stat-icon text-green"><i class="fas fa-check-double"></i></div>
             <div class="stat-value"><?= number_format($stats['completed_cases'] ?? 0) ?></div>
-            <div class="stat-label">Đã hoàn thành</div>
+            <div class="stat-label">&#272;&#227; ho&#224;n th&#224;nh</div>
         </div>
         <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=overdue') ?>'" style="cursor: pointer;">
             <div class="stat-icon text-red"><i class="fas fa-clock"></i></div>
             <div class="stat-value text-red"><?= number_format($stats['overdue_cases'] ?? 0) ?></div>
-            <div class="stat-label">Quá hạn</div>
+            <div class="stat-label">Qu&#225; h&#7841;n</div>
         </div>
         <div class="stat-card" onclick="window.location.href='<?= base_url('customers') ?>'" style="cursor: pointer;">
             <div class="stat-icon"><i class="fas fa-user-friends"></i></div>
             <div class="stat-value"><?= number_format($stats['customers'] ?? 0) ?></div>
-            <div class="stat-label">Khách hàng</div>
+            <div class="stat-label">Kh&#225;ch h&#224;ng</div>
         </div>
 
-        <!-- Thống kê bộ phận bổ sung cho Manager (nếu không phải Legal) -->
         <?php if ($isManager && !$isLegalDept && !$isAdmin): ?>
             <div class="stat-card">
                 <div class="stat-icon"><i class="fas fa-users-viewfinder"></i></div>
                 <div class="stat-value"><?= number_format($deptStats['total_members'] ?? 0) ?></div>
-                <div class="stat-label">Nhân sự team</div>
+                <div class="stat-label">Nh&#226;n s&#7921; team</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
                 <div class="stat-value"><?= $deptStats['attendance_percent'] ?? 0 ?>%</div>
-                <div class="stat-label">Tỷ lệ công team</div>
+                <div class="stat-label">T&#7927; l&#7879; c&#244;ng team</div>
             </div>
         <?php endif; ?>
 
     <?php elseif ($isHRDept): ?>
-        <!-- WIDGETS HÀNH CHÍNH (HR) -->
         <div class="stat-card">
             <div class="stat-icon"><i class="fas fa-users"></i></div>
             <div class="stat-value"><?= number_format($deptStats['total_company_employees'] ?? 0) ?></div>
-            <div class="stat-label">Tổng nhân sự</div>
+            <div class="stat-label">T&#7893;ng nh&#226;n s&#7921;</div>
         </div>
         <div class="stat-card">
             <div class="stat-icon"><i class="fas fa-user-plus"></i></div>
             <div class="stat-value"><?= number_format($deptStats['new_hires_this_month'] ?? 0) ?></div>
-            <div class="stat-label">Nhân sự mới</div>
+            <div class="stat-label">Nh&#226;n s&#7921; m&#7899;i</div>
         </div>
         <div class="stat-card">
             <div class="stat-icon"><i class="fas fa-id-badge"></i></div>
             <div class="stat-value"><?= $deptStats['attendance_percent'] ?? 0 ?>%</div>
-            <div class="stat-label">Tỷ lệ đi làm</div>
+            <div class="stat-label">T&#7927; l&#7879; &#273;i l&#224;m</div>
         </div>
     <?php else: ?>
-        <!-- WIDGETS NHÂN VIÊN (STAFF) -->
         <div class="stat-card" onclick="window.location.href='<?= base_url('cases') ?>'" style="cursor: pointer;">
             <div class="stat-icon"><i class="fas fa-briefcase"></i></div>
             <div class="stat-value"><?= number_format($stats['total_cases'] ?? 0) ?></div>
-            <div class="stat-label">Vụ việc của tôi</div>
+            <div class="stat-label">V&#7909; vi&#7879;c c&#7911;a t&#244;i</div>
         </div>
         <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=cho_tiep_nhan') ?>'" style="cursor: pointer;">
             <div class="stat-icon text-orange"><i class="fas fa-hourglass-start"></i></div>
             <div class="stat-value"><?= number_format($stats['waiting_cases'] ?? 0) ?></div>
-            <div class="stat-label">Chờ tiếp nhận</div>
+            <div class="stat-label">Ch&#7901; ti&#7871;p nh&#7853;n</div>
         </div>
         <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=dang_xu_ly') ?>'" style="cursor: pointer;">
             <div class="stat-icon text-blue"><i class="fas fa-spinner fa-spin"></i></div>
             <div class="stat-value"><?= number_format($stats['processing_cases'] ?? 0) ?></div>
-            <div class="stat-label">Đang làm</div>
+            <div class="stat-label">&#272;ang l&#224;m</div>
         </div>
         <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=da_hoan_thanh') ?>'" style="cursor: pointer;">
             <div class="stat-icon text-green"><i class="fas fa-check-double"></i></div>
             <div class="stat-value"><?= number_format($stats['completed_cases'] ?? 0) ?></div>
-            <div class="stat-label">Đã xong</div>
+            <div class="stat-label">&#272;&#227; xong</div>
         </div>
         <div class="stat-card" onclick="window.location.href='<?= base_url('cases?status=overdue' . ($isAdmin ? '' : '&lawyer_id[]=' . session()->get('employee_id'))) ?>'" style="cursor: pointer;">
             <div class="stat-icon text-red"><i class="fas fa-clock"></i></div>
             <div class="stat-value text-red"><?= number_format($stats['overdue_cases'] ?? 0) ?></div>
-            <div class="stat-label">Trễ hạn</div>
+            <div class="stat-label">Tr&#7877; h&#7841;n</div>
         </div>
         <div class="stat-card">
             <div class="stat-icon"><i class="fas fa-calendar-day"></i></div>
             <div class="stat-value"><?= $stats['attendance_rate'] ?? 0 ?>%</div>
-            <div class="stat-label">Chuyên cần</div>
+            <div class="stat-label">Chuy&#234;n c&#7847;n</div>
         </div>
     <?php endif; ?>
 </div>
 
-<!-- 4. LỊCH TRÌNH SECTION (BÊ NGUYÊN TỪ MODULE CŨ) -->
 <div class="calendar-container-card">
     <aside class="calendar-sidebar">
         <button class="btn-create-ws" id="btnOpenCreate">
-            <i class="fas fa-plus"></i> Lịch trình công việc
+            <i class="fas fa-plus"></i> L&#7883;ch tr&#236;nh c&#244;ng vi&#7879;c
         </button>
         <a href="<?= base_url('leave-requests/create') ?>" class="btn-create-leave">
-            <i class="fas fa-calendar-minus"></i> Đơn nghỉ
+            <i class="fas fa-calendar-minus"></i> &#272;&#417;n ngh&#7881;
         </a>
 
         <div class="filter-section">
-            <div class="sidebar-section-title">Bộ lọc nhân sự</div>
+            <div class="sidebar-section-title">B&#7897; l&#7885;c nh&#226;n s&#7921;</div>
             <div class="filter-group" style="margin-bottom: 8px;">
                 <select id="filterDept" class="form-control-custom">
-                    <option value="">Tất cả phòng ban</option>
+                    <option value="">T&#7845;t c&#7843; ph&#242;ng ban</option>
                     <?php foreach ($departments as $dept) : ?>
                         <option value="<?= $dept['id'] ?>"><?= esc($dept['name']) ?></option>
                     <?php endforeach; ?>
@@ -334,7 +259,7 @@
             </div>
             <div class="filter-group">
                 <select id="filterEmployee" class="select2-basic">
-                    <option value="">Tất cả nhân viên</option>
+                    <option value="">T&#7845;t c&#7843; nh&#226;n vi&#234;n</option>
                     <?php foreach ($employees as $emp) : ?>
                         <option value="<?= $emp['id'] ?>" data-dept="<?= $emp['department_id'] ?>"><?= esc($emp['full_name']) ?></option>
                     <?php endforeach; ?>
@@ -343,19 +268,23 @@
         </div>
 
         <div class="legend-section">
-            <div class="sidebar-section-title">Loại lịch trình</div>
+            <div class="sidebar-section-title">Lo&#7841;i l&#7883;ch tr&#236;nh</div>
             <div class="type-legend">
                 <div class="legend-item active" data-type="leave">
                     <div class="legend-color" style="background: #e74c3c;"></div>
-                    <span>Ngày nghỉ (Đỏ)</span>
+                    <span>Ng&#224;y ngh&#7881; (&#272;&#7887;)</span>
                 </div>
                 <div class="legend-item active" data-type="business_trip">
                     <div class="legend-color" style="background: #10b981;"></div>
-                    <span>Công tác (Xanh lá)</span>
+                    <span>C&#244;ng t&#225;c (Xanh l&#225;)</span>
+                </div>
+                <div class="legend-item active" data-type="vehicle_hint">
+                    <div class="legend-color" style="background: #2563eb;"></div>
+                    <span>&#272;&#259;ng k&#253; xe</span>
                 </div>
                 <div class="legend-item active" data-type="work">
                     <div class="legend-color" style="background: #f59e0b;"></div>
-                    <span>Tại văn phòng (Vàng)</span>
+                    <span>T&#7841;i v&#259;n ph&#242;ng (V&#224;ng)</span>
                 </div>
             </div>
         </div>
@@ -366,53 +295,58 @@
     </main>
 </div>
 
-<!-- 5. MODAL TẠO/SỬA LỊCH TRÌNH (BÊ NGUYÊN FORM GỐC) -->
 <div class="modal-overlay" id="wsModal">
     <div class="modal-content-custom">
         <div class="modal-header">
-            <h3 id="modalTitle">Tạo lịch trình mới</h3>
+            <h3 id="modalTitle">T&#7841;o l&#7883;ch tr&#236;nh m&#7899;i</h3>
             <button class="close-modal" id="btnCloseModal"><i class="fas fa-times"></i></button>
         </div>
-        <form id="wsForm">
+        <form id="wsForm" data-current-employee-id="<?= esc($current_employee_id) ?>">
             <input type="hidden" name="id" id="wsId">
-            
-            <div class="form-group">
-                <label>Tiêu đề / Mục đích</label>
-                <input type="text" name="title" id="wsTitle" class="form-control-custom" placeholder="Ví dụ: Họp với khách hàng A, Công tác Hà Nội..." required>
+
+            <div class="ws-title-row">
+                <div class="form-group">
+                    <label>Ti&#234;u &#273;&#7873; / M&#7909;c &#273;&#237;ch</label>
+                    <input type="text" name="title" id="wsTitle" class="form-control-custom" placeholder="V&#237; d&#7909;: H&#7885;p v&#7899;i kh&#225;ch h&#224;ng A, C&#244;ng t&#225;c H&#224; N&#7897;i..." required>
+                </div>
+                <label class="ws-vehicle-option" for="wsRequiresVehicle">
+                    <input type="checkbox" name="requires_vehicle" id="wsRequiresVehicle" value="1">
+                    <span>&#272;&#259;ng k&#253; xe</span>
+                </label>
             </div>
 
             <div class="row-grid">
                 <div class="form-group">
-                    <label>Loại lịch trình</label>
+                    <label>Lo&#7841;i l&#7883;ch tr&#236;nh</label>
                     <select name="type" id="wsType" class="form-control-custom">
-                        <option value="business_trip">Đi công tác</option>
-                        <option value="work">Tại văn phòng</option>
+                        <option value="business_trip">&#272;i c&#244;ng t&#225;c</option>
+                        <option value="work">T&#7841;i v&#259;n ph&#242;ng</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Địa điểm</label>
-                    <input type="text" name="location" id="wsLocation" class="form-control-custom" placeholder="Địa chỉ hoặc tên văn phòng">
+                    <label>&#272;&#7883;a &#273;i&#7875;m</label>
+                    <input type="text" name="location" id="wsLocation" class="form-control-custom" placeholder="&#272;&#7883;a ch&#7881; ho&#7863;c t&#234;n v&#259;n ph&#242;ng">
                 </div>
             </div>
 
             <div class="row-grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="form-group">
-                    <label>Ngày bắt đầu</label>
+                    <label>Ng&#224;y b&#7855;t &#273;&#7847;u</label>
                     <input type="date" id="wsStartDate" class="form-control-custom" required>
                 </div>
                 <div class="form-group">
-                    <label>Giờ</label>
+                    <label>Gi&#7901;</label>
                     <input type="time" id="wsStartTime" class="form-control-custom" value="08:00" required>
                 </div>
             </div>
 
             <div class="row-grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="form-group">
-                    <label>Ngày kết thúc</label>
+                    <label>Ng&#224;y k&#7871;t th&#250;c</label>
                     <input type="date" id="wsEndDate" class="form-control-custom" required>
                 </div>
                 <div class="form-group">
-                    <label>Giờ</label>
+                    <label>Gi&#7901;</label>
                     <input type="time" id="wsEndTime" class="form-control-custom" value="17:00" required>
                 </div>
             </div>
@@ -422,7 +356,7 @@
 
             <div style="background: #f8fafc; padding: 15px; border-radius: 12px; margin-top: 15px; border: 1px solid #e2e8f0;">
                 <div class="form-group">
-                    <label>Nhân sự thực hiện</label>
+                    <label>Nh&#226;n s&#7921; th&#7921;c hi&#7879;n</label>
                     <select name="employee_id" id="wsEmployeeId" class="form-control-custom select2-basic">
                         <?php foreach ($employees as $emp) : ?>
                             <option value="<?= $emp['id'] ?>" <?= $emp['id'] == $current_employee_id ? 'selected' : '' ?>><?= esc($emp['full_name']) ?></option>
@@ -431,9 +365,9 @@
                 </div>
 
                 <div class="form-group" style="margin-bottom: 0;">
-                    <label><i class="fas fa-user-tag"></i> Vụ việc cá nhân / Nhận phân công từ</label>
+                    <label><i class="fas fa-user-tag"></i> V&#7909; vi&#7879;c c&#225; nh&#226;n / Nh&#7853;n ph&#226;n c&#244;ng t&#7915;</label>
                     <select name="assigned_by_id" id="wsAssignedById" class="form-control-custom select2-basic">
-                        <option value="">-- Vụ việc cá nhân --</option>
+                        <option value="">-- V&#7909; vi&#7879;c c&#225; nh&#226;n --</option>
                         <?php foreach ($employees as $emp) : ?>
                             <option value="<?= $emp['id'] ?>"><?= esc($emp['full_name']) ?></option>
                         <?php endforeach; ?>
@@ -442,9 +376,9 @@
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn-secondary-custom" id="btnDeleteWs" style="display: none; background: #fee2e2; color: #dc2626;">Xóa</button>
-                <button type="button" class="btn-secondary-custom" id="btnCancelModal">Hủy</button>
-                <button type="submit" class="btn-primary-custom" id="btnSaveWs">Lưu lịch trình</button>
+                <button type="button" class="btn-secondary-custom" id="btnDeleteWs" style="display: none; background: #fee2e2; color: #dc2626;">X&#243;a</button>
+                <button type="button" class="btn-secondary-custom" id="btnCancelModal">H&#7911;y</button>
+                <button type="submit" class="btn-primary-custom" id="btnSaveWs">L&#432;u l&#7883;ch tr&#236;nh</button>
             </div>
         </form>
     </div>
@@ -456,144 +390,5 @@
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
 <script src="https://unpkg.com/@popperjs/core@2"></script>
 <script src="https://unpkg.com/tippy.js@6"></script>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const calendarEl = document.getElementById('calendar');
-        const wsModal = document.getElementById('wsModal');
-        const wsForm = document.getElementById('wsForm');
-        
-        const calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: window.innerWidth < 768 ? 'listMonth' : 'dayGridMonth',
-            locale: 'vi',
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay'
-            },
-            buttonText: {
-                today: 'Hôm nay',
-                month: 'Tháng',
-                week: 'Tuần',
-                day: 'Ngày'
-            },
-            firstDay: 1, navLinks: true, selectable: true, dayMaxEvents: true,
-            events: function(info, successCallback, failureCallback) {
-                const employeeId = $('#filterEmployee').val();
-                const deptId = $('#filterDept').val();
-                let types = [];
-                $('.legend-item.active').each(function() { types.push($(this).data('type')); });
-                $.ajax({
-                    url: '<?= base_url('work-schedules/events') ?>',
-                    data: { start: info.startStr, end: info.endStr, employee_id: employeeId, dept_id: deptId, types: types.join(',') },
-                    success: function(data) { successCallback(data); }
-                });
-            },
-            select: function(info) {
-                openModal('create', {
-                    start_at: info.startStr.includes('T') ? info.startStr.substring(0, 16) : info.startStr + 'T08:00',
-                    end_at: info.endStr.includes('T') ? info.endStr.substring(0, 16) : info.startStr + 'T17:00'
-                });
-            },
-            eventClick: function(info) {
-                if (info.event.id.toString().startsWith('leave_')) return;
-                openModal('edit', info.event.id);
-            },
-            eventDidMount: function(info) {
-                const props = info.event.extendedProps;
-                let sourceHtml = '';
-                if (props.type === 'leave') {
-                    sourceHtml = `<div style="display: flex; align-items: center;"><i class="fas fa-user-tag" style="width: 25px; color: #e74c3c; font-size: 1.2rem;"></i><span style="color: #e74c3c; font-weight: 700;">Nghỉ cá nhân</span></div>`;
-                } else {
-                    if (props.assigner_name) {
-                        sourceHtml = `<div style="display: flex; align-items: center;"><i class="fas fa-user-tag" style="width: 25px; color: blue; font-size: 1.2rem;"></i>  <span style="color: orange; font-weight: 700;">Nhận phân công: ${props.assigner_name}</span></div>`;
-                    } else {
-                        sourceHtml = `<div style="display: flex; align-items: center;"><i class="fas fa-user-tag" style="width: 25px; color: blue; font-size: 1.2rem;"></i> <span style="color: green; font-weight: 700;">Vụ việc cá nhân</span></div>`;
-                    }
-                }
-
-                tippy(info.el, {
-                    content: `<div style="padding: 15px; min-width: 320px; font-size: 1rem; line-height: 1.6; background: #fff;">
-                                <div style="font-weight: 800; color: #007aff; border-bottom: 2px solid #f2f2f7; margin-bottom: 12px; padding-bottom: 8px; font-size: 1.2rem; display: flex; align-items: center; gap: 10px;">
-                                    ${props.type === 'leave' ? '🏖️' : (props.type === 'work' ? '🏠' : '🚗')} <span>[${props.type_label}]</span>
-                                </div>
-                                <div style="font-weight: 700; color: #000; margin-bottom: 10px; font-size: 1.1rem;">
-                                    ${info.event.title.split(': ').slice(1).join(': ') || info.event.title}
-                                </div>
-                                <div style="display: grid; gap: 8px; color: #333;">
-                                    <div style="display: flex; align-items: center;"><i class="fas fa-clock" style="width: 25px; color: #007aff; font-size: 1.1rem;"></i> <b>Thời gian:</b> &nbsp; ${props.time_display}</div>
-                                    <div style="display: flex; align-items: center;"><i class="fas fa-calendar-alt" style="width: 25px; color: #007aff; font-size: 1.1rem;"></i> <b>Ngày:</b> &nbsp; ${props.date_display}</div>
-                                    <div style="display: flex; align-items: center;"><i class="fas fa-map-marker-alt" style="width: 25px; color: #ff3b30; font-size: 1.1rem;"></i> <b>Địa điểm:</b> &nbsp; ${props.location || 'N/A'}</div>
-                                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ddd;">
-                                        <div style="display: flex; align-items: center; margin-bottom: 5px;"><i class="fas fa-user-tie" style="width: 25px; color: #5856d6; font-size: 1.1rem;"></i> <b>Thực hiện:</b> &nbsp; <span style="color: #007aff; font-weight: 700;">${props.employee_name}</span></div>
-                                        ${sourceHtml}
-                                    </div>
-                                </div>
-                              </div>`,
-                    allowHTML: true, theme: 'light-border', placement: 'top', animation: 'fade', maxWidth: 400, zIndex: 9999, appendTo: document.body
-                });
-            }
-        });
-        calendar.render();
-
-        $('#filterDept, #filterEmployee').on('change', () => calendar.refetchEvents());
-        $('.legend-item').click(function() { $(this).toggleClass('active'); calendar.refetchEvents(); });
-
-        function openModal(mode, data) {
-            wsForm.reset(); $('#wsId').val(''); $('#btnDeleteWs').hide();
-            if (mode === 'create') {
-                $('#modalTitle').text('Tạo lịch trình làm việc');
-                $('#wsStartDate').val(data.start_at.substring(0, 10));
-                $('#wsStartTime').val(data.start_at.substring(11, 16));
-                $('#wsEndDate').val(data.end_at.substring(0, 10));
-                $('#wsEndTime').val(data.end_at.substring(11, 16));
-                $('#wsEmployeeId').val('<?= $current_employee_id ?>').trigger('change');
-            } else {
-                $('#modalTitle').text('Chi tiết lịch trình');
-                $.get('<?= base_url('work-schedules/detail/') ?>' + data, function(res) {
-                    if (res.status === 'success') {
-                        const d = res.data; $('#wsId').val(d.id); $('#wsEmployeeId').val(d.employee_id).trigger('change'); $('#wsAssignedById').val(d.assigned_by_id || '').trigger('change');
-                        $('#wsType').val(d.type); $('#wsTitle').val(d.title); $('#wsLocation').val(d.location);
-                        $('#wsStartDate').val(d.start_at.substring(0, 10)); $('#wsStartTime').val(d.start_at.substring(11, 16));
-                        $('#wsEndDate').val(d.end_at.substring(0, 10)); $('#wsEndTime').val(d.end_at.substring(11, 16));
-                        if (d.can_edit) $('#btnSaveWs').show(); else $('#btnSaveWs').hide();
-                        if (d.can_delete) $('#btnDeleteWs').show(); else $('#btnDeleteWs').hide();
-                    }
-                });
-            }
-            wsModal.style.display = 'flex';
-        }
-
-        $('#btnOpenCreate').click(function() {
-            const now = new Date();
-            const startStr = now.toISOString().substring(0, 10) + 'T08:00';
-            const endStr = now.toISOString().substring(0, 10) + 'T17:00';
-            openModal('create', { start_at: startStr, end_at: endStr });
-        });
-
-        $('#btnCloseModal, #btnCancelModal, .modal-overlay').click(function(e) {
-            if (e.target === this || this.id === 'btnCloseModal' || this.id === 'btnCancelModal') wsModal.style.display = 'none';
-        });
-
-        $('#wsForm').submit(function(e) {
-            e.preventDefault();
-            $('#wsStartAt').val($('#wsStartDate').val() + ' ' + $('#wsStartTime').val());
-            $('#wsEndAt').val($('#wsEndDate').val() + ' ' + $('#wsEndTime').val());
-            const id = $('#wsId').val();
-            const url = id ? '<?= base_url('work-schedules/update/') ?>' + id : '<?= base_url('work-schedules/store') ?>';
-            $.post(url, $(this).serialize(), function(res) {
-                if (res.status === 'success') { wsModal.style.display = 'none'; calendar.refetchEvents(); }
-                else alert(res.message);
-            });
-        });
-
-        $('#btnDeleteWs').click(function() {
-            if (confirm('Xóa lịch trình này?')) {
-                const id = $('#wsId').val();
-                $.post('<?= base_url('work-schedules/delete/') ?>' + id, function(res) {
-                    if (res.status === 'success') { wsModal.style.display = 'none'; calendar.refetchEvents(); }
-                });
-            }
-        });
-    });
-</script>
+<script src="<?= base_url('js/dashboard_home.js') ?>?v=2026062602"></script>
 <?= $this->endSection() ?>

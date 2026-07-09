@@ -108,8 +108,6 @@ class CaseController extends BaseController
         $perPage = 20;
         $cases = $caseService->getCases($sort, $order, $perPage, $search, $lawyerIds, $status, $tagId, $month, $year);
         
-        $employeeModel = new \App\Models\EmployeeModel();
-        
         // PHÂN QUYỀN TRUY XUẤT NHÂN SỰ ĐỂ LỌC:
         // Admin hoặc người có quyền quản lý/xem tất cả: Xem tất cả. Trưởng phòng: Xem nhân viên thuộc phòng mình.
         $roleName = session()->get('role_name');
@@ -264,6 +262,7 @@ class CaseController extends BaseController
 
         $input['assigned_lawyer_id']   = !empty($postData['assigned_lawyer_id']) ? $postData['assigned_lawyer_id'] : $primaryAssignee;
         $input['assigned_staff_id']    = !empty($postData['assigned_staff_id']) ? $postData['assigned_staff_id'] : null;
+        $this->normalizeConsultingKpiInput($input);
 
         $roleName = session()->get('role_name');
         $isHanhChinhOrAdmin = ($roleName === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
@@ -281,6 +280,10 @@ class CaseController extends BaseController
                     if (!empty($cleanAmount)) {
                         $p['amount'] = $cleanAmount;
                         $p['is_paid'] = isset($p['is_paid']) ? 1 : 0;
+                        $p['paid_at'] = $p['is_paid']
+                            ? (!empty($p['paid_at']) ? date('Y-m-d', strtotime($p['paid_at'])) : date('Y-m-d'))
+                            : null;
+                        $p['is_vat'] = isset($p['is_vat']) ? 1 : 0;
                         $paymentsInfo[] = $p;
                     }
                 }
@@ -563,7 +566,7 @@ class CaseController extends BaseController
                 // Bổ sung quyền cho Hành chính Kế toán được phép truy cập Edit Form để cập nhật Tài chính
                 $isHanhChinh = (session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
                 
-                if (!$canEditByRole && !$isHanhChinh) {
+                if (!$canEditByRole && !$isHanhChinh && !has_permission('kpi.consulting')) {
                     return redirect()->back()->with('error', 'Bạn không có quyền chỉnh sửa hồ sơ này.');
                 }
             }
@@ -592,6 +595,7 @@ class CaseController extends BaseController
     public function update($id)
     {
         $roleName = session()->get('role_name');
+        $canOnlyUpdateConsultingKpi = false;
         
         $case = $this->caseModel->find($id);
         if (!$case) return redirect()->to(base_url('cases'));
@@ -609,6 +613,10 @@ class CaseController extends BaseController
 
             if (!$isDirectlyAssigned && !$isCaseAssignee) {
                 $canEditByRole = ($roleName === \Config\AppConstants::ROLE_TRUONG_PHONG && session()->get('department_id') == \Config\AppConstants::DEPT_PHAP_LY);
+                if (!$canEditByRole && has_permission('kpi.consulting')) {
+                    $canOnlyUpdateConsultingKpi = true;
+                    $canEditByRole = true;
+                }
                 if (!$canEditByRole) {
                     return redirect()->back()->with('error', 'Cảnh báo: Bạn không có quyền ghi đè dữ liệu lên hồ sơ này.');
                 }
@@ -616,6 +624,18 @@ class CaseController extends BaseController
         }
 
         $input = $this->request->getPost();
+
+        if ($canOnlyUpdateConsultingKpi) {
+            $input = array_intersect_key($input, array_flip(['consultant_id', 'consultation_closed_at']));
+            $this->normalizeConsultingKpiInput($input);
+
+            if ($this->caseModel->update($id, $input)) {
+                $this->logHistory($id, 'update_consulting_kpi', null, null, 'Cập nhật thông tin KPI tư vấn chốt khách.');
+                return redirect()->to(base_url('cases/show/' . $id))->with('success', 'Đã cập nhật KPI tư vấn cho hồ sơ.');
+            }
+
+            return redirect()->back()->withInput()->with('errors', $this->caseModel->errors());
+        }
         
         // Data Normalization
         // --- BỘ ĐIỀU HƯỚNG: PHÁT HIỆN & XỬ LÝ ĐỔI QUY TRÌNH KHI SỬA HỒ SƠ ---
@@ -658,6 +678,7 @@ class CaseController extends BaseController
         $input['customer_id']          = !empty($input['customer_id']) ? $input['customer_id'] : null;
         $input['assigned_lawyer_id']   = !empty($input['assigned_lawyer_id']) ? $input['assigned_lawyer_id'] : $primaryAssignee;
         $input['assigned_staff_id']    = !empty($input['assigned_staff_id']) ? $input['assigned_staff_id'] : null;
+        $this->normalizeConsultingKpiInput($input);
 
         // BẢO MẬT TÀI CHÍNH: Chỉ Hành chính & Admin được cập nhật giá trị hợp đồng
         $isHanhChinhOrAdmin = ($roleName === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
@@ -676,6 +697,10 @@ class CaseController extends BaseController
                     if (!empty($cleanAmount)) {
                         $p['amount'] = $cleanAmount;
                         $p['is_paid'] = isset($p['is_paid']) ? 1 : 0;
+                        $p['paid_at'] = $p['is_paid']
+                            ? (!empty($p['paid_at']) ? date('Y-m-d', strtotime($p['paid_at'])) : date('Y-m-d'))
+                            : null;
+                        $p['is_vat'] = isset($p['is_vat']) ? 1 : 0;
                         $paymentsInfo[] = $p;
                     }
                 }
@@ -684,21 +709,12 @@ class CaseController extends BaseController
         }
 
         if ($this->caseModel->update($id, $input)) {
-            // --- LOGIC BÀN GIAO KPI (Handover Integration) ---
-            // Đồng bộ 'người được giao' cho các bước chưa hoàn thành để bảo đảm KPI tiềm năng chuyển sang người mới
-            $newAssignedId = $input['assigned_lawyer_id'] ?: $input['assigned_staff_id'];
-            if ($newAssignedId) {
-                $this->stepModel->where('case_id', $id)
-                                ->whereIn('status', ['pending', 'active', 'pending_approval', 'overdue'])
-                                ->set(['assigned_to' => $newAssignedId])
-                                ->update();
-            }
-
             // Đồng bộ nhân sự tham gia
             $caseMemberModel = model('CaseMemberModel');
             $caseMemberModel->syncMembers($id, 'approver', $this->request->getPost('approvers') ?? []);
             $caseMemberModel->syncMembers($id, 'assignee', $this->request->getPost('assignees') ?? []);
             $caseMemberModel->syncMembers($id, 'supporter', $this->request->getPost('supporters') ?? []);
+            $this->syncUnfinishedStepAssignee($id, $assignees, $input);
 
             $this->logHistory($id, 'update_info', null, null, 'Cập nhật thông tin hành chính & phân công nhân sự hồ sơ.');
             return redirect()->to(base_url('cases/show/' . $id))->with('success', 'Hồ sơ đã được cập nhật thành công.');
@@ -1029,6 +1045,7 @@ class CaseController extends BaseController
         $caseMemberModel->syncMembers($id, 'approver', $approvers);
         $caseMemberModel->syncMembers($id, 'assignee', $assignees);
         $caseMemberModel->syncMembers($id, 'supporter', $supporters);
+        $this->syncUnfinishedStepAssignee($id, $assignees);
 
         $this->logHistory($id, 'phan_cong_nhan_su', null, null, 'Cập nhật danh sách đội ngũ tham gia xử lý vụ việc.');
 
@@ -1099,12 +1116,14 @@ class CaseController extends BaseController
     public function completeStep($stepId)
     {
         try {
-            $role = session()->get('role_name');
             $myEmpId = session()->get('employee_id');
             $step = $this->stepModel->find($stepId);
+            if (!$step) {
+                return redirect()->back()->with('error', 'Bước không tồn tại.');
+            }
 
             // Kiểm tra quyền truy cập hồ sơ chứa bước này
-            if (!has_permission('sys.admin') && !has_permission('case.edit_all')) {
+            if (!has_permission('sys.admin') && !has_permission('case.edit_all') && !has_permission('case.approve')) {
                 $case = $this->caseModel->find($step['case_id']);
                 $isAssigned = ($case['assigned_lawyer_id'] == $myEmpId || $case['assigned_staff_id'] == $myEmpId);
                 $isMember = model('CaseMemberModel')->where('case_id', $step['case_id'])->where('employee_id', $myEmpId)->first();
@@ -1112,21 +1131,11 @@ class CaseController extends BaseController
             }
 
             // --- CƠ CHẾ KIỂM SOÁT PHÊ DUYỆT (Gatekeeping) ---
-            // Nếu là tài khoản 'Nhân viên', mọi bước hoàn thành phải được gửi cho 'Người duyệt' thẩm định.
-            if (strpos(strtolower($role), 'nhân viên') !== false || $role == 'Nhân viên chính thức') {
-                $step = $this->stepModel->find($stepId);
-                
-                // Trường hợp đặc biệt: Nhân viên này chính là Approver của vụ việc thì họ có quyền ký duyệt ngay.
-                $isCaseApprover = model('CaseMemberModel')->where([
-                    'case_id' => $step['case_id'],
-                    'employee_id' => session()->get('employee_id'),
-                    'role_in_case' => 'approver'
-                ])->countAllResults() > 0;
-
-                if (!$isCaseApprover) {
-                    $this->workflowService->submitForApproval($stepId, $this->request->getPost());
-                    return redirect()->back()->with('success', 'Yêu cầu phê duyệt hoàn thành bước đã được gửi đến quản lý.');
-                }
+            // Chỉ Admin/Quản lý/người duyệt của vụ việc được hoàn thành trực tiếp.
+            // Các vai trò thường như nhân viên hỗ trợ phải đi qua pending_approval.
+            if (!$this->canApproveCaseStep($step)) {
+                $this->workflowService->submitForApproval($stepId, $this->request->getPost());
+                return redirect()->back()->with('success', 'Yêu cầu phê duyệt hoàn thành bước đã được gửi đến quản lý.');
             }
 
             // XỬ LÝ TRỰC TIẾP (Cho Manager/Admin hoặc Approver):
@@ -1145,6 +1154,19 @@ class CaseController extends BaseController
     public function approveStep($stepId)
     {
         try {
+            $step = $this->stepModel->find($stepId);
+            if (!$step) {
+                return redirect()->back()->with('error', 'Bước không tồn tại.');
+            }
+
+            if (!$this->canApproveCaseStep($step)) {
+                return redirect()->back()->with('error', 'Bạn không có quyền phê duyệt bước này.');
+            }
+
+            if ($step['status'] !== 'pending_approval') {
+                return redirect()->back()->with('error', 'Bước này chưa ở trạng thái chờ phê duyệt.');
+            }
+
             $this->workflowService->approveStep($stepId);
             $this->triggerNextStep($stepId); // Kích hoạt bước tiếp theo sau khi duyệt
             return redirect()->back()->with('success', 'Bạn đã phê duyệt và đẩy tiến độ hồ sơ sang bước tiếp theo.');
@@ -1191,12 +1213,75 @@ class CaseController extends BaseController
     public function rejectStep($stepId)
     {
         try {
+            $step = $this->stepModel->find($stepId);
+            if (!$step) {
+                return redirect()->back()->with('error', 'Bước không tồn tại.');
+            }
+
+            if (!$this->canApproveCaseStep($step)) {
+                return redirect()->back()->with('error', 'Bạn không có quyền. Từ chối duyệt bước này.');
+            }
+
+            if ($step['status'] !== 'pending_approval') {
+                return redirect()->back()->with('error', 'Bước này chưa ở trạng thái chờ phê duyệt.');
+            }
+
             $reason = $this->request->getPost('reason') ?? 'Dữ liệu/Tài liệu chưa đáp ứng đúng yêu cầu pháp lý.';
             $this->workflowService->rejectStep($stepId, $reason);
             return redirect()->back()->with('success', 'Yêu cầu hoàn thành bước đã bị từ chối và trả về cho nhân viên xử lý.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', $e->getMessage());
         }
+    }
+
+    /**
+     * Quan ly ghi nhan KPI cho step da hoan thanh sau han khi ly do giai trinh hop ly.
+     */
+    public function approveStepKpi($stepId)
+    {
+        try {
+            $step = $this->stepModel->find($stepId);
+            if (!$step) {
+                return redirect()->back()->with('error', 'Bước không tồn tại.');
+            }
+
+            if (!$this->canApproveCaseStep($step)) {
+                return redirect()->back()->with('error', 'Bạn không có quyền ghi nhận KPI cho bước này.');
+            }
+
+            $reason = trim((string)($this->request->getPost('reason') ?? 'Quản lý chấp thuận lý do giải trình hợp lệ.'));
+            $step = $this->workflowService->approveStepKpiOverride($stepId, $reason, session()->get('employee_id'));
+
+            $this->logHistory(
+                $step['case_id'],
+                'approve_step_kpi',
+                null,
+                $step['step_name'],
+                'Ghi nhận KPI ngoại lệ cho bước đã hoàn thành. Lý do: ' . $reason
+            );
+
+            return redirect()->back()->with('success', 'Đã ghi nhận KPI cho bước hoàn thành này.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+    }
+
+    private function canApproveCaseStep(array $step): bool
+    {
+        if (has_permission('sys.admin') || has_permission('case.edit_all') || has_permission('case.approve')) {
+            return true;
+        }
+
+        $employeeId = (int)(session()->get('employee_id') ?? 0);
+        if ($employeeId <= 0 || empty($step['case_id'])) {
+            return false;
+        }
+
+        return model('CaseMemberModel')->where([
+            'case_id' => $step['case_id'],
+            'employee_id' => $employeeId,
+            'role_in_case' => 'approver'
+        ])->countAllResults() > 0;
     }
 
     /**
@@ -1354,6 +1439,64 @@ class CaseController extends BaseController
             'note'       => $note,      // Lý do hoặc ghi chú chi tiết
             'created_at' => date('Y-m-d H:i:s')
         ]);
+    }
+
+    private function syncUnfinishedStepAssignee(int $caseId, array $assignees = [], array $caseInput = []): void
+    {
+        $assignees = array_values(array_filter(array_map('intval', $assignees)));
+        $assignedTo = $assignees[0] ?? null;
+
+        if (!$assignedTo) {
+            $assignedTo = !empty($caseInput['assigned_lawyer_id'])
+                ? (int)$caseInput['assigned_lawyer_id']
+                : (!empty($caseInput['assigned_staff_id']) ? (int)$caseInput['assigned_staff_id'] : null);
+        }
+
+        if (!$assignedTo) {
+            $case = $this->caseModel->find($caseId);
+            if ($case) {
+                $assignedTo = !empty($case['assigned_lawyer_id'])
+                    ? (int)$case['assigned_lawyer_id']
+                    : (!empty($case['assigned_staff_id']) ? (int)$case['assigned_staff_id'] : null);
+            }
+        }
+
+        if (!$assignedTo) {
+            return;
+        }
+
+        $this->stepModel->where('case_id', $caseId)
+            ->whereIn('status', ['pending', 'active', 'overdue'])
+            ->set(['assigned_to' => $assignedTo])
+            ->update();
+    }
+
+    private function normalizeConsultingKpiInput(array &$input): void
+    {
+        $canManageConsultingKpi = has_permission('sys.admin') || has_permission('kpi.consulting');
+
+        if (!$canManageConsultingKpi) {
+            unset($input['consultant_id'], $input['consultation_closed_at']);
+            return;
+        }
+
+        $input['consultant_id'] = !empty($input['consultant_id']) ? (int)$input['consultant_id'] : null;
+
+        if (!$input['consultant_id']) {
+            $input['consultation_closed_at'] = null;
+            return;
+        }
+
+        if (!empty($input['consultation_closed_at'])) {
+            $closedAt = str_replace('T', ' ', $input['consultation_closed_at']);
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $closedAt)) {
+                $input['consultation_closed_at'] = $closedAt . ' 00:00:00';
+            } else {
+                $input['consultation_closed_at'] = strlen($closedAt) === 16 ? $closedAt . ':00' : $closedAt;
+            }
+        } else {
+            $input['consultation_closed_at'] = date('Y-m-d') . ' 00:00:00';
+        }
     }
 
     /**

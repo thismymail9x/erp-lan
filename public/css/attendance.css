@@ -75,6 +75,10 @@
     display: none;
 }
 
+.capture-video.is-active {
+    display: block;
+}
+
 .capture-placeholder {
     color: var(--apple-text-muted);
     text-align: center;
@@ -90,6 +94,10 @@
 .capture-result-preview {
     display: none;
     width: 100%;
+}
+
+.capture-result-preview.is-active {
+    display: block;
 }
 
 .capture-img {
@@ -228,6 +236,39 @@
 .att-badge-late { background: #fff7ed; color: #c2410c; }
 .att-badge-invalid { background: #fef2f2; color: #991b1b; border: 1px dashed #fca5a5; }
 .att-badge-neutral { background: #f1f1f1; color: #666; }
+.att-badge-leave {
+    background: linear-gradient(135deg, #5856d6, #7b79f7);
+    color: #fff !important;
+    border-radius: 8px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+.att-badge-leave-half {
+    background: linear-gradient(135deg, #007aff, #5ac8fa);
+    color: #fff !important;
+    border-radius: 8px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+.inline-status-wrapper {
+    position: relative;
+    display: inline-block;
+}
+.inline-status-badge {
+    transition: opacity 0.15s ease;
+}
+.inline-status-badge:hover {
+    opacity: 0.85;
+}
+.status-inline-dropdown .status-drop-item:hover {
+    background: #f0f5ff !important;
+}
 
 .att-thumb {
     width: 32px;
@@ -277,6 +318,81 @@
         gap: 20px;
         padding: 24px;
     }
+
+    .attendance-page-container {
+        width: 100%;
+        max-width: 100%;
+        padding: 0 10px;
+        box-sizing: border-box;
+    }
+
+    .attendance-main-card {
+        padding: 14px;
+        border-radius: 18px;
+    }
+
+    .clock-display-time {
+        font-size: 42px;
+    }
+
+    .clock-display-date {
+        font-size: 14px;
+    }
+
+    .status-indicator-banner {
+        font-size: 14px;
+        line-height: 1.45;
+    }
+
+    .capture-viewport {
+        min-height: 240px;
+        border-radius: 16px;
+    }
+
+    .capture-video,
+    .capture-img {
+        width: 100%;
+        max-height: 55vh;
+        object-fit: contain;
+    }
+
+    .attendance-note-form textarea {
+        min-height: 88px;
+        padding: 12px 14px;
+    }
+
+    .btn-step-group {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .btn-step-group .btn,
+    .lan-status-box .btn {
+        width: 100%;
+        justify-content: center;
+        min-height: 44px;
+        white-space: normal;
+    }
+
+    .lan-status-box {
+        padding: 16px;
+    }
+
+    .lan-box-icon {
+        font-size: 36px;
+        margin-bottom: 12px;
+    }
+
+    .lan-box-title {
+        font-size: 17px;
+        line-height: 1.35;
+    }
+
+    .lan-box-desc {
+        font-size: 14px;
+    }
 }
 
 /* Note column in Admin Table */
@@ -305,4 +421,75 @@
     font-size: 9px;
     margin-right: 4px;
     opacity: 0.8;
+}
+
+.is-hidden {
+    display: none !important;
+}
+
+.attendance-admin-banner {
+    background: rgba(0, 122, 255, 0.05);
+    color: var(--apple-blue);
+    border: 1px solid rgba(0, 122, 255, 0.1);
+}
+
+.att-office-status {
+    margin-bottom: 20px;
+}
+
+.att-office-authorized {
+    background: rgba(52, 199, 89, 0.1);
+    border: 1px solid #34c759;
+}
+
+.att-office-authorized .lan-box-icon {
+    color: #34c759;
+}
+
+.att-office-authorized .lan-box-title {
+    color: #1a7f37;
+}
+
+.att-error-icon {
+    color: #e11d48;
+}
+
+.att-error-title {
+    color: #9f1239;
+}
+
+.att-error-desc {
+    color: #be123c;
+}
+
+.attendance-note-form-spaced {
+    margin: 20px 0;
+}
+
+.attendance-admin-auth {
+    margin-top: 30px;
+    border-top: 1px dashed #ccc;
+    padding-top: 20px;
+    text-align: center;
+}
+
+.attendance-auth-success {
+    color: #34c759;
+    margin-top: 10px;
+    font-size: 0.85rem;
+}
+
+.attendance-history-link-row {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.attendance-history-link {
+    color: var(--apple-blue);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.btn-checkout-state {
+    color: var(--apple-red) !important;
 }

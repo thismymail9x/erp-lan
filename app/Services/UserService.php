@@ -46,7 +46,7 @@ class UserService extends BaseService
      * @param string $search Từ khóa tìm kiếm (Email hặc Tên).
      * @return array Danh sách kết quả đã được lọc và phân trang.
      */
-    public function getUsers(string $sort = 'id', string $order = 'desc', int $perPage = 20, string $search = '')
+    public function getUsers(string $sort = 'id', string $order = 'desc', int $perPage = 20, string $search = '', string $status = 'active')
     {
         // 1. Xác định danh tính và bộ phận của người đang thao tác
         $roleName = session()->get('role_name');
@@ -63,14 +63,28 @@ class UserService extends BaseService
         $orderField = $sortMap[$sort] ?? 'users.id';
         $direction  = (strtolower($order) === 'asc') ? 'asc' : 'desc';
 
+        if ($status === 'archived') {
+            $this->userModel->withDeleted();
+        }
+
         $query = $this->userModel->select('users.*, roles.name as role_title, employees.full_name, employees.id as emp_id, employees.department_id, departments.name as department_name')
                         ->join('roles', 'roles.id = users.role_id', 'left')
-                        ->join('employees', 'employees.user_id = users.id', 'left')
+                        ->join('employees', 'employees.user_id = users.id AND employees.deleted_at IS NULL', 'left')
                         ->join('departments', 'departments.id = employees.department_id', 'left')
                         ->groupStart()
                             ->where('employees.deleted_at', null)
                             ->orWhere('employees.id', null) // Giữ lại những tài khoản Admin chưa liên kết hồ sơ nhân sự
                         ->groupEnd();
+
+        if ($status === 'archived') {
+            $query->groupStart()
+                    ->where('users.active_status', 0)
+                    ->orWhere('users.deleted_at IS NOT NULL', null, false)
+                  ->groupEnd();
+        } else {
+            $query->where('users.active_status', 1)
+                  ->where('users.deleted_at', null);
+        }
 
         // 4. Áp dụng bộ lọc tìm kiếm (Like Query trên nhiều cột)
         if (!empty($search)) {
@@ -86,7 +100,7 @@ class UserService extends BaseService
         $query->orderBy($orderField, $direction);
 
         // 6. LOGIC PHÂN TÁCH DỮ LIỆU (DATA ISOLATION):
-        if (has_permission('sys.admin') || $roleName == \Config\AppConstants::ROLE_ADMIN || $roleName == \Config\AppConstants::ROLE_MOD) {
+        if (has_permission('sys.admin') || has_permission('user.view') || has_permission('user.manage') || $roleName == \Config\AppConstants::ROLE_ADMIN || $roleName == \Config\AppConstants::ROLE_MOD) {
             // Cấp lãnh đạo/Quản trị: Xem được mọi tài khoản trong hệ thống
             return $query->paginate($perPage);
         } elseif ($roleName == \Config\AppConstants::ROLE_TRUONG_PHONG) {
@@ -322,15 +336,23 @@ class UserService extends BaseService
     public function getStats()
     {
         // Lấy danh sách số lượng người dùng theo từng vai trò
-        $roleBreakdown = $this->userModel->select('roles.name as role_name, COUNT(users.id) as count')
-                                         ->join('roles', 'roles.id = users.role_id', 'left')
-                                         ->groupBy('users.role_id')
-                                         ->findAll();
+        $roleBreakdown = (new UserModel())->select('roles.name as role_name, COUNT(users.id) as count')
+                                          ->join('roles', 'roles.id = users.role_id', 'left')
+                                          ->where('users.active_status', 1)
+                                          ->groupBy('users.role_id')
+                                          ->findAll();
 
         return [
-            'total'          => $this->userModel->countAllResults(),
-            'active'         => $this->userModel->where('active_status', 1)->countAllResults(),
-            'inactive'       => $this->userModel->where('active_status', 0)->countAllResults(),
+            'total'          => (new UserModel())->withDeleted()->countAllResults(),
+            'active'         => (new UserModel())->where('active_status', 1)->countAllResults(),
+            'inactive'       => (new UserModel())->where('active_status', 0)->countAllResults(),
+            'deleted'        => (new UserModel())->onlyDeleted()->countAllResults(),
+            'archived'       => (new UserModel())->withDeleted()
+                ->groupStart()
+                    ->where('active_status', 0)
+                    ->orWhere('deleted_at IS NOT NULL', null, false)
+                ->groupEnd()
+                ->countAllResults(),
             'role_breakdown' => $roleBreakdown
         ];
     }

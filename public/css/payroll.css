@@ -1,0 +1,213 @@
+/* ==========================================================================
+   Payroll Module Styles
+   ========================================================================== */
+
+.payroll-table-wide {
+    min-width: 1400px;
+}
+
+.col-name {
+    min-width: 180px !important;
+}
+
+.col-net-salary {
+    min-width: 140px !important;
+}
+
+.col-allowance-diligence,
+.col-allowance-petrol,
+.col-salary-kpi,
+.col-salary-other {
+    min-width: 95px !important;
+    width: 95px !important;
+}
+
+.col-pit-tax {
+    min-width: 100px !important;
+    width: 100px !important;
+}
+
+.payroll-container .table-responsive {
+    overflow-x: auto;
+    border-radius: 12px;
+}
+
+.payroll-container .premium-table thead th {
+    background-color: #f5f5f7;
+    color: #1d1d1f;
+    font-weight: 600;
+    text-align: center;
+    vertical-align: middle;
+    border: 1px solid #d2d2d7;
+}
+
+.payroll-container .premium-table tbody td {
+    vertical-align: middle;
+    border: 1px solid #f5f5f7;
+}
+
+.text-red {
+    color: #ff3b30 !important;
+}
+
+.text-green {
+    color: #34c759 !important;
+}
+
+.form-control-minimal {
+    border: 1px solid #d2d2d7;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 13px;
+    outline: none;
+    background-color: #fff;
+}
+
+.form-control-minimal:focus {
+    border-color: var(--apple-blue);
+    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.1);
+}
+
+.probation-badge,
+.pv-probation-badge {
+    display: inline-block;
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffc107;
+    border-radius: 10px;
+    font-weight: 600;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.probation-badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    line-height: 1.4;
+}
+
+.pv-probation-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    margin-left: 6px;
+}
+
+.adjust-days-sup {
+    color: #34c759;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+input[data-field="manual_adjust_days"] {
+    width: 52px;
+    text-align: center;
+}
+
+.payroll-details .row {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.payroll-details .col-6 {
+    width: 50%;
+}
+
+.border-bottom {
+    border-bottom: 1px solid #f2f2f7;
+}
+
+.p-b-10 {
+    padding-bottom: 10px;
+}
+
+.italic {
+    font-style: italic;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+    background: #fbfbfd;
+    padding: 15px;
+    border-radius: 12px;
+    border: 1px solid #d2d2d7;
+}
+
+.calendar-header-day {
+    text-align: center;
+    font-weight: 700;
+    font-size: 13px;
+    padding-bottom: 10px;
+    color: #86868b;
+}
+
+.calendar-day-cell {
+    min-height: 95px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #d2d2d7;
+    display: flex;
+    flex-direction: column;
+    padding: 5px;
+    transition: all 0.2s;
+}
+
+.calendar-day-cell:hover {
+    border-color: var(--apple-blue);
+    background: rgba(0, 113, 227, 0.05);
+}
+
+.day-top {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 5px;
+}
+
+.day-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+}
+
+.day-label input {
+    width: 16px;
+    height: 16px;
+}
+
+.day-label span {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.day-note {
+    margin-top: auto;
+}
+
+.day-note input {
+    width: 100%;
+    border: 1px solid #d2d2d7;
+    background: #fbfbfd;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 11px;
+    color: #1d1d1f;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.day-note input:focus {
+    background: #fff;
+    border-color: var(--apple-blue);
+    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.1);
+}
+
+.day-sun {
+    background: #fff5f5;
+    border-color: #ffc9c9;
+}
+
+.day-sun span {
+    color: var(--apple-red);
+}

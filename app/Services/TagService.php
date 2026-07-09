@@ -31,7 +31,8 @@ class TagService extends BaseService
         $isAdmin = has_permission('sys.admin');
         $ownerId = $ownerId ?? session()->get('employee_id');
 
-        $query = $this->tagModel->select('tags.*');
+        $query = $this->tagModel->select('tags.*, employees.full_name as owner_name')
+                                ->join('employees', 'employees.id = tags.owner_id', 'left');
         
         // Tối ưu: Đếm số lượng (Sửa lỗi cột id và lọc theo module để số lượng chính xác với bối cảnh)
         $countFilter = ($module !== 'all') ? " AND entity_type = '{$module}'" : "";
@@ -39,19 +40,25 @@ class TagService extends BaseService
 
         if (!$isAdmin || ($ownerId !== null && $ownerId !== -1)) {
             $query->groupStart()
-                ->where('type', 'global')
-                ->orWhere('owner_id', $ownerId)
+                ->where('tags.type', 'global')
+                ->orWhere('tags.owner_id', $ownerId)
             ->groupEnd();
         }
 
         if ($module !== 'all') {
             $query->groupStart()
-                ->where('module_scope', 'all')
-                ->orWhere('module_scope', $module)
+                ->where('tags.module_scope', 'all')
+                ->orWhere('tags.module_scope', $module)
             ->groupEnd();
         }
 
-        return $query->orderBy('name', 'ASC')->findAll();
+        $tags = $query->orderBy('tags.name', 'ASC')->findAll();
+        
+        foreach ($tags as &$tag) {
+            $tag['original_name'] = $tag['name'];
+        }
+        
+        return $tags;
     }
 
     /**
@@ -68,16 +75,28 @@ class TagService extends BaseService
     public function getTagsByEntity(int $entityId, string $entityType, int $currentUserId = null)
     {
         $currentUserId = $currentUserId ?? session()->get('employee_id');
+        $isAdmin = has_permission('sys.admin');
 
-        return $this->tagModel->select('tags.*')
+        $query = $this->tagModel->select('tags.*, employees.full_name as owner_name')
             ->join('entity_tags', 'entity_tags.tag_id = tags.id')
+            ->join('employees', 'employees.id = tags.owner_id', 'left')
             ->where('entity_tags.entity_id', $entityId)
-            ->where('entity_tags.entity_type', $entityType)
-            ->groupStart()
+            ->where('entity_tags.entity_type', $entityType);
+            
+        if (!$isAdmin) {
+            $query->groupStart()
                 ->where('tags.type', 'global')
                 ->orWhere('tags.owner_id', $currentUserId)
-            ->groupEnd()
-            ->findAll();
+            ->groupEnd();
+        }
+
+        $tags = $query->findAll();
+        
+        foreach ($tags as &$tag) {
+            $tag['original_name'] = $tag['name'];
+        }
+        
+        return $tags;
     }
 
     /**
@@ -191,7 +210,8 @@ class TagService extends BaseService
         $resolvedTagIds = array_unique($resolvedTagIds);
 
         // 2. Xác định các nhãn nhân viên này có quyền quản lý để đồng bộ (Global + Cá nhân)
-        $availableTags = $this->getAvailableTags('all', $currentEmpId);
+        $adminBypass = has_permission('sys.admin') ? -1 : $currentEmpId;
+        $availableTags = $this->getAvailableTags('all', $adminBypass);
         $availableTagIds = array_column($availableTags, 'id');
 
         // 3. Thực thi truy vấn đồng bộ hóa

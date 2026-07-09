@@ -6,9 +6,14 @@
         <h2 class="content-title header-title-clean">Cập nhật tài khoản</h2>
         <p class="content-subtitle header-subtitle-clean">Điều chỉnh thông tin và quyền hạn cho <strong><?= esc($user['email']) ?></strong></p>
     </div>
-    <a href="<?= base_url('users') ?>" class="btn-secondary-sm">
-        <i class="fas fa-chevron-left"></i> Quay lại
-    </a>
+    <div style="display: flex; gap: 10px;">
+        <a href="<?= base_url('users/permissions/matrix/' . $user['id']) ?>" class="btn-premium-sm" style="background: #0ea5e9;">
+            <i class="fas fa-user-shield"></i> Thiết lập quyền chi tiết
+        </a>
+        <a href="<?= base_url('users') ?>" class="btn-secondary-sm">
+            <i class="fas fa-chevron-left"></i> Quay lại
+        </a>
+    </div>
 </div>
 
 <div class="premium-card premium-card-centered-700">

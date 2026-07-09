@@ -1,4 +1,4 @@
-﻿# TÀI LIỆU PHÁT TRIỂN CHI TIẾT (TECHNICAL DEVELOPER GUIDE)
+# TÀI LIỆU PHÁT TRIỂN CHI TIẾT (TECHNICAL DEVELOPER GUIDE)
 
 Tài liệu này hướng dẫn cách hệ thống vận hành và các bước cụ thể để mở rộng tính năng mới cho cả **Người quản lý dữ liệu** và **Lập trình viên**.
 
@@ -179,23 +179,23 @@ Module Vụ việc được nâng cấp để giải quyết bài toán luân ch
 
 *Cập nhật lần cuối: 21/04/2026 - Bổ sung Quy tắc Số 13: Cơ chế Bàn giao & KPI chi tiết.*
 
-## T�nh nang Ngh? ph�p N?a ng�y (Half-day Leave)
-- **M� t?**: Cho ph�p nh�n vi�n t?o don ngh? ph�p v?i kho?ng th?i gian ch? m?t n?a ng�y (S�ng/Chi?u).
-- **�?i tu?ng**: T?t c? nh�n s? c� quy?n leave.manage.
-- **Quy tr�nh**: C?p nh?t Database (leave_duration trong b?ng leave_requests), thay d?i UI t? kh�a Ng�y k?t th�c tr�ng v?i Ng�y b?t d?u, v� Service t? d?ng n?i suy t?ng s? ng�y l�  .5.
+## Tính năng Nghỉ phép Nửa ngày (Half-day Leave)
+- **Mô tả**: Cho phép nhân viên tạo đơn nghỉ phép với khoảng thời gian chỉ một nửa ngày (Sáng/Chiều).
+- **Đối tượng**: Tất cả nhân sự có quyền leave.manage.
+- **Quy trình**: Cập nhật Database (leave_duration trong bảng leave_requests), thay đổi UI tự khóa Ngày kết thúc trùng với Ngày bắt đầu, và Service tự động nội suy tổng số ngày là 0.5.
 
 ---
 
-## 12. Ph�n h? Truy?n th�ng MKT (MKT Hub)
-- **M?c d�ch:** X�y d?ng quy tr�nh kh�p k�n gi?a nh�n vi�n hi?n tru?ng (thu th?p tu li?u, ?nh th?c t?) v� b? ph?n MKT (Ki?m duy?t, t?i uu SEO, dang b�i MXH). Gi�p c�ng ty lu�n c� ngu?n content d?i d�o, ch�n th?c.
-- **Quy?n h?n:**
-  - Nh�n vi�n c� quy?n mkt.hub ho?c m?c d?nh du?c c?p quy?n g?i tu li?u.
-  - B? ph?n MKT ho?c Qu?n l� du?c c?p quy?n mkt.manage c� th? xem to�n b? tu li?u, duy?t ?nh, v� th?c hi?n x�a d?n d?p h? th?ng.
-- **T�nh nang tr?ng t�m:**
-  - **Auto-Nullify & Soft Delete:** �p d?ng cho b?ng mkt_materials (Tu li?u) d? qu?n l� l?ch s? an to�n.
-  - **SEO Naming:** T? d?ng b?t t�n g?c c?a file ho?c nh�n vi�n t? g�n t�n chu?n SEO (vd: 	u-van-ly-hon.jpg) ngay t? l�c upload, ph?c v? d?y m?nh t?i uu SEO Facebook/Google.
-  - **Clear Data:** Co ch? c?ng x�a c�c b?n nh�p r�c/t? ch?i d? ch?ng d?y b? nh? ? c?ng.
-  - **Data Isolation:** Nh�n vi�n ch? xem du?c ?nh m�nh t? up, MKT xem du?c ?nh c?a to�n b? nh�n vi�n.
+## 12. Phân hệ Truyền thông MKT (MKT Hub)
+- **Mục đích:** Xây dựng quy trình khép kín giữa nhân viên hiện trường (thu thập tư liệu, ảnh thực tế) và bộ phận MKT (Kiểm duyệt, tối ưu SEO, đăng bài MXH). Giúp công ty luôn có nguồn content dồi dào, chân thực.
+- **Quyền hạn:**
+  - Nhân viên có quyền mkt.hub hoặc mặc định được cấp quyền gửi tư liệu.
+  - Bộ phận MKT hoặc Quản lý được cấp quyền mkt.manage có thể xem toàn bộ tư liệu, duyệt ảnh, và thực hiện xóa dọn dẹp hệ thống.
+- **Tính năng trọng tâm:**
+  - **Auto-Nullify & Soft Delete:** Áp dụng cho bảng mkt_materials (Tư liệu) để quản lý lịch sử an toàn.
+  - **SEO Naming:** Tự động bắt tên gốc của file hoặc nhân viên tự gán tên chuẩn SEO (vd: tu-van-ly-hon.jpg) ngay từ lúc upload, phục vụ đẩy mạnh tối ưu SEO Facebook/Google.
+  - **Clear Data:** Cơ chế cứng xóa các bản nháp rác/từ chối để chống đầy bộ nhớ ổ cứng.
+  - **Data Isolation:** Nhân viên chỉ xem được ảnh mình tự up, MKT xem được ảnh của toàn bộ nhân viên.
 
 ---
 
@@ -222,27 +222,324 @@ Bảo vệ các dữ liệu nhạy cảm (Lương, Ngân hàng, CCCD) khỏi vi�
 
 ---
 
+## 10. Module Lịch làm việc & Công tác (Work Schedule)
+Module này được thiết kế để nhân sự toàn công ty có thể thông báo và theo dõi lịch trình của nhau, tăng tính phối hợp và minh bạch.
+
+### **10.1. Đặc điểm nổi bật:**
+- **Giao diện Lịch (Calendar View)**: Sử dụng FullCalendar 6 với phong cách Apple-Minimal, hỗ trợ xem chi tiết nhanh qua Tooltip (Tippy.js).
+- **Phân loại màu sắc**: Công việc tại văn phòng (Màu xanh - #3498db) và Lịch công tác (Màu đỏ - #e74c3c).
+- **Thông báo tự động**: Khi một lịch trình mới được tạo, hệ thống sẽ tự động gửi thông báo đến toàn thể nhân viên thông qua NotificationService.
+
+### **10.2. Quy tắc Phân quyền (RBAC):**
+- **Xem lịch trình (work_schedule.view)**: Toàn bộ nhân viên chính thức đều có quyền xem lịch trình của đồng nghiệp để phối hợp công việc.
+- **Quản lý lịch trình (work_schedule.manage)**: 
+    - Nhân viên được quyền tạo/sửa/xóa lịch trình của chính mình.
+    - Admin và Trưởng phòng có quyền quản lý lịch trình của cấp dưới.
+    - Hệ thống thực hiện kiểm tra quyền sở hữu nghiêm ngặt tại Service layer (Rule #7).
+
+### **10.3. Tích hợp Hệ thống (Compliance Rule #10):**
+- **Master Sync**: Controller WorkScheduleController khai báo modulePermissions để tự động đăng ký vào hệ thống phân quyền khi chạy /perm-fix/sync.
+- **Audit Logs**: Mọi thao tác thêm/sửa/xóa đều được ghi lại trong system_logs thông qua SystemLogService.
 ---
 
-## 10. Module L?ch l�m vi?c & C�ng t�c (Work Schedule)
-Module n�y du?c thi?t k? d? nh�n s? to�n c�ng ty c� th? th�ng b�o v� theo d�i l?ch tr�nh c?a nhau, tang t�nh ph?i h?p v� minh b?ch.
+## 11. Module Tích hợp Zalo OA (Zalo OA Integration)
+Module Zalo OA giúp quản trị tập trung và khai thác hệ sinh thái Zalo để chăm sóc khách hàng, tiếp thị lại, và đánh giá chất lượng nhân sự tư vấn. Đây là giải pháp chống mất khách hàng "Nhân sự cầm khách đi" hiệu quả nhất.
 
-### **10.1. �?c di?m n?i b?t:**
-- **Giao di?n L?ch (Calendar View)**: S? d?ng FullCalendar 6 v?i phong c�ch Apple-Minimal, h? tr? xem chi ti?t nhanh qua Tooltip (Tippy.js).
-- **Ph�n lo?i m�u s?c**: C�ng vi?c t?i van ph�ng (M�u xanh - #3498db) v� L?ch c�ng t�c (M�u d? - #e74c3c).
-- **Th�ng b�o t? d?ng**: Khi m?t l?ch tr�nh m?i du?c t?o, h? th?ng s? t? d?ng g?i th�ng b�o d?n to�n th? nh�n vi�n th�ng qua `NotificationService`.
+### **11.1. Các tính năng cốt lõi (5 Core Features):**
+1. **Quản lý tập trung & Chống mất khách:** Đồng bộ toàn bộ hội thoại từ Zalo OA về ERP thông qua Webhook. Lưu trữ lịch sử vĩnh viễn trong bảng `zalo_messages`.
+2. **Tự động hóa quy trình (Automation):** Hệ thống cấp mã MID ngay khi có tin nhắn đầu tiên. Gắn Tag phân loại dựa trên nội dung chat (vd: `#DatDai`, `#HinhSu`).
+3. **Tiếp thị lại (Remarketing & ZNS):** Cho phép tạo chiến dịch gửi tin nhắn hàng loạt (Zalo Notification Service) dựa trên tệp thẻ (Tags).
+4. **Quản lý hiệu suất tư vấn:** Theo dõi thống kê thời gian phản hồi (Response Time) và đánh giá sao (5-Star Survey) của nhân viên.
+5. **Cá nhân hóa trải nghiệm:** Tự động Pop-up thông tin hồ sơ CRM khi khách hàng cũ tương tác thông qua `insight-panel`.
 
-### **10.2. Quy t?c Ph�n quy?n (RBAC):**
-- **Xem l?ch tr�nh (`work_schedule.view`)**: To�n b? nh�n vi�n ch�nh th?c d?u c� quy?n xem l?ch tr�nh c?a d?ng nghi?p d? ph?i h?p c�ng vi?c.
-- **Qu?n l� l?ch tr�nh (`work_schedule.manage`)**: 
-    - Nh�n vi�n du?c quy?n t?o/s?a/x�a l?ch tr�nh c?a ch�nh m�nh.
-    - Admin v� Tru?ng ph�ng c� quy?n qu?n l� l?ch tr�nh c?a c?p du?i.
-    - H? th?ng th?c hi?n ki?m tra quy?n s? h?u nghi�m ng?t t?i Service layer (Rule #7).
+### **11.2. Cấu trúc Database (Zalo Scheme):**
+- `zalo_followers`: Bảng lưu trữ thông tin và mã định danh (MID) của khách hàng.
+- `zalo_messages`: Lưu lịch sử tin nhắn vĩnh viễn (Kể cả khi nhân sự xóa tin).
+- `zalo_campaigns`: Quản trị chiến dịch gửi ZNS (Remarketing).
+- `zalo_surveys`: Thống kê kết quả đánh giá chất lượng tư vấn sau mỗi phiên chat.
 
-### **10.3. T�ch h?p H? th?ng (Compliance Rule #10):**
-- **Master Sync**: Controller `WorkScheduleController` khai b�o `` d? t? d?ng dang k� v�o h? th?ng ph�n quy?n khi ch?y `/perm-fix/sync`.
-- **Audit Logs**: M?i thao t�c th�m/s?a/x�a d?u du?c ghi l?i trong `system_logs` th�ng qua `SystemLogService`.
+### **11.3. Phân quyền (RBAC):**
+- **zalo.view:** Được phép xem Dashboard Zalo và Hội thoại.
+- **zalo.chat:** Được phép trả lời tin nhắn trực tiếp từ ERP.
+- **zalo.campaign:** Quyền cho bộ phận Marketing để setup chiến dịch Remarketing.
+- **zalo.config:** Dành riêng cho Admin/Giám đốc để cấu hình API Key và Webhook.
+(Tất cả được khai báo tự động qua `$modulePermissions` trong `ZaloController` và đồng bộ qua `/perm-fix/sync`).
 
 ---
 
+## 12. Module Phân bổ Nhân sự Chăm sóc & Tư vấn Khách hàng (Care Staff Assignment) - Cập nhật 19/05/2026
 
+### **12.1. Mục tiêu & Nghiệp vụ:**
+Độc lập vai trò chăm sóc/tư vấn khách hàng với nhân viên tạo hồ sơ (`created_by`) và nhân viên thụ lý vụ việc (`assigned_lawyer_id` / `assigned_staff_id`). Giúp doanh nghiệp quản trị rõ ràng quy trình CRM: một người tạo, một người chăm sóc định kỳ, và các luật sư chuyên môn thụ lý hồ sơ.
+
+### **12.2. Thành phần kỹ thuật:**
+- **Cột Database bổ sung:** `customers.assigned_care_staff_id` liên kết khóa ngoại tới `employees.id` (ON DELETE SET NULL).
+- **Phân lập Dữ liệu & Phân quyền (Data Isolation):**
+  - Cấp quản lý/Trưởng phòng có quyền xem và quản lý tất cả khách hàng do thành viên trong phòng ban của mình tạo hoặc phụ trách chăm sóc.
+  - Nhân viên thông thường (`ROLE_NHAN_VIEN`) có quyền truy cập (xem hồ sơ 360 độ và chỉnh sửa) những khách hàng mà họ là người tạo trực tiếp (`created_by`) HOẶC là nhân sự chăm sóc tư vấn được chỉ định (`assigned_care_staff_id`).
+- **Giao diện & UI/UX:**
+  - Tích hợp ô chọn "Nhân sự phụ trách chăm sóc tư vấn" tại Step 3 (CRM & Phân loại) của Wizard tạo mới khách hàng (`create.php`) và form chỉnh sửa (`edit.php`).
+  - Hiển thị trực quan thông tin Nhân sự chăm sóc bằng Badge màu Apple-Blue tại trang chi tiết hồ sơ (`show.php`) và hiển thị dưới dạng icon `fa-user-shield` nhỏ gọn tại bảng danh sách khách hàng (`index_table.php`).
+- **Kiến trúc MVC:**
+  - Logic phân lập dữ liệu truy xuất và thống kê danh sách được phân tách rõ ràng trong `CustomerService` và `CustomerController`, đảm bảo tuân thủ nghiêm ngặt nguyên tắc MVC (Controller không chứa query logic trực tiếp).
+
+### **12.3. Cải tiến Inline AJAX Edit & Bộ lọc thời gian (Nâng cấp ngày 19/05/2026):**
+- **Cập nhật Nhân sự trực tiếp (AJAX Inline Editing):**
+  - Cột "Nhân sự tư vấn" được phân tách độc lập trong bảng danh sách khách hàng.
+  - Khi đúp click (double click) vào tên nhân sự hiện tại, hoặc click đơn (single click) vào chữ "Trống" (nếu chưa gán), trường thông tin sẽ tự động chuyển thành một thẻ `<select>` dropdown.
+  - Sau khi người dùng chọn nhân viên mới, một yêu cầu POST AJAX sẽ được gửi tới API `/customers/update-care-staff/(:num)`.
+  - Trên API thành công, hệ thống tự động cập nhật hiển thị, đồng bộ ID, và kích hoạt hiệu ứng micro-animation (Highlight màu xanh lá cây dịu nhẹ trong 1 giây) để thông báo trực quan cho người dùng.
+- **Thống kê số vụ việc Chính xác (Dynamic Case Query Count):**
+  - Khắc phục sự không chính xác do lệch cache đồng bộ: thay thế truy vấn dữ liệu từ cột cache `customers.total_cases` bằng một Subquery động, chính xác 100% thời gian thực:
+    ```sql
+    (SELECT COUNT(*) FROM cases WHERE cases.customer_id = customers.id AND cases.deleted_at IS NULL) as total_cases
+    ```
+- **Cột Ngày tạo & Bộ lọc Nâng cao (Month/Year Advanced Filtering):**
+  - Thêm cột "Ngày tạo" hiển thị rõ ràng định dạng `dd/mm/yyyy` ngay sau cột "Vụ việc".
+  - Bổ sung bộ lọc "Tháng" và "Năm" tại thanh tìm kiếm nâng cao. Dữ liệu được lọc động thông qua các hàm SQL `MONTH(customers.created_at)` và `YEAR(customers.created_at)` trong `CustomerController::index()`.
+
+---
+
+## 13. Phân Phệ Chăm Sóc Khách Hàng Cũ (CSKH) & Loyalty Program - Cập nhật 22/05/2026
+
+### **13.1. Nghiệp vụ & Phạm vi (Phase 1):**
+- **Mục tiêu**: Tự động hóa quy trình chăm sóc khách hàng cũ ngay sau khi họ hoàn tất dịch vụ hoặc hồ sơ pháp lý, nhằm tối đa hóa cơ hội tái ký và giới thiệu khách hàng mới.
+- **Phân loại Khách hàng A/B/C**:
+  - **Nhóm A (VIP)**: Khách hàng lớn, mang lại doanh thu cao hoặc có khả năng kết nối mạnh. CSKH cá nhân hóa mạnh mẽ bởi Giám đốc/Luật sư cấp cao.
+  - **Nhóm B (Phổ thông)**: Khách hàng sử dụng dịch vụ tiêu chuẩn. CSKH bán tự động qua kênh Hotline/Zalo định kỳ.
+  - **Nhóm C (Tiềm năng nguội)**: Đã tư vấn nhưng chưa ký, nuôi dưỡng định kỳ bằng bản tin pháp lý để remarketing.
+- **Quy trình CSKH 3 Giai đoạn**:
+  - **Giai đoạn 1 (Phase 1)**: Chăm sóc ngay sau dịch vụ (Ngày 1 - 7). Gửi lời cảm ơn, khảo sát độ hài lòng (Feedback) và rà soát phân nhóm.
+  - **Giai đoạn 2 (Phase 2)**: Nuôi dưỡng & Hỗ trợ giá trị (Ngày 7 - 30). Hỏi thăm tình hình vận hành thực tế, gửi văn bản luật hữu ích, tặng voucher.
+  - **Giai đoạn 3 (Phase 3)**: Kết nối & Remarketing dài hạn (Trên 30 ngày). Gửi bản tin tháng, gọi điện định kỳ 60 ngày, giới thiệu dịch vụ mới.
+
+### **13.2. Thành phần kỹ thuật & Cơ sở dữ liệu:**
+- **Trường dữ liệu mở rộng (`customers`):**
+  - `customer_segment` (`enum('vip', 'regular', 'potential')`): Phân loại A/B/C tự động hoặc thủ công.
+  - `care_status` (`enum('new', 'phase1', 'phase2', 'phase3', 'completed', 'dormant')`): Trạng thái chu kỳ CSKH.
+  - `service_completed_date` (`date`): Ngày hoàn thành vụ việc/dịch vụ làm mốc kích hoạt tự động.
+- **Bảng `customer_care_plans`:** Quản lý vòng đời chăm sóc, lưu nhân sự phụ trách và trạng thái hoàn thành.
+- **Bảng `customer_care_tasks` (Checklists):** Lưu vết các đầu việc chi tiết trong từng giai đoạn (Zalo, Gọi điện, Email, Gửi quà) kèm hạn chót và ghi chú phản hồi.
+- **Bảng `customer_loyalty`:** Quản lý chương trình khách hàng thân thiết: điểm tích lũy (`points`), phân hạng thẻ VIP (`loyalty_tier`), đặc quyền (`benefits`), và mã giới thiệu (`referral_code`).
+
+### **13.3. Thuật toán Điểm thưởng & Phân hạng VIP (Loyalty Logic):**
+- **Cơ chế Tích Điểm:**
+  - Cộng **10 điểm** khi hoàn thành mỗi task chăm sóc khách hàng tương tác thành công.
+  - Cộng **100 điểm** khi khách cũ giới thiệu thành công một khách hàng mới sử dụng dịch vụ.
+- **Quy tắc Nâng hạng tự động (`CustomerCareService::calculateLoyaltyTier`):**
+  - **VIP**: Doanh thu tích lũy ≥ 100tr HOẶC điểm tích lũy ≥ 1000.
+  - **Gold (Vàng)**: Doanh thu tích lũy ≥ 50tr HOẶC điểm tích lũy ≥ 500.
+  - **Silver (Bạc)**: Doanh thu tích lũy ≥ 20tr HOẶC điểm tích lũy ≥ 200.
+  - **Standard (Tiêu chuẩn)**: Dưới 20tr và dưới 200 điểm.
+- **Mã giới thiệu (Referral Code):** Được sinh ngẫu nhiên duy nhất dạng `REF + ID khách hàng + 4 ký tự ngẫu nhiên`.
+
+### **13.4. Phân Quyền & Tích hợp (RBAC Integration):**
+- **Quyền hạn chi tiết:**
+  - `care.view`: Xem tổng quan Dashboard CSKH, KPI báo cáo và danh sách phân nhóm A/B/C.
+  - `care.manage`: Khởi tạo kế hoạch CSKH, tick hoàn thành checklist, thêm công việc và chỉnh sửa phân nhóm thủ công.
+  - `care.view_all`: Bypass phân lập dữ liệu để quản lý CSKH trên toàn hệ thống (dành cho Ban Giám Đốc/Admin).
+- **Tự động đồng bộ (Auto-Sync):** Kế thừa hoàn toàn Compliance Rule #10. Tất cả quyền được định nghĩa trong `CustomerCareController::$modulePermissions` và tự động đồng bộ vào Database Master khi truy cập `/perm-fix/sync` (hoặc qua script CLI `sync_permissions.php`).
+
+---
+
+## 14. Hệ thống Tiến độ & SLA Chăm sóc Khách hàng (SLA & Care Progress System) - Cập nhật 25/05/2026
+
+### **14.1. Tổng quan & Thiết kế Cấu hình Động:**
+Hệ thống quản lý thời hạn xử lý (SLA) chăm sóc khách hàng được thiết kế theo mô hình **Quy trình cấu hình động**, cho phép tự do thiết lập tên các bước, số giờ thực hiện giới hạn (SLA Hours), màu sắc hiển thị và thứ tự sắp xếp thay vì lập trình cứng trong mã nguồn.
+
+### **14.2. Cấu trúc Database:**
+- **`customer_sla_settings`**: Lưu trữ danh mục các trạng thái tư vấn và cài đặt SLA.
+  - `status_key` (VARCHAR): Khóa định danh hệ thống (nhận diện logic không dấu/không cách).
+  - `status_name` (VARCHAR): Tên trạng thái hiển thị trên View.
+  - `sla_hours` (INT): Số giờ giới hạn SLA cho bước (Nhập `0` nếu không giới hạn).
+  - `color` (VARCHAR): Mã màu Hex hiển thị đại diện (vd: `#ff3b30`, `#34c759`).
+  - `sort_order` (INT): Thứ tự hiển thị trong quy trình.
+- **`customer_sla_history`**: Lưu nhật ký vòng đời tiến độ thực tế của khách hàng.
+  - `customer_id` (INT): Khóa ngoại liên kết khách hàng.
+  - `assigned_staff_id` (INT): Nhân viên chịu trách nhiệm tại thời điểm thực thi.
+  - `status` (VARCHAR): Khóa trạng thái tư vấn.
+  - `start_time` & `end_time` (DATETIME): Mốc bắt đầu và kết thúc bước thực tế.
+  - `due_time` (DATETIME): Thời hạn chót (`start_time + sla_hours`).
+  - `sla_status` (`in_progress`, `achieved`, `completed_late`, `overdue`): Kết quả đo lường SLA.
+
+### **14.3. Nguyên lý Xử lý Lõi (Core Service Logic - `CustomerSlaService`):**
+- **Chuyển Trạng Thái (`transitionStatus`)**:
+  - Đóng tiến trình SLA cũ (nếu có): So sánh `now` với `due_time` để gắn nhãn `achieved` (Đúng hạn) hoặc `completed_late` (Xong trễ).
+  - Khởi tạo tiến trình SLA mới: Tra cứu số giờ quy định từ bảng cấu hình, tính toán `due_time = start_time + sla_hours` nếu có nhân sự được phân công.
+  - Đồng bộ cập nhật cột `care_status` trong bảng `customers`.
+- **Cơ chế Cảnh báo đỏ tự động (Cron Job Integration)**:
+  - Hàm `checkAndTriggerOverdueSlas()` chạy định kỳ qua Cron quét tất cả bản ghi SLA đang xử lý quá hạn chót (`due_time < now` và `sla_status = 'in_progress'`).
+  - Cập nhật trạng thái thành `overdue` (Bỏ lỡ/Quá hạn).
+  - Gửi thông báo tự động (bắn thông báo hệ thống qua `NotificationService`) trực tiếp cho **Nhân viên phụ trách** và **Trưởng phòng trực tiếp** để đôn đốc.
+
+### **14.4. Tiêu chuẩn Thẩm mỹ UI/UX (Aesthetics & Apple Style):**
+- **Khối Dashboard SLA**: Hiển thị badge màu sắc động tương ứng, bộ đếm ngược thời gian còn lại trực quan (`Còn lại X giờ` hoặc `⚠️ TRỄ HẠN X ngày Y giờ` nhấp nháy đỏ tươi sử dụng CSS `@keyframes pulse`).
+- **AJAX Transition Dropdown**: Cho phép chuyển trạng thái một-click bằng dropdown chọn nhanh qua AJAX mà không cần reload trang.
+- **Timeline Lịch sử**: Vẽ trục thời gian Apple-Style thể hiện chi tiết: lộ trình tư vấn, thời gian thực tế xử lý, nhân sự đảm nhiệm và badge kết quả đạt/trễ.
+
+---
+
+## 15. Nâng cấp Nghiệp vụ Bảng lương (Pro-rata & Probation Payroll) - Cập nhật 01/06/2026
+
+### **15.1. Tổng quan & Mục tiêu:**
+Giải quyết 4 vấn đề thực tế trong chu kỳ tính lương:
+1. **Nhân viên thử việc/thực tập/học việc** không hưởng 100% lương cơ bản.
+2. **Chuyển hạng giữa tháng** (ví dụ: hết thử việc ngày 15/06 → các ngày còn lại áp dụng mức lương mới).
+3. **Nhân viên mới vào giữa tháng** → tháng sau tự động tính truy lĩnh.
+4. **Delay chấm công 1 ngày** khi cấp quyền app → Admin bù thủ công.
+
+### **15.2. Quyền truy cập:**
+- **Thiết lập hệ số lương:** Admin, Mod, phòng Hành chính (form Hồ sơ nhân viên).
+- **Thêm ngày công bù:** Admin, người có quyền `payroll.manage`.
+- **Xem hệ số lương:** Nhân viên xem badge hệ số trên bảng lương cá nhân.
+
+### **15.3. Cơ sở dữ liệu mở rộng:**
+**Bảng `employees` (3 cột mới):**
+- `probation_rate` DECIMAL(5,2): Hệ số lương hiện tại (% lương CB). Mặc định 100.
+- `probation_end_date` DATE: Ngày kết thúc giai đoạn. NULL = không chuyển hạng trong kỳ.
+- `new_rate_after` DECIMAL(5,2): Hệ số % áp dụng SAU ngày kết thúc. Mặc định 100.
+
+**Bảng `payrolls` (2 cột mới):**
+- `manual_adjust_days` DECIMAL(5,2): Ngày công bù thủ công. Mặc định 0.
+- `probation_rate_snapshot` DECIMAL(5,2): Snapshot hệ số tại thời điểm tính lương (lịch sử).
+
+### **15.4. Hàm nghiệp vụ chính (`PayrollService.php`):**
+
+**`calcTaxableIncome()`** — Tính TNCT có hỗ trợ chuyển hạng giữa tháng:
+- Nếu `probation_end_date` không rơi vào tháng đang tính → tính toàn tháng một hệ số.
+- Nếu có chuyển hạng → đếm ngày công trước/sau ngày chuyển, tính từng phần độc lập.
+- Công thức: `TNCT = (SalaryBase × Rate% / StandardDays) × ActualDays`
+
+**`detectAndCalcRetroPayroll()`** — Tự động phát hiện và tính truy lĩnh tháng trước:
+- Kích hoạt khi: `join_date` thuộc `prevMonth` VÀ chưa có phiếu lương `prevMonth`.
+- Idempotent: Marker `[Truy lĩnh tự động]` trong `notes_json` ngăn tính trùng khi bấm tính lại.
+
+### **15.5. SOP Vận hành:**
+1. NV mới/thử việc → Hồ sơ → Thiết lập `probation_rate` (dùng nút preset).
+2. Biết ngày hết thử việc → Điền `probation_end_date` + `new_rate_after`.
+3. **Sau khi tháng chuyển hạng qua** → Admin thủ công: cập nhật `probation_rate = new_rate_after`, xóa `probation_end_date`.
+4. NV mới bị delay chấm công → Bảng lương → Nhập "Ngày bù = 1".
+5. Bấm **"Tính toán lương"** → Truy lĩnh tháng trước tự động phát hiện và cộng vào cột Khác.
+
+### **15.6. Hằng số cấu hình (`AppConstants::PROBATION_RATE_DEFAULT`):**
+```
+Thử việc:         85%
+Thực tập sinh:    40%
+Học việc:         60%
+Chính thức:      100%
+```
+Sửa tỷ lệ tại `app/Config/AppConstants.php` nếu chính sách công ty thay đổi.
+
+---
+
+## 16. KPI tư vấn theo giá trị hợp đồng - Cập nhật 03/06/2026
+
+### **16.1. Mục tiêu nghiệp vụ**
+- Ghi nhận KPI cho nhân viên tư vấn dựa trên hồ sơ vụ việc khách hàng mà nhân viên đó chốt được.
+- KPI tính theo tổng giá trị hợp đồng đã chốt trong tháng, không tính theo số lượng hồ sơ.
+- Mốc chuẩn: 150.000.000 VNĐ giá trị hợp đồng/tháng tương ứng thưởng 5.000.000 VNĐ.
+- Vượt hoặc thiếu mốc được tăng/giảm tuyến tính theo tỷ lệ.
+
+### **16.2. Công thức**
+```
+KPI thưởng = (Tổng contract_value trong tháng / 150.000.000) * 5.000.000
+Tiến độ = Tổng contract_value trong tháng / 150.000.000 * 100
+```
+
+### **16.3. Nguồn dữ liệu**
+- `cases.consultant_id`: Nhân sự tư vấn đã chốt khách.
+- `cases.consultation_closed_at`: Thời điểm ghi nhận chốt để xác định tháng KPI.
+- `cases.contract_value`: Giá trị hợp đồng dùng để tính KPI.
+- Loại trừ hồ sơ `deleted_at IS NOT NULL`, hồ sơ trạng thái `huy`, và hồ sơ chưa có giá trị hợp đồng.
+
+### **16.4. Phân quyền**
+- `kpi.consulting`: Được xem báo cáo KPI tư vấn và ghi nhận người tư vấn chốt trên hồ sơ vụ việc.
+- `kpi.view_all`: Xem KPI toàn hệ thống.
+- `kpi.view_team`: Xem KPI đội ngũ theo `manager_id`.
+- Quyền được khai báo trong `KpiController::$modulePermissions` và đồng bộ qua `/perm-fix/sync` hoặc `sync_permissions.php`.
+
+### **16.5. Giao diện**
+- Dashboard chính hiển thị tiến trình KPI tư vấn tháng hiện tại cho người có quyền.
+- Trang `/kpi` có bộ lọc theo tháng, phòng ban và tên nhân viên.
+- Form tạo/sửa hồ sơ vụ việc có vùng “KPI tư vấn” chỉ hiển thị với admin hoặc người có quyền `kpi.consulting`.
+
+### **16.6. Cập nhật quy tắc thống kê KPI tư vấn - 03/06/2026**
+- Số hồ sơ chốt được đếm theo `consultant_id` và `consultation_closed_at`, không phụ thuộc hồ sơ đã nhập tiền hay chưa.
+- Giá trị KPI ưu tiên lấy tổng tất cả dòng trong `cases.payment_progress[].amount`, không phân biệt `is_paid` đã thu hay chưa thu.
+- Nếu hồ sơ chưa có `payment_progress` hoặc tổng các đợt bằng 0, hệ thống fallback về `cases.contract_value`.
+- Ngày ghi nhận chốt chỉ nhập cấp ngày (`YYYY-MM-DD`); hệ thống lưu về `00:00:00` để phục vụ lọc tháng.
+
+---
+
+## 17. Đăng ký xe trong lịch trình công việc - Cập nhật 17/06/2026
+
+### 17.1. Mục tiêu nghiệp vụ
+- Cho phép nhân sự đánh dấu nhu cầu sử dụng xe công ty khi tạo hoặc sửa lịch trình công việc.
+- Giữ nguyên loại lịch trình hiện có (`work`, `business_trip`) và tách nhu cầu xe thành cờ riêng để không làm sai nghĩa nghiệp vụ.
+- Trên overview lịch, lịch có đăng ký xe được nhận diện nhanh bằng màu xanh, icon xe và tooltip “Có đăng ký xe”.
+
+### 17.2. Quyền sử dụng
+- Người có quyền `work_schedule.manage` được tạo/cập nhật cờ đăng ký xe trên lịch trình thuộc phạm vi được phép.
+- Người có quyền `work_schedule.view` xem được trạng thái đăng ký xe trên lịch tổng quan.
+- Quyền sửa/xóa vẫn đi theo logic sở hữu lịch trình hiện tại: admin, chủ lịch, người tạo hoặc trưởng phòng đúng phạm vi.
+
+### 17.3. Input/Output
+- Input form: checkbox `requires_vehicle` trong modal tạo/sửa lịch trình.
+- Backend chuẩn hóa checkbox thành `0/1` tại Controller và Service để tránh lỗi khi checkbox không được gửi lên.
+- API `/work-schedules/events` trả thêm `extendedProps.requires_vehicle` và class `ws-event-vehicle` cho FullCalendar.
+
+### 17.4. Cơ sở dữ liệu
+- Bảng `work_schedules` thêm cột `requires_vehicle TINYINT(1) NOT NULL DEFAULT 0`.
+- Migration: `2026-06-17-090000_AddVehicleRegistrationToWorkSchedules.php`.
+- SQL thủ công đã được append cuối `mysql.sql` theo quy tắc Dual DB Update.
+
+---
+
+## 18. Trang thai qua tang trong ho so khach hang - Cap nhat 03/07/2026
+
+### 18.1. Muc tieu nghiep vu
+- Luu trang thai khach hang da duoc tang qua hay chua ngay tren ho so CRM.
+- Ho tro nhan su cham soc nhin nhanh khach nao da nhan qua de tranh tang trung hoac bo sot.
+- Cho phep cap nhat nhanh tren danh sach khach hang ma khong can mo form sua chi tiet.
+
+### 18.2. Quyen su dung
+- Admin, nguoi co quyen `customer.manage` hoac `customer.edit_all` duoc cap nhat trang thai qua tang.
+- Truong phong va nhan su dang phu trach cham soc khach hang duoc cap nhat trong pham vi ho so duoc phep.
+- Endpoint van kiem tra quyen theo tung `customer_id`, khong tin du lieu ID tu front-end.
+
+### 18.3. Input/Output
+- Input form tao/sua khach hang: select `has_received_gift` voi gia tri `0` la chua tang, `1` la da tang.
+- Tac vu nhanh tren danh sach: nut badge trong cot "Qua tang" goi AJAX toi `/customers/update-gift-status/{id}`.
+- Output API tra JSON gom `status`, `message`, va `data.has_received_gift` de front-end cap nhat badge tai cho.
+
+### 18.4. Co so du lieu
+- Bang `customers` them cot `has_received_gift TINYINT(1) NOT NULL DEFAULT 0`.
+- Migration: `2026-07-03-090000_AddGiftStatusToCustomers.php`.
+- SQL thu cong da duoc append cuoi `mysql.sql` theo quy tac Dual DB Update.
+
+---
+
+## 19. Deadline cuối ngày và ghi nhận KPI ngoại lệ cho step vụ việc - Cập nhật 09/07/2026
+
+### 19.1. Mục tiêu nghiệp vụ
+- Deadline của mỗi bước vụ việc được hiểu là hết ngày hạn định, tức `23:59:59`, để nhân sự có trọn ngày làm việc trước khi bị tính quá hạn.
+- Quản lý hoặc người duyệt có thể ghi nhận KPI cho một step đã hoàn thành trễ nếu nhân sự giải trình hợp lý và chất lượng công việc đạt yêu cầu.
+- Hệ thống vẫn giữ nguyên `deadline` và `completed_at` thực tế để phục vụ kiểm toán, chỉ thêm cờ ngoại lệ cho báo cáo KPI.
+
+### 19.2. Quyền sử dụng
+- Người có quyền `sys.admin`, `case.edit_all`, `case.approve`, hoặc là người duyệt của vụ việc được ghi nhận KPI ngoại lệ.
+- Controller vẫn kiểm tra quyền theo từng `step_id` thông qua hồ sơ vụ việc, không tin dữ liệu ID từ giao diện.
+
+### 19.3. Input/Output
+- Input thao tác: nút ghi nhận KPI trên lộ trình step đã hoàn thành trễ hạn, gửi tới `POST /cases/approve-step-kpi/{stepId}`.
+- Backend lưu `kpi_override_approved = 1`, lý do ghi nhận, người ghi nhận và thời điểm ghi nhận.
+- Output: Báo cáo KPI, danh sách vụ việc và tổng hợp lương tính KPI đạt nếu step hoàn thành đúng hạn hoặc được ghi nhận ngoại lệ.
+
+### 19.4. Cơ sở dữ liệu
+- Bảng `case_steps` thêm các cột:
+  - `kpi_override_approved TINYINT(1) NOT NULL DEFAULT 0`: Cờ quản lý chấp thuận KPI ngoại lệ.
+  - `kpi_override_reason TEXT NULL`: Lý do chấp thuận.
+  - `kpi_override_by INT(11) UNSIGNED NULL`: Nhân sự quản lý/người duyệt ghi nhận.
+  - `kpi_override_at DATETIME NULL`: Thời điểm ghi nhận.
+- Migration: `2026-07-09-170000_AddKpiOverrideAndEndOfDayDeadlines.php`.
+- SQL thủ công đã được append cuối `mysql.sql` theo quy tắc Dual DB Update.

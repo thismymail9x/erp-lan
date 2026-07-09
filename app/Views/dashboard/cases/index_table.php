@@ -9,10 +9,10 @@
             </th>
             <?php } ?>
             <th class="table-cell-center" style="width: 75px;">STT (<?= $pager->getDetails()['total'] ?>)</th>
-            <th class="table-cell-center text-center" style="width: 110px;">
+            <th class="table-cell-center text-center" style="width: 130px;">
                 <a href="<?= base_url('cases') ?>?sort=code&order=<?= ($currentSort == 'code' && $currentOrder == 'asc') ? 'desc' : 'asc' ?>"
                    class="sort-link" title="Sắp xếp theo mã hồ sơ">
-                    Mã
+                    Mã HĐ
                     <?php if ($currentSort == 'code') { ?>
                         <i class="fas fa-sort-<?= $currentOrder == 'asc' ? 'up' : 'down' ?>"></i>
                     <?php } else { ?>
@@ -100,7 +100,7 @@
         <!-- Floating Bulk Actions Bar -->
         <div class="bulk-actions-bar">
             <span id="selected-count">0 mục đã chọn</span>
-            <button type="button" class="bulk-btn-delete" onclick="bulkDelete()" title="Xóa hàng loạt">
+            <button type="button" class="bulk-btn-delete js-case-bulk-delete" title="Xóa hàng loạt">
                 <i class="fas fa-trash-alt"></i> Xóa vĩnh viễn
             </button>
         </div>
@@ -122,7 +122,7 @@
         <tr>
             <?php if (has_permission('sys.admin')) { ?>
             <td class="table-cell-center">
-                <input type="checkbox" class="record-check" value="<?= $case['id'] ?>" style="width: 16px; height: 16px; cursor: pointer;">
+                <input type="checkbox" class="record-check case-record-check" value="<?= $case['id'] ?>">
             </td>
             <?php } ?>
             <td class="table-cell-center text-muted-dark text-sm"><?= $stt ?></td>
@@ -196,6 +196,7 @@
                 $statusClasses = [
                         'cho_tiep_nhan' => 'badge-info-minimal',
                         'dang_xu_ly'    => 'badge-warning-minimal',
+                        'tam_dung'      => 'badge-secondary-minimal',
                         'da_hoan_thanh' => 'badge-success-minimal',
                         'huy'           => 'badge-danger-minimal'
                 ];
@@ -235,22 +236,23 @@
                 <a href="<?= base_url('cases/edit/' . $case['id']) ?>" class="btn-secondary-sm text-edit" title="Sửa">
                     <i class="fas fa-edit"></i>
                 </a>
-                <button type="button" class="btn-secondary-sm text-tag"
-                        onclick="openQuickTag(<?= $case['id'] ?>, '<?= esc($case['title']) ?>')"
+                <button type="button" class="btn-secondary-sm text-tag js-open-quick-tag"
+                        data-case-id="<?= (int)$case['id'] ?>"
+                        data-case-name="<?= esc($case['title']) ?>"
                         title="Gắn nhãn">
                     <i class="fas fa-tag"></i>
                 </button>
                 <?php if (has_permission('sys.admin')) { ?>
                     <a href="<?= base_url('cases/delete/' . $case['id']) ?>"
-                       class="btn-secondary-sm text-apple-orange"
+                       class="btn-secondary-sm text-apple-orange js-confirm-link"
                        title="Xóa tạm thời (Trash)"
-                       onclick="return confirm('Bạn có chắc chắn muốn đưa hồ sơ vào thùng rác? Bạn vẫn có thể khôi phục sau này.');">
+                       data-confirm-message="Bạn có chắc chắn muốn đưa hồ sơ vào thùng rác? Bạn vẫn có thể khôi phục sau này.">
                         <i class="fas fa-trash-alt"></i>
                     </a>
                     <a href="<?= base_url('cases/purge/' . $case['id'] . '?force=1') ?>"
-                       class="btn-secondary-sm text-red-premium"
+                       class="btn-secondary-sm text-red-premium js-confirm-link"
                        title="Xóa VĨNH VIỄN (Force Purge)"
-                       onclick="return confirm('HÀNH ĐỘNG KHÔNG THỂ PHỤC HỒI: Hệ thống sẽ xóa hồ sơ và mọi rác dữ liệu đi kèm (Bao gồm lịch sử nghiệm thu). Bạn có chắc chắn?');">
+                       data-confirm-message="HÀNH ĐỘNG KHÔNG THỂ PHỤC HỒI: Hệ thống sẽ xóa hồ sơ và mọi rác dữ liệu đi kèm (Bao gồm lịch sử nghiệm thu). Bạn có chắc chắn?">
                         <i class="fas fa-eraser"></i>
                     </a>
                 <?php } ?>

@@ -47,6 +47,17 @@ abstract class BaseModel extends Model
     }
 
     /**
+     * Cập nhật bản ghi kèm theo tiêm ID vào dữ liệu để phục vụ kiểm tra trùng lặp (Validation {id}).
+     */
+    public function update($id = null, $data = null): bool
+    {
+        if (is_array($data) && !empty($id) && (is_string($id) || is_numeric($id))) {
+            $data[$this->primaryKey] = $id;
+        }
+        return parent::update($id, $data);
+    }
+
+    /**
      * Phương thức chung để lấy các bản ghi đang hoạt động (chưa bị xóa mềm)
      */
     public function getActive()
@@ -54,3 +65,4 @@ abstract class BaseModel extends Model
         return $this->where($this->deletedField, null)->findAll();
     }
 }
+

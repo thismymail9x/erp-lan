@@ -23,7 +23,8 @@ class CaseStepModel extends BaseModel
         'duration_days', 'is_working_day_only', 'deadline', 
         'completed_at', 'completed_by', 'status', 'sort_order', 'required_documents',
         'responsible_role', 'next_step_condition', 'notification_template',
-        'kpi_reward', 'overdue_notified', 'assigned_to'
+        'kpi_reward', 'overdue_notified', 'assigned_to',
+        'kpi_override_approved', 'kpi_override_reason', 'kpi_override_by', 'kpi_override_at'
     ];
 
     // 3. Quản lý thời gian

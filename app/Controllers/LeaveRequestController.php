@@ -51,7 +51,9 @@ class LeaveRequestController extends BaseController
 
         $filters = [
             'status'        => $this->request->getGet('status'),
-            'department_id' => $this->request->getGet('department_id')
+            'department_id' => $this->request->getGet('department_id'),
+            'month'         => $this->request->getGet('month'),
+            'search'        => $this->request->getGet('search')
         ];
 
         $query = $this->model->getLeaveRequests($filters);
@@ -72,7 +74,7 @@ class LeaveRequestController extends BaseController
 
         $data = [
             'title'       => 'Quản lý Nghỉ phép | L.A.N ERP',
-            'requests'    => $query->paginate(15),
+            'requests'    => $query->paginate(20),
             'pager'       => $this->model->pager,
             'departments' => get_departments(), // Core Function
             'filters'     => $filters,

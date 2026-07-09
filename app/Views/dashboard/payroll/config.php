@@ -1,5 +1,9 @@
 <?= $this->extend('layouts/dashboard') ?>
 
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('css/payroll.css') ?>">
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
 <div class="payroll-config-container">
     <div class="dashboard-header-wrapper">
@@ -73,77 +77,4 @@
         </div>
     </div>
 </div>
-
-<style>
-    .calendar-grid {
-        display: grid;
-        grid-template-columns: repeat(7, 1fr);
-        gap: 10px;
-        background: #fbfbfd;
-        padding: 15px;
-        border-radius: 12px;
-        border: 1px solid #d2d2d7;
-    }
-    .calendar-header-day {
-        text-align: center;
-        font-weight: 700;
-        font-size: 13px;
-        padding-bottom: 10px;
-        color: #86868b;
-    }
-    .calendar-day-cell {
-        min-height: 95px;
-        background: #fff;
-        border-radius: 8px;
-        border: 1px solid #d2d2d7;
-        display: flex;
-        flex-direction: column;
-        padding: 5px;
-        transition: all 0.2s;
-    }
-    .calendar-day-cell:hover {
-        border-color: var(--apple-blue);
-        background: rgba(0, 113, 227, 0.05);
-    }
-    .day-top {
-        display: flex;
-        justify-content: flex-start;
-        margin-bottom: 5px;
-    }
-    .day-label {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        cursor: pointer;
-    }
-    .day-label input {
-        width: 16px;
-        height: 16px;
-    }
-    .day-label span {
-        font-size: 14px;
-        font-weight: 600;
-    }
-    .day-note {
-        margin-top: auto;
-    }
-    .day-note input {
-        width: 100%;
-        border: 1px solid #d2d2d7;
-        background: #fbfbfd;
-        border-radius: 4px;
-        padding: 4px 6px;
-        font-size: 11px;
-        color: #1d1d1f;
-        outline: none;
-        transition: all 0.2s;
-    }
-    .day-note input:focus {
-        background: #fff;
-        border-color: var(--apple-blue);
-        box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.1);
-    }
-    .day-sun { background: #fff5f5; border-color: #ffc9c9; }
-    .day-sun span { color: var(--apple-red); }
-</style>
 <?= $this->endSection() ?>

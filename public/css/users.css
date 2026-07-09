@@ -35,6 +35,48 @@
     font-size: 11px;
 }
 
+.status-deleted {
+    color: #8e8e93;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.user-status-tabs {
+    display: flex;
+    gap: 8px;
+    margin: 0 0 16px;
+    border-bottom: 1px solid var(--apple-border);
+}
+
+.user-status-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    color: var(--apple-text-muted);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.user-status-tab span {
+    min-width: 24px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #f2f2f7;
+    color: var(--apple-text);
+    text-align: center;
+    font-size: 12px;
+}
+
+.user-status-tab.active {
+    color: var(--apple-blue);
+    border-bottom-color: var(--apple-blue);
+}
+
 /* Bulk Actions (User Exclusive) */
 .floating-bulk-actions {
     background: #1d1d1f;

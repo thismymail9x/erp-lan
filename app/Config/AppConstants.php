@@ -41,6 +41,7 @@ class AppConstants
     public const CASE_STATUS_LABELS = [
         'cho_tiep_nhan'   => 'Chờ tiếp nhận',
         'dang_xu_ly'      => 'Đang xử lý',
+        'tam_dung'        => 'Tạm dừng',
         'da_hoan_thanh'   => 'Đã hoàn thành',
         'huy'             => 'Hủy'
     ];
@@ -84,4 +85,18 @@ class AppConstants
     public const DEPENDENT_DEDUCTION_AMOUNT = 4400000; // 4.4tr
 
     // === PHÂN LOẠI VỤ VIỆC (CASE TYPES CATEGORIES) ===
+
+    // === HỆ SỐ LƯƠNG THEO GIAI ĐOẠN NHÂN SỰ (% mức lương cơ bản) ===
+    // Giải thích: Nhân viên thử việc, thực tập, học việc chưa được hưởng 100% lương cơ bản.
+    // Admin đặt probation_rate theo các mức này khi tạo/cập nhật hồ sơ nhân viên.
+    // Các tỷ lệ này có thể điều chỉnh tại đây nếu chính sách công ty thay đổi.
+    public const PROBATION_RATE_DEFAULT = [
+        'Thử việc'             => 85.0,  // 85% lương CB (thử việc 2 tháng)
+        'Thực tập sinh'        => 40.0,  // 40% lương CB (thực tập 3 tháng)
+        'Học việc'             => 60.0,  // 60% lương CB
+        'Nhân viên chính thức' => 100.0, // 100% lương CB
+        'Trưởng phòng'         => 100.0,
+        'Admin'                => 100.0,
+        'Mod'                  => 100.0,
+    ];
 }

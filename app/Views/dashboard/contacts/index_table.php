@@ -8,14 +8,14 @@
                 <th class="table-col-checkbox">
                     <input type="checkbox" id="check-all-contacts">
                 </th>
-                <th style="width: 9%">Danh mục</th>
+                <th class="contacts-col-source">Danh mục</th>
                 <th>Tên đơn vị / Phụ trách</th>
                 <th>Chức vụ</th>
                 <th>Số điện thoại</th>
-                <th style="width: 15%">Địa chỉ</th>
-                <th style="width: 20%">Địa bàn / Khu vực</th>
-                <th style="width: 10%">Ghi chú</th>
-                <th style="width: 6%">Tỉnh thành</th>
+                <th class="contacts-col-address">Địa chỉ</th>
+                <th class="contacts-col-area">Địa bàn / Khu vực</th>
+                <th class="contacts-col-notes">Ghi chú</th>
+                <th class="contacts-col-province">Tỉnh thành</th>
                 <?php if ($isAdmin){ ?>
                 <th>Trạng thái</th>
                 <?php } ?>
@@ -74,13 +74,20 @@
                     <td class="text-right">
                         <div class="actions-group justify-end">
                             <?php if ($contact['_can_edit'] && has_permission('contact.edit')) { ?>
-                            <button class="btn-secondary-sm text-edit" onclick='openContactModal(<?= $contact["id"] ?>, <?= json_encode($contact) ?>)' title="Sửa">
+                            <button type="button"
+                                    class="btn-secondary-sm text-edit js-edit-contact"
+                                    data-contact-id="<?= (int)$contact['id'] ?>"
+                                    data-contact='<?= esc(json_encode($contact), 'attr') ?>'
+                                    title="Sửa">
                                 <i class="fas fa-edit"></i>
                             </button>
                             <?php } ?>
                             
                             <?php if (has_permission('contact.delete')) { ?>
-                            <button class="btn-secondary-sm text-danger" onclick="deleteContact(<?= $contact['id'] ?>)" title="Xóa">
+                            <button type="button"
+                                    class="btn-secondary-sm text-danger js-delete-contact"
+                                    data-contact-id="<?= (int)$contact['id'] ?>"
+                                    title="Xóa">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
                             <?php } ?>

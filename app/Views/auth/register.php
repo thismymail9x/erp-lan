@@ -35,8 +35,8 @@
             <button type="submit" class="btn-premium">Tạo tài khoản</button>
         </form>
 
-        <div style="text-align: center; margin-top: 24px; font-size: 14px; color: var(--apple-text-muted);">
-            Đã có tài khoản? <a href="<?= base_url('login') ?>" class="bottom-link" style="display:inline; margin:0;">Đăng nhập</a>
+        <div class="auth-link-row">
+            Đã có tài khoản? <a href="<?= base_url('login') ?>" class="bottom-link">Đăng nhập</a>
         </div>
     </div>
 </body>

@@ -11,6 +11,11 @@ use Config\Database;
 
 class KpiService extends BaseService
 {
+    public const CONSULTING_MONTHLY_TARGET_VALUE = 150000000;
+    public const CONSULTING_TARGET_REWARD = 5000000;
+    public const CONSULTING_MONTHLY_PAYOUT_RATE = 0.4;
+    public const CONSULTING_ANNUAL_ACCRUAL_RATE = 0.6;
+
     /**
      * TƯ DUY LOGIC KPI (Key Performance Indicator):
      * 1. KPI Nhận (Earned): Là dòng tiền thực tế đã phát sinh khi hoàn thành một bước công việc (Step).
@@ -75,7 +80,10 @@ class KpiService extends BaseService
             ->where('case_steps.deleted_at', null)
             ->where('cases.deleted_at', null)
             ->where('cases.status !=', 'huy')
-            ->where('case_steps.completed_at <= case_steps.deadline') // Chốt chặn: Chỉ tính nếu đúng hạn
+            ->groupStart()
+                ->where('case_steps.completed_at <= case_steps.deadline')
+                ->orWhere('case_steps.kpi_override_approved', 1)
+            ->groupEnd()
             ->where('case_steps.completed_by', $employeeId);
         // Trạng thái: Chỉ tính các bước đã completed (hoàn thành) và vụ việc không bị huy (hủy).
         // Quy tắc đúng hạn: Đây là logic mới chúng ta vừa cập nhật. Nếu completed_at > deadline, bước đó dù xong cũng có KPI = 0.
@@ -98,12 +106,13 @@ class KpiService extends BaseService
             ->join('cases', 'cases.id = case_steps.case_id')
             ->where('case_steps.deleted_at', null)
             ->where('cases.deleted_at', null)
-            ->where('cases.status !=', 'huy')
+            ->whereNotIn('cases.status', ['huy', 'tam_dung'])
             ->groupStart()
                 // TH1: Đã xong nhưng muộn
                 ->groupStart()
                     ->where('case_steps.status', 'completed')
                     ->where('case_steps.completed_at > case_steps.deadline')
+                    ->where('case_steps.kpi_override_approved !=', 1)
                     ->where('case_steps.completed_by', $employeeId)
                 ->groupEnd()
                 // TH2: Chưa xong nhưng đã quá hạn (Dù đang active hay pending)
@@ -132,7 +141,7 @@ class KpiService extends BaseService
             ->where('case_steps.deadline >=', date('Y-m-d H:i:s')) // Chỉ tính các bước còn trong hạn
             ->where('case_steps.deleted_at', null)
             ->where('cases.deleted_at', null)
-            ->whereNotIn('cases.status', ['da_hoan_thanh', 'huy']);
+            ->whereNotIn('cases.status', ['da_hoan_thanh', 'huy', 'tam_dung']);
 
         $potentialQuery->where('case_steps.assigned_to', $employeeId);
         $potentialRes = $potentialQuery->get()->getRow();
@@ -177,6 +186,9 @@ class KpiService extends BaseService
         if (!empty($filters['manager_id'])) {
             $builder->where('e.manager_id', $filters['manager_id']);
         }
+        if (!empty($filters['employee_id'])) {
+            $builder->where('e.id', $filters['employee_id']);
+        }
 
         $employees = $builder->get()->getResultArray();
         if (empty($employees)) return [];
@@ -192,7 +204,10 @@ class KpiService extends BaseService
             ->where('cs.deleted_at', null)
             ->where('c.deleted_at', null)
             ->where('c.status !=', 'huy')
-            ->where('cs.completed_at <= cs.deadline') // Tuân thủ quy tắc đúng hạn
+            ->groupStart()
+                ->where('cs.completed_at <= cs.deadline')
+                ->orWhere('cs.kpi_override_approved', 1)
+            ->groupEnd()
             ->whereIn('cs.completed_by', $empIds);
 
         // Clone để tính KPI lịch sử cho cột "Tổng mục tiêu"
@@ -213,7 +228,7 @@ class KpiService extends BaseService
             ->where('cs.deadline >=', date('Y-m-d H:i:s')) // Chỉ tính các bước còn trong hạn
             ->where('cs.deleted_at', null)
             ->where('c.deleted_at', null)
-            ->whereNotIn('c.status', ['da_hoan_thanh', 'huy'])
+            ->whereNotIn('c.status', ['da_hoan_thanh', 'huy', 'tam_dung'])
             ->whereIn('cs.assigned_to', $empIds)
             ->groupBy('cs.assigned_to')
             ->get()->getResultArray();
@@ -225,11 +240,12 @@ class KpiService extends BaseService
             ->join('cases c', 'c.id = cs.case_id')
             ->where('cs.deleted_at', null)
             ->where('c.deleted_at', null)
-            ->where('c.status !=', 'huy')
+            ->whereNotIn('c.status', ['huy', 'tam_dung'])
             ->groupStart()
                 ->groupStart()
                     ->where('cs.status', 'completed')
                     ->where('cs.completed_at > cs.deadline')
+                    ->where('cs.kpi_override_approved !=', 1)
                     ->whereIn('cs.completed_by', $empIds)
                 ->groupEnd()
                 ->orGroupStart()
@@ -273,6 +289,279 @@ class KpiService extends BaseService
     /**
      * Helper: Áp dụng bộ lọc nhân viên thống nhất cho KPI.
      */
+    /**
+     * Tính KPI tư vấn cá nhân hoặc tổng hợp các nhân viên tư vấn theo doanh thu thực thu.
+     * Bảng KPI chuẩn và thưởng vượt mốc luôn được áp riêng cho từng nhân viên.
+     */
+    public function getConsultingMotivationStats(?int $employeeId, array $filters = []): array
+    {
+        $role = session()->get('role_name');
+        $isAdmin = (in_array($role, [\Config\AppConstants::ROLE_ADMIN, \Config\AppConstants::ROLE_MOD]) || has_permission('sys.admin') || has_permission('kpi.view_all'));
+        $canAggregate = $isAdmin || has_permission('kpi.view_team');
+
+        if ($canAggregate && !$employeeId) {
+            $allStats = $this->getConsultingAllEmployeesStats($filters);
+            $contractValue = array_sum(array_column($allStats, 'contract_value'));
+            $caseCount = array_sum(array_column($allStats, 'case_count'));
+            $targetValue = array_sum(array_column($allStats, 'target_value'));
+            $stats = $this->formatConsultingStats($contractValue, $caseCount, $targetValue);
+            foreach (['standard_reward', 'monthly_payout', 'annual_accrual', 'milestone_bonus', 'next_payroll_payout', 'reward'] as $field) {
+                $stats[$field] = array_sum(array_column($allStats, $field));
+            }
+            $stats['earned'] = $stats['reward'];
+
+            return $stats;
+        }
+
+        if (!$employeeId) {
+            return $this->formatConsultingStats(0, 0, 0);
+        }
+
+        $scopedStats = $this->getConsultingAllEmployeesStats(array_merge($filters, [
+            'employee_id' => $employeeId,
+        ]));
+
+        if (empty($scopedStats)) {
+            return $this->formatConsultingStats(0, 0, 0);
+        }
+
+        return $this->formatConsultingStats(
+            (float)($scopedStats[0]['contract_value'] ?? 0),
+            (int)($scopedStats[0]['case_count'] ?? 0),
+            (float)($scopedStats[0]['target_value'] ?? self::CONSULTING_MONTHLY_TARGET_VALUE)
+        );
+    }
+
+    /**
+     * Lấy thống kê KPI tư vấn theo từng nhân sự để hiển thị bảng báo cáo.
+     */
+    public function getConsultingAllEmployeesStats(array $filters = []): array
+    {
+        $builder = $this->db->table('employees e')
+            ->select('e.id, e.user_id, e.full_name, e.position, d.name as department_name')
+            ->join('users u', 'u.id = e.user_id', 'inner')
+            ->join('departments d', 'd.id = e.department_id', 'left')
+            ->where('e.deleted_at', null)
+            ->where('u.active_status', 1)
+            ->where('u.deleted_at', null);
+
+        if (!empty($filters['search'])) {
+            $builder->like('e.full_name', $filters['search']);
+        }
+        if (!empty($filters['department_id'])) {
+            $builder->where('e.department_id', $filters['department_id']);
+        }
+        if (!empty($filters['manager_id'])) {
+            $builder->where('e.manager_id', $filters['manager_id']);
+        }
+        if (!empty($filters['employee_id'])) {
+            $builder->where('e.id', $filters['employee_id']);
+        }
+
+        $employees = $builder->get()->getResultArray();
+        if (empty($employees)) {
+            return [];
+        }
+
+        $employeeIds = array_map('intval', array_column($employees, 'id'));
+        $eligibleEmployeeIds = $this->getConsultingPermissionEmployeeIds($employeeIds);
+        $eligibleMap = array_flip($eligibleEmployeeIds);
+        $employees = array_values(array_filter($employees, function ($employee) use ($eligibleMap) {
+            return isset($eligibleMap[(int)$employee['id']]);
+        }));
+
+        if (empty($employees)) {
+            return [];
+        }
+
+        $employeeIds = array_map('intval', array_column($employees, 'id'));
+        [$startAt, $endAt] = $this->resolveConsultingPeriod($filters);
+
+        $caseRows = $this->db->table('cases c')
+            ->select('c.id, c.consultant_id as employee_id, c.contract_value, c.payment_progress')
+            ->where('c.deleted_at', null)
+            ->where('c.status !=', 'huy')
+            ->whereIn('c.consultant_id', $employeeIds)
+            ->get()
+            ->getResultArray();
+
+        $contractMap = [];
+        $caseCountMap = [];
+        foreach ($caseRows as $caseRow) {
+            $empId = (int)$caseRow['employee_id'];
+            $actualRevenue = $this->resolveConsultingActualRevenue($caseRow, $startAt, $endAt);
+            if ($actualRevenue <= 0) {
+                continue;
+            }
+
+            $caseCountMap[$empId] = ($caseCountMap[$empId] ?? 0) + 1;
+            $contractMap[$empId] = ($contractMap[$empId] ?? 0) + $actualRevenue;
+        }
+
+        return array_map(function ($employee) use ($contractMap, $caseCountMap) {
+            $stats = $this->formatConsultingStats(
+                (float)($contractMap[$employee['id']] ?? 0),
+                (int)($caseCountMap[$employee['id']] ?? 0)
+            );
+
+            return array_merge($employee, $stats);
+        }, $employees);
+    }
+
+    /**
+     * Chuẩn hóa khoảng thời gian KPI tư vấn theo tháng yyyy-mm.
+     */
+    private function resolveConsultingPeriod(array $filters): array
+    {
+        $month = $filters['month'] ?? date('Y-m');
+        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $month = date('Y-m');
+        }
+
+        $startAt = $month . '-01 00:00:00';
+        $endAt = date('Y-m-t 23:59:59', strtotime($startAt));
+
+        return [$startAt, $endAt];
+    }
+
+    /**
+     * Lấy doanh thu thực thu dùng cho KPI tư vấn trong kỳ.
+     */
+    private function resolveConsultingActualRevenue(array $caseRow, string $startAt, string $endAt): float
+    {
+        $paymentProgress = $caseRow['payment_progress'] ?? null;
+        if (!empty($paymentProgress)) {
+            $payments = json_decode($paymentProgress, true);
+            if (is_array($payments)) {
+                $sum = 0;
+                foreach ($payments as $payment) {
+                    if (empty($payment['is_paid'])) {
+                        continue;
+                    }
+
+                    $paidAt = $payment['paid_at'] ?? null;
+                    if (empty($paidAt)) {
+                        continue;
+                    }
+
+                    $paidAt = date('Y-m-d H:i:s', strtotime($paidAt));
+                    if ($paidAt < $startAt || $paidAt > $endAt) {
+                        continue;
+                    }
+
+                    $amount = $payment['amount'] ?? 0;
+                    if (is_string($amount)) {
+                        $amount = str_replace(['.', ','], '', $amount);
+                    }
+                    $sum += (float)$amount;
+                }
+
+                return $sum;
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * Định dạng kết quả KPI tư vấn theo cùng cấu trúc dashboard đang dùng.
+     */
+    private function formatConsultingStats(float $contractValue, int $caseCount, ?float $targetValue = null): array
+    {
+        $targetValue = $targetValue ?? self::CONSULTING_MONTHLY_TARGET_VALUE;
+        $employeeTargetCount = self::CONSULTING_MONTHLY_TARGET_VALUE > 0
+            ? (int)round($targetValue / self::CONSULTING_MONTHLY_TARGET_VALUE)
+            : 0;
+        $targetReward = $employeeTargetCount * self::CONSULTING_TARGET_REWARD;
+        $standardReward = $this->resolveConsultingStandardReward($contractValue);
+        $milestoneBonus = $this->resolveConsultingMilestoneBonus($contractValue);
+        $monthlyPayout = round($standardReward * self::CONSULTING_MONTHLY_PAYOUT_RATE);
+        $annualAccrual = round($standardReward * self::CONSULTING_ANNUAL_ACCRUAL_RATE);
+        $nextPayrollPayout = $monthlyPayout + $milestoneBonus;
+        $reward = $standardReward + $milestoneBonus;
+        $percent = $targetValue > 0
+            ? round(($contractValue / $targetValue) * 100, 1)
+            : 0;
+        $remainingValue = max(0, $targetValue - $contractValue);
+
+        return [
+            'case_count'      => $caseCount,
+            'contract_value'  => $contractValue,
+            'target_value'    => $targetValue,
+            'target_reward'   => $targetReward,
+            'standard_reward' => $standardReward,
+            'monthly_payout'  => $monthlyPayout,
+            'annual_accrual'  => $annualAccrual,
+            'milestone_bonus' => $milestoneBonus,
+            'next_payroll_payout' => $nextPayrollPayout,
+            'reward'          => $reward,
+            'remaining_value' => $remainingValue,
+            'percent'         => $percent,
+            'earned'          => $reward,
+            'potential'       => $remainingValue,
+            'lost'            => 0,
+            'total'           => $targetValue,
+        ];
+    }
+
+    private function resolveConsultingStandardReward(float $actualRevenue): float
+    {
+        if ($actualRevenue >= 150000000) return 5000000;
+        if ($actualRevenue >= 125000000) return 4000000;
+        if ($actualRevenue >= 100000000) return 3000000;
+        if ($actualRevenue >= 75000000) return 2000000;
+        if ($actualRevenue >= 50000000) return 1000000;
+
+        return 0;
+    }
+
+    private function resolveConsultingMilestoneBonus(float $actualRevenue): float
+    {
+        if ($actualRevenue >= 500000000) return 10000000;
+        if ($actualRevenue >= 400000000) return 7000000;
+        if ($actualRevenue >= 300000000) return 4000000;
+        if ($actualRevenue >= 250000000) return 2000000;
+        if ($actualRevenue >= 200000000) return 1000000;
+
+        return 0;
+    }
+
+    /**
+     * Danh sách nhân viên được cấp trực tiếp quyền kpi.consulting.
+     * KPI tư vấn dùng danh sách này để tránh tính cả Admin/Trưởng phòng được kế thừa quyền theo vai trò.
+     */
+    private function getConsultingPermissionEmployeeIds(array $scopeEmployeeIds = []): array
+    {
+        $permission = $this->db->table('permissions')
+            ->select('id')
+            ->where('name', 'kpi.consulting')
+            ->get()
+            ->getRowArray();
+
+        if (empty($permission['id'])) {
+            return [];
+        }
+
+        $permissionId = (int)$permission['id'];
+        $builder = $this->db->table('employees e')
+            ->select('e.id')
+            ->join('users u', 'u.id = e.user_id', 'inner')
+            ->join('user_permissions up', 'up.user_id = u.id AND up.permission_id = ' . $permissionId, 'inner')
+            ->where('e.deleted_at', null)
+            ->where('u.active_status', 1)
+            ->where('u.deleted_at', null)
+            ->where('up.is_granted', 1);
+
+        $scopeEmployeeIds = array_values(array_unique(array_filter(array_map('intval', $scopeEmployeeIds))));
+        if (!empty($scopeEmployeeIds)) {
+            $builder->whereIn('e.id', $scopeEmployeeIds);
+        }
+
+        $rows = $builder->get()->getResultArray();
+
+        return array_map('intval', array_column($rows, 'id'));
+    }
+
     private function applyEmployeeFilter(&$query, $employeeId)
     {
         // Ta tính KPI cho: Người phụ trách chính (Lawyer/Staff) HOẶC người được gán vai trò 'assignee' trong dự án

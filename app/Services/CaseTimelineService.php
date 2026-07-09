@@ -34,6 +34,8 @@ class CaseTimelineService
                 $days--;
             }
         }
+
+        $date->setTime(23, 59, 59);
         
         return $date;
     }

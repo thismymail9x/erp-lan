@@ -12,7 +12,7 @@
     </div>
 </div>
 
-<form action="<?= base_url('system-logs') ?>" method="GET" class="search-filter-bar">
+<form action="<?= base_url('system-logs') ?>" method="GET" class="search-filter-bar filter-bar">
     <div class="search-input-group">
         <i class="fas fa-calendar-alt"></i>
         <input type="date" name="date" value="<?= $filters['date'] ?? '' ?>">
@@ -43,51 +43,8 @@
 <div class="premium-card premium-card-full" id="logs-table-results">
     <?= view('dashboard/system_logs/index_table') ?>
 </div>
+<?= $this->endSection() ?>
 
-<script>
-$(document).ready(function() {
-    const filterForm = $('.search-filter-bar');
-    const resultsContainer = $('#logs-table-results');
-
-    function performSearch() {
-        const formData = filterForm.serialize();
-        resultsContainer.css('opacity', '0.5');
-
-        $.ajax({
-            url: window.location.pathname,
-            type: 'GET',
-            data: formData,
-            success: function(response) {
-                resultsContainer.html(response);
-                resultsContainer.css('opacity', '1');
-            },
-            error: function() {
-                resultsContainer.css('opacity', '1');
-                console.error('Lỗi khi tải nhật ký.');
-            }
-        });
-    }
-
-    // Tự động lọc khi thay đổi bất kỳ ô input/select nào
-    filterForm.find('input, select').on('change', performSearch);
-
-    // Xử lý chuyển trang qua AJAX
-    $(document).on('click', '#logs-pagination a', function(e) {
-        e.preventDefault();
-        const url = $(this).attr('href');
-        resultsContainer.css('opacity', '0.5');
-
-        $.ajax({
-            url: url,
-            type: 'GET',
-            success: function(response) {
-                resultsContainer.html(response);
-                resultsContainer.css('opacity', '1');
-                $('html, body').animate({ scrollTop: 0 }, 500);
-            }
-        });
-    });
-});
-</script>
-
+<?= $this->section('scripts') ?>
+<script src="<?= base_url('js/system_logs.js') ?>"></script>
 <?= $this->endSection() ?>

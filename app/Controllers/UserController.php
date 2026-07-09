@@ -59,13 +59,14 @@ class UserController extends BaseController
         $perPage = 20; // Cấu hình số lượng bản ghi hiển thị trên mỗi trang
 
         // Lấy danh sách User và thống kê trạng thái từ Service
-        $users = $this->userService->getUsers($sort, $order, $perPage, $search);
+        $status = $this->request->getGet('status') === 'archived' ? 'archived' : 'active';
+        $users = $this->userService->getUsers($sort, $order, $perPage, $search, $status);
         $stats = $this->userService->getStats(); // Ví dụ: Tổng số user, số user bị khóa...
 
         // --- KIỂM TRA PHÂN QUYỀN TRUY CẬP TRANG ---
         $roleName = session()->get('role_name');
-        // BIỆN PHÁP BẢO VỆ: Chỉ những vai trò quản lý hệ thống HOẶC người được cấp quyền user.manage mới được xem danh sách
-        if (!has_permission('sys.admin') && !has_permission('user.manage') && $roleName != \Config\AppConstants::ROLE_ADMIN && $roleName != \Config\AppConstants::ROLE_MOD) {
+        // BIỆN PHÁP BẢO VỆ: user.view được phép xem danh sách; user.manage mới được thao tác quản trị.
+        if (!has_permission('sys.admin') && !has_permission('user.view') && !has_permission('user.manage') && $roleName != \Config\AppConstants::ROLE_ADMIN && $roleName != \Config\AppConstants::ROLE_MOD) {
             return redirect()->to('/dashboard')->with('error', 'Cảnh báo bảo mật: Bạn không có thẩm quyền truy cập trang quản lý nhân sự.');
         }
 
@@ -77,7 +78,8 @@ class UserController extends BaseController
             'pager'        => $this->userService->getPager(), // Cung cấp đối tượng phân trang cho View
             'currentSort'  => $sort,
             'currentOrder' => $order,
-            'search'       => $search
+            'search'       => $search,
+            'status'       => $status
         ];
 
         // Hỗ trợ cập nhật danh sách mượt mà qua AJAX (ví dụ khi gõ ô tìm kiếm)

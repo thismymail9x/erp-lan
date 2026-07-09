@@ -1,0 +1,38 @@
+[
+    {
+        "type": "cases",
+        "label": "Vụ việc pháp lý"
+    },
+    {
+        "type": "contacts",
+        "label": "Danh bạ"
+    },
+    {
+        "type": "customers",
+        "label": "Khách hàng (CRM)"
+    },
+    {
+        "type": "documents",
+        "label": "Tài liệu (DMS)"
+    },
+    {
+        "type": "employees",
+        "label": "Nhân sự & Hồ sơ"
+    },
+    {
+        "type": "knowledge",
+        "label": "Cẩm nang tri thức"
+    },
+    {
+        "type": "leave_requests",
+        "label": "Đơn nghỉ phép"
+    },
+    {
+        "type": "workflows",
+        "label": "Quy trình mẫu"
+    },
+    {
+        "type": "social",
+        "label": "Nền tảng"
+    }
+]

@@ -279,6 +279,47 @@ class AttendanceController extends BaseController
     }
 
     /**
+     * Cập nhật trạng thái một bản ghi chấm công (Admin chỉnh inline).
+     * Whitelist chặt các giá trị được phép để tránh inject dữ liệu bất hợp lệ.
+     */
+    public function updateStatus(int $id)
+    {
+        $role = session()->get('role_name');
+        if (!in_array($role, AppConstants::PRIVILEGED_ROLES) && !has_permission('attendance.view_all')) {
+            return $this->response->setJSON(['code' => 1, 'error' => 'Bạn không có quyền thực hiện thao tác này.']);
+        }
+
+        $status = $this->request->getPost('status');
+
+        // Whitelist trạng thái hợp lệ
+        $allowedStatuses = ['REGULAR', 'LATE', 'EARLY_LEAVE', 'LEAVE_MORNING', 'LEAVE_AFTERNOON', 'LEAVE_FULL_DAY', 'INVALID_LOCATION'];
+        if (!in_array($status, $allowedStatuses)) {
+            return $this->response->setJSON(['code' => 2, 'error' => 'Trạng thái không hợp lệ: ' . esc($status)]);
+        }
+
+        $db      = \Config\Database::connect();
+        $builder = $db->table('attendances');
+        $builder->where('id', $id);
+
+        if ($builder->update(['status' => $status])) {
+            // Ghi log audit trail
+            $logModel = new \App\Models\SystemLogModel();
+            $logModel->insert([
+                'user_id'    => session()->get('user_id'),
+                'action'     => 'UPDATE_ATTENDANCE_STATUS',
+                'module'     => 'ATTENDANCE',
+                'details'    => "Sửa trạng thái bản ghi #{$id} → {$status}",
+                'ip_address' => $this->request->getIPAddress(),
+                'user_agent' => $this->request->getUserAgent()->getAgentString()
+            ]);
+
+            return $this->response->setJSON(['code' => 0, 'message' => 'Đã cập nhật trạng thái thành công.']);
+        }
+
+        return $this->response->setJSON(['code' => 3, 'error' => 'Lỗi hệ thống khi cập nhật cơ sở dữ liệu.']);
+    }
+
+    /**
      * Cập nhật trạng thái hàng loạt cho nhiều lượt chấm công.
      */
     public function bulkUpdate()
@@ -300,11 +341,23 @@ class AttendanceController extends BaseController
         
         $builder->whereIn('id', $ids);
         if ($builder->update(['status' => $status])) {
+            // Ghi log hệ thống để kiểm soát thao tác
+            $logModel = new \App\Models\SystemLogModel();
+            $logModel->insert([
+                'user_id' => session()->get('user_id'),
+                'action'  => 'BULK_UPDATE_STATUS',
+                'module'  => 'ATTENDANCE',
+                'details' => "Cập nhật trạng thái sang $status cho các ID: " . implode(',', $ids),
+                'ip_address' => $this->request->getIPAddress(),
+                'user_agent' => $this->request->getUserAgent()->getAgentString()
+            ]);
+
             return $this->response->setJSON(['code' => 0, 'message' => 'Cập nhật thành công ' . count($ids) . ' lượt chấm công.']);
         }
 
         return $this->response->setJSON(['code' => 3, 'error' => 'Lỗi hệ thống khi cập nhật cơ sở dữ liệu.']);
     }
+
 
     /**
      * Xuất dữ liệu chấm công CSV (Phân quyền Trưởng phòng/Admin)

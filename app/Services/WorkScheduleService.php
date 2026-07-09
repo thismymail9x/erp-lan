@@ -44,6 +44,9 @@ class WorkScheduleService extends BaseService
      */
     public function create(array $data)
     {
+        // Chuẩn hóa cờ đăng ký xe ở tầng Service để mọi entry point đều lưu 0/1 nhất quán.
+        $data['requires_vehicle'] = !empty($data['requires_vehicle']) ? 1 : 0;
+
         // Kiểm tra logic thời gian
         if (strtotime($data['end_at']) < strtotime($data['start_at'])) {
             return $this->fail('Thời gian kết thúc không thể trước thời gian bắt đầu.');
@@ -61,34 +64,36 @@ class WorkScheduleService extends BaseService
             // Ghi log hệ thống
             (new SystemLogService())->log('WS_CREATE', 'WorkSchedule', $id, [
                 'title' => $data['title'],
-                'type' => $data['type']
+                'type' => $data['type'],
+                'requires_vehicle' => $data['requires_vehicle']
             ]);
 
             // THÔNG BÁO CHO CÔNG TY (Rule #10: Đồng bộ tập trung)
-            $employee = $this->employeeModel->find($data['employee_id']);
-            $empName = $employee ? $employee['full_name'] : 'Một nhân sự';
-            $typeLabel = ($data['type'] === 'business_trip') ? 'Lịch công tác' : 'Lịch làm việc';
-            
-            $assignInfo = '';
-            if (!empty($data['assigned_by_id'])) {
-                $assigner = $this->employeeModel->find($data['assigned_by_id']);
-                if ($assigner) {
-                    $assignInfo = " (Phân công của: {$assigner['full_name']})";
-                }
-            }
+            // 02/06/2026 hungtd tạm bỏ tránh gây loãng thông báo
+//            $employee = $this->employeeModel->find($data['employee_id']);
+//            $empName = $employee ? $employee['full_name'] : 'Một nhân sự';
+//            $typeLabel = ($data['type'] === 'business_trip') ? 'Lịch công tác' : 'Lịch làm việc';
+//
+//            $assignInfo = '';
+//            if (!empty($data['assigned_by_id'])) {
+//                $assigner = $this->employeeModel->find($data['assigned_by_id']);
+//                if ($assigner) {
+//                    $assignInfo = " (Phân công của: {$assigner['full_name']})";
+//                }
+//            }
+//
+//            $titleNotif = "{$typeLabel}{$assignInfo} mới: {$empName}";
+//            $msgNotif = "{$empName} đã cập nhật {$typeLabel}: {$data['title']} tại " . ($data['location'] ?: 'Văn phòng') . " từ " . date('d/m/Y H:i', strtotime($data['start_at']));
+//
+//            // Thông báo cho toàn thể nhân viên (theo yêu cầu: "thông báo cho nhau")
+//            $this->notificationService->notifyAllEmployees(
+//                $titleNotif,
+//                $msgNotif,
+//                'system',
+//                '/work-schedules'
+//            );
 
-            $titleNotif = "{$typeLabel}{$assignInfo} mới: {$empName}";
-            $msgNotif = "{$empName} đã cập nhật {$typeLabel}: {$data['title']} tại " . ($data['location'] ?: 'Văn phòng') . " từ " . date('d/m/Y H:i', strtotime($data['start_at']));
-
-            // Thông báo cho toàn thể nhân viên (theo yêu cầu: "thông báo cho nhau")
-            $this->notificationService->notifyAllEmployees(
-                $titleNotif,
-                $msgNotif,
-                'system',
-                '/work-schedules'
-            );
-
-            return $this->success(['id' => $id], 'Đã tạo lịch trình và thông báo cho toàn thể nhân viên.');
+            return $this->success(['id' => $id], 'Đã tạo lịch trình.');
         }
 
         return $this->fail('Không thể lưu lịch trình. Vui lòng thử lại.');
@@ -99,6 +104,9 @@ class WorkScheduleService extends BaseService
      */
     public function update(int $id, array $data, int $currentEmployeeId)
     {
+        // Checkbox đăng ký xe có thể không xuất hiện trong request khi bỏ chọn.
+        $data['requires_vehicle'] = !empty($data['requires_vehicle']) ? 1 : 0;
+
         $schedule = $this->model->find($id);
         if (!$schedule) {
             return $this->fail('Không tìm thấy lịch trình.');
