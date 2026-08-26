@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Services\EmployeeService;
+use App\Services\LeaveRequestService;
 
 /**
  * EmployeeController
@@ -195,6 +196,7 @@ class EmployeeController extends BaseController
         $data = [
             'title'         => 'Chỉnh sửa nhân viên | L.A.N ERP',
             'employee'      => $result['data'],
+            'annualLeaveBalance' => (new LeaveRequestService())->getAnnualLeaveBalance($id, (int)date('Y')),
             'departments'   => get_departments(), // Core Function
             'managers'      => get_available_employees(), // Core Function
             'unlinkedUsers' => $unlinkedUsers
@@ -315,37 +317,83 @@ class EmployeeController extends BaseController
      * Tính năng tự đổi mật khẩu cho nhân viên.
      * Tích hợp ngay trong trang quản lý hồ sơ nhân sự để thuận tiện cho User.
      */
-    public function changePassword()
+    public function changePassword(?int $employeeId = null)
     {
-        $userId = session()->get('user_id');
-        $userModel = new \App\Models\UserModel();
-        $user = $userModel->find($userId);
-
-        $oldPassword = $this->request->getPost('old_password');
-        $newPassword = $this->request->getPost('new_password');
-        $confirmPassword = $this->request->getPost('confirm_password');
         $role = session()->get('role_name');
-        $isAdmin = in_array($role, [\Config\AppConstants::ROLE_ADMIN, \Config\AppConstants::ROLE_MOD]);
+        $deptName = session()->get('department_name');
+        $isPrivileged = (
+            session()->get('is_admin') ||
+            session()->get('isadmin') ||
+            (int) session()->get('role_id') === 1 ||
+            has_permission('sys.admin') ||
+            has_permission('user.manage') ||
+            in_array($role, [\Config\AppConstants::ROLE_ADMIN, \Config\AppConstants::ROLE_MOD], true) ||
+            $deptName === \Config\AppConstants::DEPT_NAME_HANH_CHINH
+        );
 
-        // Kiểm tra mật khẩu cũ (An toàn tuyệt đối)
-        if (!$oldPassword || (!password_verify($oldPassword, $user['password']) && !$isAdmin)) {
-            return redirect()->back()->with('error', 'Mật khẩu hiện tại không chính xác.');
+        $targetEmployeeId = (int) ($employeeId ?: $this->request->getPost('employee_id'));
+        $currentEmployeeId = (int) session()->get('employee_id');
+
+        if ($isPrivileged) {
+            if ($targetEmployeeId <= 0) {
+                return redirect()->back()->with('error', 'Khong xac dinh duoc nhan vien can doi mat khau.');
+            }
+
+            $employeeModel = new \App\Models\EmployeeModel();
+            $employee = $employeeModel->find($targetEmployeeId);
+
+            if (!$employee || empty($employee['user_id'])) {
+                return redirect()->back()->with('error', 'Nhan vien nay chua lien ket tai khoan dang nhap.');
+            }
+
+            $targetUserId = (int) $employee['user_id'];
+        } else {
+            if ($targetEmployeeId <= 0) {
+                $targetEmployeeId = $currentEmployeeId;
+            }
+
+            if ($targetEmployeeId !== $currentEmployeeId) {
+                return redirect()->back()->with('error', 'Ban khong co quyen doi mat khau tai khoan nay.');
+            }
+
+            $targetUserId = (int) session()->get('user_id');
         }
 
-        // Validate mật khẩu mới
+        $oldPassword = (string) $this->request->getPost('old_password');
+        $newPassword = (string) $this->request->getPost('new_password');
+        $confirmPassword = (string) $this->request->getPost('confirm_password');
+
+        // Dung Query Builder truc tiep de khong phu thuoc cot deleted_at tren bang users o DB cu.
+        $db = \Config\Database::connect();
+        $user = $db->table('users')
+            ->select('id, password')
+            ->where('id', $targetUserId)
+            ->get()
+            ->getRowArray();
+
+        if (!$user) {
+            return redirect()->back()->with('error', 'Khong tim thay tai khoan can doi mat khau.');
+        }
+
+        if (!$isPrivileged && (!$oldPassword || !password_verify($oldPassword, $user['password']))) {
+            return redirect()->back()->with('error', 'Mat khau hien tai khong chinh xac.');
+        }
+
         if ($newPassword !== $confirmPassword) {
-            return redirect()->back()->with('error', 'Xác nhận mật khẩu mới không khớp.');
+            return redirect()->back()->with('error', 'Xac nhan mat khau moi khong khop.');
         }
 
         if (strlen($newPassword) < 6) {
-            return redirect()->back()->with('error', 'Mật khẩu mới phải có độ dài tối thiểu 6 ký tự.');
+            return redirect()->back()->with('error', 'Mat khau moi phai co do dai toi thieu 6 ky tu.');
         }
 
-        // Hash mật khẩu mới và lưu trữ
-        $userModel->update($userId, [
-            'password' => password_hash($newPassword, PASSWORD_DEFAULT)
-        ]);
+        $db->table('users')
+            ->where('id', $targetUserId)
+            ->update([
+                'password' => password_hash($newPassword, PASSWORD_DEFAULT),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
 
-        return redirect()->back()->with('success', 'Bạn đã thay đổi mật khẩu truy cập thành công.');
+        return redirect()->back()->with('success', 'Da cap nhat mat khau thanh cong.');
     }
 }

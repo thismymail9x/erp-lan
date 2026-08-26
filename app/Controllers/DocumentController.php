@@ -95,7 +95,8 @@ class DocumentController extends BaseController
         }
 
         // 3. Thực hiện truy vấn danh sách tài liệu (Scoped search)
-        $documents = $this->docModel->searchDocuments($filters, $myEmpId);
+        $perPage = 20;
+        $documents = $this->docModel->searchDocuments($filters, $myEmpId, $perPage);
 
         $allUsers = [];
         if (!$this->request->isAJAX()) {
@@ -109,6 +110,7 @@ class DocumentController extends BaseController
 
         $data = [
             'documents'     => $documents,
+            'pager'         => $this->docModel->pager,
             'customers'     => $customers,
             'cases'         => $cases,
             'allUsers'      => $allUsers,
@@ -176,11 +178,52 @@ class DocumentController extends BaseController
     }
 
     /**
+     * Xem/tải từng tệp vật lý trong một tài liệu DMS nhiều file.
+     */
+    public function viewFile($documentId, $fileId)
+    {
+        if (!$this->docService->checkAccess($documentId, 'view')) {
+            return redirect()->back()->with('error', 'Bạn không có quyền truy cập tài liệu này.');
+        }
+
+        $fileModel = new \App\Models\DocumentFileModel();
+        if (!$fileModel->db->tableExists('document_files')) {
+            return redirect()->back()->with('error', 'Chưa có bảng tệp tài liệu. Vui lòng chạy migration.');
+        }
+
+        $file = $fileModel->where('document_id', $documentId)->find($fileId);
+        if (!$file) {
+            return redirect()->back()->with('error', 'Tệp tin không tồn tại trong tài liệu này.');
+        }
+
+        $realPath = WRITEPATH . $file['file_path'];
+        if (!file_exists($realPath)) {
+            return redirect()->back()->with('error', 'Không tìm thấy tệp tin trên hệ thống lưu trữ.');
+        }
+
+        $this->docService->logAccess($documentId, 'view');
+
+        $downloadName = $file['original_name'];
+        $extension = pathinfo($realPath, PATHINFO_EXTENSION);
+        if (!empty($extension) && !str_ends_with(strtolower($downloadName), '.' . strtolower($extension))) {
+            $downloadName .= '.' . $extension;
+        }
+
+        if ($this->request->getGet('preview') == 1) {
+            return $this->response
+                ->setHeader('Content-Type', $file['mime_type'])
+                ->setHeader('Content-Disposition', 'inline; filename="' . $downloadName . '"')
+                ->setBody(file_get_contents($realPath));
+        }
+
+        return $this->response->download($realPath, null)->setFileName($downloadName);
+    }
+
+    /**
      * XỬ LÝ UPLOAD (Tự động hóa thông tin metadata).
      */
     public function upload()
     {
-        $file = $this->request->getFile('document');
         $data = $this->request->getPost();
         
         // Tags đã được xử lý thành array từ View (Multi-select)
@@ -189,7 +232,23 @@ class DocumentController extends BaseController
             $data['tags'] = is_array($data['tags_raw']) ? $data['tags_raw'] : explode(',', $data['tags_raw']);
         }
 
-        $result = $this->docService->upload($file, $data);
+        $files = $this->request->getFileMultiple('document');
+        if (empty($files)) {
+            $singleFile = $this->request->getFile('document');
+            $files = $singleFile ? [$singleFile] : [];
+        }
+
+        $files = array_values(array_filter($files, function ($file) {
+            return $file && $file->getClientName() !== '';
+        }));
+
+        if (empty($files)) {
+            return redirect()->back()->withInput()->with('error', 'Vui lòng chọn ít nhất một tệp tin để tải lên.');
+        }
+
+        $result = count($files) > 1
+            ? $this->docService->uploadMultiple($files, $data)
+            : $this->docService->upload($files[0], $data);
 
         if ($result['status'] == 'success') {
             return redirect()->back()->with('success', $result['message']);
@@ -207,12 +266,115 @@ class DocumentController extends BaseController
              return redirect()->back()->with('error', 'Chỉ Quản trị viên mới được phép xóa vĩnh viễn tài liệu khỏi DMS.');
         }
 
-        if ($this->docModel->delete($id)) {
-            $this->docService->logAccess($id, 'delete');
-            return redirect()->back()->with('success', 'Tài liệu đã được đưa vào thùng rác.');
+        $doc = $this->docModel->find($id);
+        if (!$doc) {
+            return redirect()->back()->with('error', 'Tài liệu không tồn tại.');
         }
 
-        return redirect()->back()->with('error', 'Có lỗi xảy ra khi xóa tài liệu.');
+        $paths = [];
+        if (!empty($doc['file_path'])) {
+            $paths[] = $doc['file_path'];
+        }
+
+        $fileModel = new \App\Models\DocumentFileModel();
+        $this->docModel->db->transStart();
+
+        if ($fileModel->db->tableExists('document_files')) {
+            $files = $fileModel->where('document_id', $id)->findAll();
+            foreach ($files as $file) {
+                if (!empty($file['file_path'])) {
+                    $paths[] = $file['file_path'];
+                }
+                $fileModel->delete($file['id']);
+            }
+        }
+
+        $this->docService->logAccess($id, 'delete');
+        $this->docModel->delete($id);
+
+        $this->docModel->db->transComplete();
+        if ($this->docModel->db->transStatus() === false) {
+            return redirect()->back()->with('error', 'Có lỗi xảy ra khi xóa tài liệu.');
+        }
+
+        $this->unlinkStoredFiles($paths);
+
+        return redirect()->back()->with('success', 'Tài liệu đã được xóa khỏi DMS.');
+    }
+
+    /**
+     * Xoa vinh vien mot tep vat ly trong tai lieu nhieu file.
+     */
+    public function deleteFile($documentId, $fileId)
+    {
+        if (!has_permission('sys.admin')) {
+            return redirect()->back()->with('error', 'Chỉ Quản trị viên mới được phép xóa tệp tài liệu.');
+        }
+
+        $doc = $this->docModel->find($documentId);
+        if (!$doc) {
+            return redirect()->back()->with('error', 'Tài liệu không tồn tại.');
+        }
+
+        $fileModel = new \App\Models\DocumentFileModel();
+        if (!$fileModel->db->tableExists('document_files')) {
+            return redirect()->back()->with('error', 'Chưa có bảng tệp tài liệu.');
+        }
+
+        $file = $fileModel->where('document_id', $documentId)->find($fileId);
+        if (!$file) {
+            return redirect()->back()->with('error', 'Tệp tin không tồn tại trong tài liệu này.');
+        }
+
+        $activeFiles = $fileModel->where('document_id', $documentId)
+            ->orderBy('sort_order', 'ASC')
+            ->findAll();
+
+        if (count($activeFiles) <= 1) {
+            return $this->delete($documentId);
+        }
+
+        $this->docModel->db->transStart();
+        $fileModel->delete($fileId);
+
+        $remainingFiles = $fileModel->where('document_id', $documentId)
+            ->orderBy('sort_order', 'ASC')
+            ->findAll();
+
+        if (!empty($remainingFiles)) {
+            $firstFile = $remainingFiles[0];
+            $totalSize = array_sum(array_map(static function ($row) {
+                return (int)($row['size'] ?? 0);
+            }, $remainingFiles));
+
+            $this->docModel->update($documentId, [
+                'file_path' => $firstFile['file_path'],
+                'file_type' => $firstFile['file_type'],
+                'mime_type' => $firstFile['mime_type'],
+                'size'      => $totalSize,
+            ]);
+        }
+
+        $this->docService->logAccess($documentId, 'delete_file');
+        $this->docModel->db->transComplete();
+
+        if ($this->docModel->db->transStatus() === false) {
+            return redirect()->back()->with('error', 'Có lỗi xảy ra khi xóa tệp tài liệu.');
+        }
+
+        $this->unlinkStoredFiles([$file['file_path'] ?? null]);
+
+        return redirect()->back()->with('success', 'Đã xóa tệp khỏi hồ sơ.');
+    }
+
+    private function unlinkStoredFiles(array $paths): void
+    {
+        foreach (array_unique(array_filter($paths)) as $path) {
+            $realPath = WRITEPATH . $path;
+            if (is_file($realPath)) {
+                @unlink($realPath);
+            }
+        }
     }
 
     /**

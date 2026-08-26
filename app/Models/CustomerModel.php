@@ -71,9 +71,11 @@ class CustomerModel extends BaseModel
         'phone', 'phone_secondary', 'email', 'email_secondary',
         'address', 'address_json', 
         'company_name', 'tax_code', 'biz_registration_number', 'rep_position',
-        'tags', 'source', 'referred_by', 'created_by', 'assigned_care_staff_id', 'is_blacklist', 'blacklist_reason',
+        'tags', 'source', 'referred_by', 'referred_partner_id', 'created_by', 'assigned_care_staff_id', 'is_blacklist', 'blacklist_reason',
         // Các trường CSKH mới (Không bao gồm province)
-        'customer_segment', 'zalo_phone', 'occupation', 'care_status', 'has_received_gift', 'service_completed_date', 'referral_count',
+        'customer_segment', 'zalo_phone', 'occupation', 'care_status', 'monitoring_status', 'has_received_gift', 'service_completed_date', 'referral_count',
+        'relationship_level', 'relationship_score', 'relationship_status', 'health_score', 'next_interaction_date',
+        'relationship_manager_id', 'referred_by_customer_id', 'referral_score', 'interests', 'identified_issues',
         // Các trường cache phục vụ thống kê (Dashboard)
         'total_revenue', 'total_cases', 'success_rate', 'last_contact_date', 'notes_internal'
     ];

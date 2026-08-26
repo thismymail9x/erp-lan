@@ -14,6 +14,20 @@ document.addEventListener('DOMContentLoaded', function() {
         return appBaseUrl + 'work-schedules/' + path;
     };
 
+    function toggleExpenseQuickPanel() {
+        const hasCase = Boolean($('#wsCaseId').val());
+        $('#wsExpenseQuickPanel').toggleClass('is-visible', hasCase);
+        if (!hasCase) {
+            clearExpenseQuickFields();
+        }
+    }
+
+    function clearExpenseQuickFields() {
+        $('#wsExpenseAmount').val('');
+        $('#wsExpenseNote').val('');
+        $('#wsExpenseCategory').val('other');
+    }
+
     const calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: window.innerWidth < 768 ? 'listMonth' : 'dayGridMonth',
         height: '100%',
@@ -90,6 +104,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 sourceHtml = '<div style="display: flex; align-items: center;"><i class="fas fa-user-tag" style="width: 25px; color: blue; font-size: 1.2rem;"></i> <span style="color: green; font-weight: 700;">V\u1ee5 vi\u1ec7c c\u00e1 nh\u00e2n</span></div>';
             }
 
+            const caseHtml = props.case_code
+                ? `<div style="display: flex; align-items: center;"><i class="fas fa-lock" style="width: 25px; color: #64748b; font-size: 1.1rem;"></i> <b>V\u1ee5 vi\u1ec7c:</b> &nbsp; <span style="color: #0f172a; font-weight: 700;">${props.case_code}</span></div>`
+                : '';
+
             const eventTitle = props.type === 'leave'
                 ? (props.employee_name || '')
                 : (info.event.title.split(': ').slice(1).join(': ') || info.event.title);
@@ -113,6 +131,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <div style="display: flex; align-items: center;"><i class="fas fa-calendar-alt" style="width: 25px; color: #007aff; font-size: 1.1rem;"></i> <b>Ng\u00e0y:</b> &nbsp; ${props.date_display}</div>
                                 ${locationHtmlForTooltip}
                                 ${vehicleHtml}
+                                ${caseHtml}
                                 <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ddd;">
                                     <div style="display: flex; align-items: center; margin-bottom: 5px;"><i class="fas fa-user-tie" style="width: 25px; color: #5856d6; font-size: 1.1rem;"></i> <b>Th\u1ef1c hi\u1ec7n:</b> &nbsp; <span style="color: #007aff; font-weight: 700;">${props.employee_name}</span></div>
                                     ${sourceHtml}
@@ -148,6 +167,10 @@ document.addEventListener('DOMContentLoaded', function() {
         wsForm.reset();
         $('#wsId').val('');
         $('#btnDeleteWs').hide();
+        $('#btnWsExpense').hide().attr('href', '#');
+        $('#wsCaseId').val('').trigger('change');
+        clearExpenseQuickFields();
+        toggleExpenseQuickPanel();
 
         if (mode === 'create') {
             $('#wsRequiresVehicle').prop('checked', false);
@@ -165,6 +188,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     $('#wsId').val(d.id);
                     $('#wsEmployeeId').val(d.employee_id).trigger('change');
                     $('#wsAssignedById').val(d.assigned_by_id || '').trigger('change');
+                    $('#wsCaseId').val(d.case_id || '').trigger('change');
+                    clearExpenseQuickFields();
+                    toggleExpenseQuickPanel();
+                    if (d.case_id) {
+                        $('#btnWsExpense').attr('href', appBaseUrl + 'case-expenses?work_schedule_id=' + d.id).show();
+                    } else {
+                        $('#btnWsExpense').hide().attr('href', '#');
+                    }
                     $('#wsType').val(d.type);
                     $('#wsTitle').val(d.title);
                     $('#wsLocation').val(d.location);
@@ -197,6 +228,13 @@ document.addEventListener('DOMContentLoaded', function() {
         openModal('create', { start_at: startStr, end_at: endStr });
     });
 
+    $('#wsCaseId').on('change', toggleExpenseQuickPanel);
+
+    $('#wsExpenseAmount').on('input', function() {
+        const digits = String(this.value).replace(/[^\d]/g, '');
+        this.value = digits ? Number(digits).toLocaleString('vi-VN') : '';
+    });
+
     $('#btnCloseModal, #btnCancelModal, .modal-overlay').click(function(e) {
         if (e.target === this || this.id === 'btnCloseModal' || this.id === 'btnCancelModal') {
             wsModal.style.display = 'none';
@@ -214,6 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
         $.post(url, $(this).serialize(), function(res) {
             if (res.status === 'success') {
                 wsModal.style.display = 'none';
+                clearExpenseQuickFields();
                 calendar.refetchEvents();
             } else {
                 alert(res.message);

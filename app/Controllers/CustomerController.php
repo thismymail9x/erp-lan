@@ -7,7 +7,10 @@ use App\Models\CustomerInteractionModel;
 use App\Models\CustomerDocumentModel;
 use App\Models\CustomerPaymentModel;
 use App\Models\CaseModel;
+use App\Models\PartnerModel;
 use App\Services\CustomerService;
+use App\Services\CustomerRelationshipService;
+use App\Services\CustomerMonitoringStatusService;
 
 /**
  * CustomerController
@@ -46,6 +49,8 @@ class CustomerController extends BaseController
 
     protected $customerModel;
     protected $customerService;
+    protected $customerRelationshipService;
+    protected $customerMonitoringStatusService;
     protected $tagService;
 
     public function __construct()
@@ -53,6 +58,8 @@ class CustomerController extends BaseController
         // Khởi tạo model và service phục vụ cho controller CRM
         $this->customerModel = new CustomerModel();
         $this->customerService = new CustomerService();
+        $this->customerRelationshipService = new CustomerRelationshipService();
+        $this->customerMonitoringStatusService = new CustomerMonitoringStatusService();
         $this->tagService = new \App\Services\TagService();
     }
 
@@ -69,11 +76,13 @@ class CustomerController extends BaseController
         $month = $this->request->getGet('month');      // Lọc theo tháng tạo khách hàng
         $year = $this->request->getGet('year');        // Lọc theo năm tạo khách hàng
         $careStaffId = $this->request->getGet('care_staff_id'); // Lọc theo nhân sự tư vấn
-        $careStatus = $this->request->getGet('care_status');   // Lọc theo trạng thái tư vấn (SLA)
+        $careStatus = $this->request->getGet('care_status');
+        $monitoringStatus = $this->request->getGet('monitoring_status');   // Lọc theo trạng thái giám sát
         
         // Sửa đổi: Đếm số vụ việc và lấy thông tin SLA đang hoạt động bằng các subquery động hiệu năng cao
         $query = $this->customerModel->select('customers.*, employees.full_name as care_staff_name, 
             (SELECT COUNT(*) FROM cases WHERE cases.customer_id = customers.id AND cases.deleted_at IS NULL) as total_cases,
+            (SELECT COUNT(*) FROM documents WHERE documents.customer_id = customers.id AND documents.deleted_at IS NULL) as profile_document_count,
             (SELECT due_time FROM customer_sla_history WHERE customer_sla_history.customer_id = customers.id AND customer_sla_history.end_time IS NULL AND customer_sla_history.deleted_at IS NULL LIMIT 1) as active_sla_due_time,
             (SELECT sla_status FROM customer_sla_history WHERE customer_sla_history.customer_id = customers.id AND customer_sla_history.end_time IS NULL AND customer_sla_history.deleted_at IS NULL LIMIT 1) as active_sla_status,
             (SELECT start_time FROM customer_sla_history WHERE customer_sla_history.customer_id = customers.id AND customer_sla_history.end_time IS NULL AND customer_sla_history.deleted_at IS NULL LIMIT 1) as active_sla_start_time')
@@ -120,6 +129,13 @@ class CustomerController extends BaseController
         // Lọc theo trạng thái tư vấn (SLA)
         if ($careStatus) {
             $query->where('customers.care_status', $careStatus);
+        }
+
+        if ($monitoringStatus && preg_match('/^[A-Za-z0-9_-]{1,80}$/', (string) $monitoringStatus)) {
+            $query->groupStart()
+                ->where('customers.monitoring_status', $monitoringStatus)
+                ->orLike('customers.monitoring_status', '"' . $monitoringStatus . '"')
+                ->groupEnd();
         }
 
         // --- BẢO MẬT: LỌC DỮ LIỆU DANH SÁCH (Data Isolation) ---
@@ -202,7 +218,7 @@ class CustomerController extends BaseController
         $sort = $this->request->getGet('sort') ?: 'created_at';
         $order = $this->request->getGet('order') ?: 'desc';
 
-        $allowedSorts = ['code', 'name', 'care_staff_name', 'total_cases', 'created_at'];
+        $allowedSorts = ['code', 'name', 'care_staff_name', 'care_status', 'monitoring_status', 'total_cases', 'created_at'];
         if (!in_array($sort, $allowedSorts)) {
             $sort = 'created_at';
         }
@@ -257,6 +273,8 @@ class CustomerController extends BaseController
         $slaSettingModel = new \App\Models\CustomerSlaSettingModel();
         $slaSettings = $slaSettingModel->where('deleted_at', null)->orderBy('sort_order', 'ASC')->findAll();
 
+        $monitoringSettings = $this->customerMonitoringStatusService->getSettings(true);
+
         // Tải danh sách mẫu tin ZNS đang hoạt động để phục vụ gửi nhanh (Zalo ZNS Bulk)
         $znsTemplateModel = new \App\Models\ZnsTemplateModel();
         $znsTemplates = [];
@@ -266,6 +284,10 @@ class CustomerController extends BaseController
             log_message('error', 'CustomerController::index - getActiveTemplates error: ' . $e->getMessage());
         }
 
+        $canEdit = has_permission('sys.admin')
+            || has_permission('customer.manage')
+            || has_permission('customer.edit_all');
+
         $data = [
             'customers'     => $customers,
             'pager'         => $this->customerModel->pager,
@@ -273,6 +295,8 @@ class CustomerController extends BaseController
             'availableTags' => $this->tagService->getAvailableTags('customers', has_permission('sys.admin') ? -1 : null),
             'employees'     => get_available_employees(),
             'slaSettings'   => $slaSettings,
+            'monitoringSettings' => $monitoringSettings,
+            'canEdit'        => $canEdit,
             'znsTemplates'  => $znsTemplates,
             'title'         => 'Quản lý khách hàng | L.A.N ERP'
         ];
@@ -290,9 +314,11 @@ class CustomerController extends BaseController
      */
     public function create()
     {
+        $partnerModel = new PartnerModel();
         $data = [
             'availableTags' => $this->tagService->getAvailableTags('customers', has_permission('sys.admin') ? -1 : null),
             'employees'     => get_available_employees(),
+            'partners'      => $partnerModel->where('status', 'active')->orderBy('name', 'ASC')->findAll(300),
             'title' => 'Tiếp nhận khách hàng mới | L.A.N ERP'
         ];
 
@@ -520,6 +546,22 @@ class CustomerController extends BaseController
         $carePlans = $carePlanModel->getByCustomer($id);
         $careTasks = $careTaskModel->getByCustomer($id);
         $loyalty   = $loyaltyModel->getByCustomer($id);
+        $relationshipProfile = $this->customerRelationshipService->getProfile((int) $id);
+        $opportunities = $this->customerRelationshipService->getOpportunities((int) $id);
+        $activeEmployees = $db->table('employees')
+            ->select('employees.id, employees.full_name')
+            ->join('users', 'users.id = employees.user_id', 'inner')
+            ->where('employees.deleted_at', null)
+            ->where('users.deleted_at', null)
+            ->where('users.active_status', 1)
+            ->orderBy('full_name', 'ASC')
+            ->get()
+            ->getResultArray();
+        $referralCustomers = $this->customerModel->select('id, code, name')
+            ->where('id !=', $id)
+            ->orderBy('name', 'ASC')
+            ->limit(100)
+            ->findAll();
 
         // Tải dữ liệu tiến trình SLA động cho giao diện
         $slaSettingModel = new \App\Models\CustomerSlaSettingModel();
@@ -540,13 +582,21 @@ class CustomerController extends BaseController
             'cases'         => $caseModel->where('customer_id', $id)->findAll(),
             'interactions'  => $interactionModel->getByCustomer($id),
             'payments'      => $paymentModel->where('customer_id', $id)->findAll(),
-            'documents'     => $documentModel->where('customer_id', $id)->findAll(),
+            'documents'     => $documentModel->searchDocuments([
+                'customer_id' => $id,
+                'sort'        => 'created_at',
+                'order'       => 'DESC',
+            ]),
             'tags'          => $this->tagService->getTagsByEntity($id, 'customers'),
             'careStaffName' => $careStaffName,
             'chatHistory'   => $chatHistory,
             'carePlans'     => $carePlans,
             'careTasks'     => $careTasks,
             'loyalty'       => $loyalty,
+            'relationshipProfile' => $relationshipProfile,
+            'opportunities'  => $opportunities,
+            'employees'      => $activeEmployees,
+            'referralCustomers' => $referralCustomers,
             'activeSla'     => $activeSla,
             'slaHistory'    => $slaHistory,
             'slaSettings'   => $slaSettings,
@@ -579,37 +629,20 @@ class CustomerController extends BaseController
      */
     public function uploadDocument($id)
     {
-        $file = $this->request->getFile('document');
-        if (!$file) return redirect()->back()->with('error', 'Chưa chọn tệp tin.');
-        
-        // --- BẢO MẬT: KIỂM TRA QUYỀN TRUY CẬP (IDOR & Team Access Protection) ---
-        // Cho phép: Admin, người có quyền quản lý khách hàng, HOẶC nhân viên đang tham gia ít nhất 1 vụ việc của khách này.
-        $canUpload = false;
-        if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
-            $canUpload = true;
-        } else {
-            $myEmpId = session()->get('employee_id');
-            $db = \Config\Database::connect();
-            
-            // Kiểm tra xem nhân viên có đang phụ trách vụ việc nào của khách hàng này không
-            $hasCase = $db->table('cases')->where('customer_id', $id)
-                          ->groupStart()
-                            ->where('assigned_lawyer_id', $myEmpId)
-                            ->orWhere('assigned_staff_id', $myEmpId)
-                            ->orWhereIn('id', function($builder) use ($myEmpId) {
-                                return $builder->select('case_id')->from('case_members')->where('employee_id', $myEmpId);
-                            })
-                          ->groupEnd()
-                          ->countAllResults();
-            
-            if ($hasCase > 0) {
-                $canUpload = true;
-            }
+        $files = $this->request->getFileMultiple('document');
+        if (empty($files)) {
+            $singleFile = $this->request->getFile('document');
+            $files = $singleFile ? [$singleFile] : [];
         }
 
-        if (!$canUpload) {
-             return redirect()->back()->with('error', 'Cảnh báo bảo mật: Bạn không được quyền tải tài liệu vào hồ sơ khách hàng này (Do không thuộc ban nghiệp vụ phụ trách).');
+        $files = array_values(array_filter($files, function ($file) {
+            return $file && $file->getClientName() !== '';
+        }));
+
+        if (empty($files)) {
+            return redirect()->back()->withInput()->with('error', 'Vui lòng chọn ít nhất một tệp tin để tải lên.');
         }
+        
 
         // 1. CHUẨN BỊ DỮ LIỆU ĐỒNG BỘ
         $data = [
@@ -621,7 +654,9 @@ class CustomerController extends BaseController
 
         // 2. SỬ DỤNG DỊCH VỤ DMS TRUNG TÂM
         $docService = new \App\Services\DocumentService();
-        $result = $docService->upload($file, $data);
+        $result = count($files) > 1
+            ? $docService->uploadMultiple($files, $data)
+            : $docService->upload($files[0], $data);
 
         if ($result['status'] === 'success') {
             return redirect()->back()->with('success', 'Hồ sơ tài liệu khách hàng đã được số hóa và đồng bộ vào kho DMS.');
@@ -680,6 +715,10 @@ class CustomerController extends BaseController
     public function store()
     {
         $data = $this->request->getPost();
+
+        if (array_key_exists('date_of_birth', $data) && $data['date_of_birth'] === '') {
+            $data['date_of_birth'] = null;
+        }
         
         // --- BẢO MẬT API: CHẶN CẬP NHẬT TRÁI PHÉP ---
         $isAdminOrManager = false;
@@ -695,6 +734,17 @@ class CustomerController extends BaseController
         if (!$isAdminOrManager) {
             unset($data['assigned_care_staff_id']);
             unset($data['care_status']);
+            unset($data['referred_partner_id']);
+        } elseif (array_key_exists('assigned_care_staff_id', $data) && !$this->normalizeActiveCareStaffInput($data)) {
+            return redirect()->back()->withInput()->with('error', 'Nhan vien tu van duoc chon khong hop le, da nghi hoac tai khoan dang bi khoa.');
+        }
+
+        if (array_key_exists('referred_partner_id', $data)) {
+            $data['referred_partner_id'] = $data['referred_partner_id'] !== '' ? (int)$data['referred_partner_id'] : null;
+        }
+
+        if (array_key_exists('care_status', $data)) {
+            $data['care_status'] = \App\Services\CustomerSlaService::normalizeStatusKey($data['care_status']);
         }
         
         // 1. QUY TẮC ĐỊNH DANH (Robust Auto-Coding):
@@ -791,6 +841,7 @@ class CustomerController extends BaseController
             'availableTags' => $this->tagService->getAvailableTags('customers', has_permission('sys.admin') ? -1 : null),
             'selectedTags'  => array_column($this->tagService->getTagsByEntity($id, 'customers'), 'id'),
             'employees'     => get_available_employees(),
+            'partners'      => (new PartnerModel())->where('status', 'active')->orderBy('name', 'ASC')->findAll(300),
             'title'         => 'Chỉnh sửa hồ sơ: ' . $customer['name'] . ' | L.A.N ERP'
         ];
 
@@ -824,6 +875,10 @@ class CustomerController extends BaseController
         }
 
         $data = $this->request->getPost();
+
+        if (array_key_exists('date_of_birth', $data) && $data['date_of_birth'] === '') {
+            $data['date_of_birth'] = null;
+        }
         
         // --- BẢO MẬT API: CHẶN CẬP NHẬT TRÁI PHÉP ---
         $isAdminOrManager = false;
@@ -841,10 +896,21 @@ class CustomerController extends BaseController
 
         if (!$isAdminOrManager) {
             unset($data['assigned_care_staff_id']);
+            unset($data['referred_partner_id']);
             if (!$isCaretaker) {
                 unset($data['care_status']);
                 unset($data['has_received_gift']);
             }
+        } elseif (array_key_exists('assigned_care_staff_id', $data) && !$this->normalizeActiveCareStaffInput($data)) {
+            return redirect()->back()->withInput()->with('error', 'Nhan vien tu van duoc chon khong hop le, da nghi hoac tai khoan dang bi khoa.');
+        }
+
+        if (array_key_exists('referred_partner_id', $data)) {
+            $data['referred_partner_id'] = $data['referred_partner_id'] !== '' ? (int)$data['referred_partner_id'] : null;
+        }
+
+        if (array_key_exists('care_status', $data)) {
+            $data['care_status'] = \App\Services\CustomerSlaService::normalizeStatusKey($data['care_status']);
         }
         
         // Tiền xử lý TAGS cho bảng customers (metadata)
@@ -885,14 +951,14 @@ class CustomerController extends BaseController
         $data['customer_id'] = $customerId;
         $data['user_id'] = session()->get('user_id'); // Định danh nhân viên thực hiện tương tác
         $data['interaction_date'] = date('Y-m-d H:i:s');
+        $data['requires_follow_up'] = !empty($data['requires_follow_up']) ? 1 : 0;
+        $data['importance_level'] = $data['importance_level'] ?? 'normal';
 
         // 2. Ghi nhận vào cơ sở dữ liệu
         if ($interactionModel->save($data)) {
             // 3. ĐỒNG BỘ CHỈ SỐ (Heuristic Update):
             // Cập nhật 'last_contact_date' để hệ thống biết khách hàng này vẫn đang được chăm sóc tích cực.
-            $this->customerModel->update($customerId, [
-                'last_contact_date' => $data['interaction_date']
-            ]);
+            $this->customerRelationshipService->syncAfterInteraction((int) $customerId, $data['next_follow_up'] ?? null);
             
             // 4. Tính toán lại các chỉ số tài chính/vụ việc liên quan thông qua Service
             $this->customerService->syncCustomerStats($customerId);
@@ -906,6 +972,52 @@ class CustomerController extends BaseController
     /**
      * Xóa hồ sơ khách hàng (Soft Delete) với kiểm tra bảo toàn dữ liệu (Data Integrity).
      */
+    public function updateRelationship($customerId)
+    {
+        $customer = $this->customerModel->find($customerId);
+        if (!$customer) {
+            return redirect()->to(base_url('customers'))->with('error', 'Ho so khach hang khong ton tai.');
+        }
+
+        if (!$this->canEditCustomerRecord($customer)) {
+            return redirect()->back()->with('error', 'Ban khong co quyen cap nhat ho so quan he cua khach hang nay.');
+        }
+
+        if ($this->customerRelationshipService->updateProfile((int) $customerId, $this->request->getPost())) {
+            return redirect()->to(base_url('customers/show/' . $customerId))->with('success', 'Da cap nhat ho so quan he khach hang.');
+        }
+
+        return redirect()->back()->withInput()->with('error', 'Khong the cap nhat ho so quan he.');
+    }
+
+    public function storeOpportunity($customerId)
+    {
+        $customer = $this->customerModel->find($customerId);
+        if (!$customer) {
+            return redirect()->to(base_url('customers'))->with('error', 'Ho so khach hang khong ton tai.');
+        }
+
+        if (!$this->canEditCustomerRecord($customer)) {
+            return redirect()->back()->with('error', 'Ban khong co quyen tao co hoi cho khach hang nay.');
+        }
+
+        $validation = \Config\Services::validation();
+        $validation->setRules([
+            'issue_title' => 'required|min_length[3]|max_length[255]',
+            'probability' => 'permit_empty|integer|greater_than_equal_to[0]|less_than_equal_to[100]',
+        ]);
+
+        if (!$validation->run($this->request->getPost())) {
+            return redirect()->back()->withInput()->with('errors', $validation->getErrors());
+        }
+
+        if ($this->customerRelationshipService->createOpportunity((int) $customerId, $this->request->getPost())) {
+            return redirect()->to(base_url('customers/show/' . $customerId))->with('success', 'Da ghi nhan co hoi phat trien dich vu.');
+        }
+
+        return redirect()->back()->withInput()->with('error', 'Khong the tao co hoi phat trien dich vu.');
+    }
+
     public function delete($id)
     {
         // 1. Phân quyền: Cấp thao tác cao nhất
@@ -1040,19 +1152,14 @@ class CustomerController extends BaseController
         // 4. Nếu có chọn nhân viên cụ thể, kiểm tra xem nhân viên đó có hợp lệ và hoạt động hay không
         $careStaffName = '';
         if ($assignedCareStaffId !== null) {
-            $db = \Config\Database::connect();
-            $emp = $db->table('employees')
-                      ->where('id', $assignedCareStaffId)
-                      ->where('deleted_at IS NULL')
-                      ->select('full_name')
-                      ->get()->getRow();
+            $emp = $this->findActiveCareStaff((int)$assignedCareStaffId);
             if (!$emp) {
                 return $this->response->setJSON([
                     'code' => 1,
                     'message' => 'Nhân viên được chọn không hợp lệ hoặc đã bị khóa khỏi hệ thống.'
                 ]);
             }
-            $careStaffName = $emp->full_name;
+            $careStaffName = $emp['full_name'];
         }
 
         // 5. Thực thi cập nhật cơ sở dữ liệu
@@ -1108,7 +1215,7 @@ class CustomerController extends BaseController
         if (!$customer) {
             return $this->response->setJSON([
                 'status' => 'error',
-                'message' => 'Ho so khach hang khong ton tai tren he thong.'
+                'message' => 'Hồ sơ khách hàng không tồn tại trên hệ thống.'
             ]);
         }
 
@@ -1162,6 +1269,93 @@ class CustomerController extends BaseController
         ]);
     }
 
+    public function updateMonitoringStatus($customerId)
+    {
+        $customer = $this->customerModel->find($customerId);
+        if (!$customer) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Ho so khach hang khong ton tai tren he thong.'
+            ]);
+        }
+
+        if (!$this->canEditCustomerRecord($customer)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Bạn không có quyền cập nhật trạng thái giám sát của khách hàng này.'
+            ]);
+        }
+
+        $postData = $this->request->getPost();
+        $statusKey = $postData['status_keys'] ?? $postData['status_keys[]'] ?? null;
+        if ($statusKey === null) {
+            $statusKey = $postData['status_key'] ?? '';
+        }
+        if ($statusKey === '' || $statusKey === []) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Chưa chọn trạng thái giám sát.'
+            ]);
+        }
+
+        $result = $this->customerMonitoringStatusService->updateCustomerStatus((int) $customerId, $statusKey);
+
+        return $this->response->setJSON($result);
+    }
+
+    private function canEditCustomerRecord(array $customer): bool
+    {
+        if (has_permission('sys.admin') || has_permission('customer.manage') || has_permission('customer.edit_all')) {
+            return true;
+        }
+
+        $roleName = session()->get('role_name');
+        $myEmpId = session()->get('employee_id');
+
+        return $roleName === \Config\AppConstants::ROLE_TRUONG_PHONG
+            || (isset($customer['created_by']) && $customer['created_by'] == $myEmpId)
+            || (!empty($customer['assigned_care_staff_id']) && $customer['assigned_care_staff_id'] == $myEmpId)
+            || (!empty($customer['relationship_manager_id']) && $customer['relationship_manager_id'] == $myEmpId);
+    }
+
+    private function normalizeActiveCareStaffInput(array &$data): bool
+    {
+        if (!array_key_exists('assigned_care_staff_id', $data)) {
+            return true;
+        }
+
+        if ($data['assigned_care_staff_id'] === '' || $data['assigned_care_staff_id'] === null) {
+            $data['assigned_care_staff_id'] = null;
+            return true;
+        }
+
+        $employeeId = (int)$data['assigned_care_staff_id'];
+        if ($employeeId <= 0 || !$this->findActiveCareStaff($employeeId)) {
+            return false;
+        }
+
+        $data['assigned_care_staff_id'] = $employeeId;
+        return true;
+    }
+
+    private function findActiveCareStaff(int $employeeId): ?array
+    {
+        if ($employeeId <= 0) {
+            return null;
+        }
+
+        return \Config\Database::connect()
+            ->table('employees')
+            ->select('employees.id, employees.full_name')
+            ->join('users', 'users.id = employees.user_id', 'inner')
+            ->where('employees.id', $employeeId)
+            ->where('employees.deleted_at', null)
+            ->where('users.active_status', 1)
+            ->where('users.deleted_at', null)
+            ->get()
+            ->getRowArray();
+    }
+
     /**
      * API: Chuyen doi trang thai tu van va SLA nhanh qua AJAX.
      * Van kiem tra quyen theo tung ho so truoc khi cap nhat.
@@ -1206,9 +1400,21 @@ class CustomerController extends BaseController
             ]);
         }
 
-        $slaService = new \App\Services\CustomerSlaService();
-        $result = $slaService->transitionStatus($customerId, $statusKey, session()->get('user_id'));
+        try {
+            $slaService = new \App\Services\CustomerSlaService();
+            $result = $slaService->transitionStatus((int) $customerId, (string) $statusKey, session()->get('user_id'));
 
-        return $this->response->setJSON($result);
+            return $this->response->setJSON($result);
+        } catch (\Throwable $e) {
+            log_message('error', 'Customer transition status error: ' . $e->getMessage());
+
+            return $this->response
+                ->setStatusCode(500)
+                ->setJSON([
+                    'status'  => 'error',
+                    'message' => 'Lỗi hệ thống khi cập nhật trạng thái tư vấn. Vui lòng kiểm tra log server.'
+                ]);
+        }
     }
 }
+

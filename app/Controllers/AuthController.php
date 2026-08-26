@@ -69,6 +69,10 @@ class AuthController extends BaseController
 
         // Nếu xác thực thành công
         if ($result['status'] === 'success') {
+            if (has_permission('partner.portal') && !has_permission('partner.manage') && !has_permission('partner.payout') && !has_permission('sys.admin')) {
+                return redirect()->to('/partner-portal')->with('message', 'Đăng nhập cổng đối tác thành công.');
+            }
+
             // Đưa người dùng vào trang chủ quản trị (Dashboard)
             return redirect()->to('/dashboard')->with('message', 'Chào mừng trở lại!');
         }

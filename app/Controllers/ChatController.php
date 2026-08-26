@@ -160,11 +160,11 @@ class ChatController extends BaseController
                                 ->findAll();
 
             $employeeModel = new \App\Models\EmployeeModel();
-            $creators = $employeeModel->select('id, full_name, personal_email')
+            $creators = $employeeModel->select('employees.id as id, employees.full_name, employees.personal_email')
                                       ->join('users', 'users.id = employees.user_id', 'inner')
                                       ->where('users.active_status', 1)
                                       ->where('users.deleted_at', null)
-                                      ->orderBy('full_name', 'ASC')
+                                      ->orderBy('employees.full_name', 'ASC')
                                       ->findAll();
         }
 

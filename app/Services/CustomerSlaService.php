@@ -44,11 +44,14 @@ class CustomerSlaService extends BaseService
      */
     public function transitionStatus(int $customerId, string $newStatusKey, ?int $operatorId = null)
     {
+        $newStatusKey = self::normalizeStatusKey($newStatusKey);
+
         // 1. Kiểm tra sự tồn tại của khách hàng
         $customer = $this->customerModel->find($customerId);
         if (!$customer) {
             return $this->fail('Khách hàng không tồn tại trên hệ thống.');
         }
+        $currentCustomerStatusKey = self::normalizeStatusKey($customer['care_status'] ?? 'chua_tu_van');
 
         // 2. Tra cứu cấu hình trạng thái mới từ bảng customer_sla_settings
         $setting = $this->settingModel->where('status_key', $newStatusKey)
@@ -68,8 +71,27 @@ class CustomerSlaService extends BaseService
         if ($activeSla) {
             // Nếu trùng trạng thái hiện tại thì không cần xử lý tiếp
             if ($activeSla['status'] === $newStatusKey) {
+                if ($currentCustomerStatusKey !== $newStatusKey || ($customer['care_status'] ?? null) !== $newStatusKey) {
+                    $synced = $db->table('customers')
+                        ->where('id', $customerId)
+                        ->where('deleted_at', null)
+                        ->update([
+                            'care_status' => $newStatusKey,
+                            'updated_at'  => $now
+                        ]);
+
+                    if (!$synced) {
+                        $db->transRollback();
+                        return $this->fail('Loi he thong khi dong bo trang thai tu van.');
+                    }
+                }
+
                 $db->transComplete();
-                return $this->success(null, 'Khách hàng đã ở trạng thái này.');
+                return $this->success([
+                    'status_key'  => $newStatusKey,
+                    'status_name' => $setting['status_name'],
+                    'color'       => $setting['color']
+                ], 'Khach hang da o trang thai nay.');
             }
 
             $slaStatus = 'achieved'; // Mặc định là Đúng hạn (Đạt)
@@ -108,17 +130,29 @@ class CustomerSlaService extends BaseService
             'updated_at'        => $now
         ];
 
-        $this->historyModel->save($historyData);
+        if (!$this->historyModel->save($historyData)) {
+            $db->transRollback();
+            $this->logError('Khong the luu lich su SLA khach hang', [
+                'customer_id' => $customerId,
+                'status'      => $newStatusKey,
+                'errors'      => $this->historyModel->errors(),
+            ]);
+
+            return $this->fail('Lỗi hệ thống khi lưu lịch sử trạng thái tư vấn.');
+        }
 
         // 5. Đồng bộ hóa cập nhật cột care_status của bảng customers
-        $this->customerModel->update($customerId, [
-            'care_status' => $newStatusKey,
-            'updated_at'  => $now
-        ]);
+        $customerUpdated = $db->table('customers')
+            ->where('id', $customerId)
+            ->where('deleted_at', null)
+            ->update([
+                'care_status' => $newStatusKey,
+                'updated_at'  => $now
+            ]);
 
         $db->transComplete(); // Hoàn tất Transaction
 
-        if ($db->transStatus() === false) {
+        if ($db->transStatus() === false || !$customerUpdated) {
             $this->logError('Lỗi Transaction khi chuyển trạng thái SLA khách hàng', ['customer_id' => $customerId, 'status' => $newStatusKey]);
             return $this->fail('Lỗi hệ thống khi lưu trữ tiến độ.');
         }
@@ -159,25 +193,43 @@ class CustomerSlaService extends BaseService
         $title      = "🔔 TIẾN ĐỘ CSKH: Thay đổi trạng thái tư vấn";
         $msg        = "Nhân viên {$operatorName} đã chuyển trạng thái của khách hàng {$custName} ({$custCode}) sang bước '{$statusName}'.";
         $link       = base_url("customers/show/{$customerId}#customer-care");
+        // 31/07/2026 tạm dừng tin năng gửi thông báo khi nhân sự thay đổi trạng thái
 
         // Gửi cho Trưởng phòng nếu có (và Trưởng phòng không phải chính người đổi)
-        if ($managerUserId && $managerUserId !== $operatorId) {
-            $this->notificationService->sendToUser($managerUserId, $title, $msg, 'info', $link, 0);
-        }
+//        if ($managerUserId && $managerUserId !== $operatorId) {
+//            $this->notificationService->sendToUser($managerUserId, $title, $msg, 'info', $link, 0);
+//        }
 
         // Gửi cho tất cả Admins (loại trừ chính người đổi hoặc Trưởng phòng đã nhận)
-        foreach ($adminUserIds as $adminId) {
-            $adminId = (int)$adminId;
-            if ($adminId !== $operatorId && $adminId !== $managerUserId) {
-                $this->notificationService->sendToUser($adminId, $title, $msg, 'info', $link, 0);
-            }
-        }
+//        foreach ($adminUserIds as $adminId) {
+//            $adminId = (int)$adminId;
+//            if ($adminId !== $operatorId && $adminId !== $managerUserId) {
+//                $this->notificationService->sendToUser($adminId, $title, $msg, 'info', $link, 0);
+//            }
+//        }
 
         return $this->success([
             'status_key'  => $newStatusKey,
             'status_name' => $setting['status_name'],
             'color'       => $setting['color']
         ], "Đã chuyển sang trạng thái: {$setting['status_name']}");
+    }
+
+    public static function normalizeStatusKey(?string $statusKey): string
+    {
+        $statusKey = trim((string) $statusKey);
+
+        $legacyMap = [
+            ''          => 'chua_tu_van',
+            'new'       => 'chua_tu_van',
+            'phase1'    => 'dang_tu_van',
+            'phase2'    => 'doi_ho_so',
+            'phase3'    => 'thuong_luong',
+            'completed' => 'chot_hop_dong',
+            'dormant'   => 'tam_dung',
+        ];
+
+        return $legacyMap[$statusKey] ?? $statusKey;
     }
 
     /**

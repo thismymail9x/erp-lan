@@ -16,6 +16,9 @@ class DashboardController extends BaseController
         if (!session()->has('isLoggedIn')) {
             return redirect()->to('/login');
         }
+        if (has_permission('partner.portal') && !has_permission('partner.manage') && !has_permission('partner.payout') && !has_permission('sys.admin')) {
+            return redirect()->to('/partner-portal');
+        }
         $employeeId = session()->get('employee_id');
         $role = session()->get('role_name');
         $myDeptId = session()->get('department_id');
@@ -158,6 +161,8 @@ class DashboardController extends BaseController
             }
         }
 
+        $caseExpenseService = new \App\Services\CaseExpenseService();
+
         $data = [
             'title'            => 'Bảng điều khiển | L.A.N ERP',
             'attendanceStatus' => $attendanceStatus,
@@ -176,6 +181,9 @@ class DashboardController extends BaseController
             'canViewConsultingKpi' => $canViewConsultingKpi,
             'departments'      => $db->table('departments')->get()->getResultArray(),
             'employees'        => get_available_employees(),
+            'selectableCases'  => $caseExpenseService->getSelectableCases(),
+            'caseExpenseCategoryLabels' => \App\Services\CaseExpenseService::CATEGORY_LABELS,
+            'canSubmitCaseExpense' => $caseExpenseService->canSubmit(),
             'current_employee_id' => $employeeId,
             'user'  => [
                 'email' => session()->get('email'),

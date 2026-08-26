@@ -11,6 +11,7 @@ use App\Services\CustomerService;
 use App\Models\CustomerSlaSettingModel;
 use App\Models\CustomerSlaHistoryModel;
 use App\Services\CustomerSlaService;
+use App\Services\CustomerMonitoringStatusService;
 
 /**
  * CustomerCareController
@@ -123,21 +124,76 @@ class CustomerCareController extends BaseController
         $myEmpId = session()->get('employee_id');
         $isAdmin = has_permission('sys.admin') || has_permission('care.view_all');
 
-        // Lấy toàn bộ khách hàng theo nhóm
-        $queryVip = $this->customerModel->where('customer_segment', 'vip')->where('deleted_at', null);
-        $queryRegular = $this->customerModel->where('customer_segment', 'regular')->where('deleted_at', null);
-        $queryPotential = $this->customerModel->where('customer_segment', 'potential')->where('deleted_at', null);
+        $keyword = trim((string) $this->request->getGet('q'));
+        $careStatus = (string) $this->request->getGet('care_status');
+        $activeSegment = (string) ($this->request->getGet('segment') ?: 'potential');
+        $perPage = (int) ($this->request->getGet('per_page') ?: 12);
 
-        if (!$isAdmin) {
-            $queryVip->where('assigned_care_staff_id', $myEmpId);
-            $queryRegular->where('assigned_care_staff_id', $myEmpId);
-            $queryPotential->where('assigned_care_staff_id', $myEmpId);
+        if (!in_array($perPage, [12, 24, 48], true)) {
+            $perPage = 12;
         }
 
+        if (!in_array($activeSegment, ['vip', 'regular', 'potential'], true)) {
+            $activeSegment = 'potential';
+        }
+
+        $buildSegmentQuery = function (string $segment) use ($isAdmin, $myEmpId, $keyword, $careStatus): CustomerModel {
+            $query = (new CustomerModel())
+                ->where('deleted_at', null);
+
+            if ($segment === 'potential') {
+                $query->groupStart()
+                    ->where('customer_segment', 'potential')
+                    ->orWhere('customer_segment', null)
+                    ->orWhere('customer_segment', '')
+                    ->groupEnd();
+            } else {
+                $query->where('customer_segment', $segment);
+            }
+
+            if (!$isAdmin) {
+                $query->where('assigned_care_staff_id', $myEmpId);
+            }
+
+            if ($keyword !== '') {
+                $query->groupStart()
+                    ->like('name', $keyword)
+                    ->orLike('code', $keyword)
+                    ->orLike('phone', $keyword)
+                    ->orLike('email', $keyword)
+                    ->groupEnd();
+            }
+
+            if ($careStatus !== '' && in_array($careStatus, ['new', 'phase1', 'phase2', 'phase3', 'completed', 'dormant'], true)) {
+                $query->where('care_status', $careStatus);
+            }
+
+            return $query->orderBy('updated_at', 'DESC')->orderBy('created_at', 'DESC');
+        };
+
+        $segmentCounts = [
+            'vip'       => $buildSegmentQuery('vip')->countAllResults(),
+            'regular'   => $buildSegmentQuery('regular')->countAllResults(),
+            'potential' => $buildSegmentQuery('potential')->countAllResults(),
+        ];
+
+        $vipCustomers = [];
+        $regularCustomers = [];
+        $potentialCustomers = [];
+        ${$activeSegment . 'Customers'} = $buildSegmentQuery($activeSegment)->paginate($perPage, $activeSegment);
+
         $data = [
-            'vipCustomers'      => $queryVip->findAll(),
-            'regularCustomers'  => $queryRegular->findAll(),
-            'potentialCustomers'=> $queryPotential->findAll(),
+            'vipCustomers'      => $vipCustomers,
+            'regularCustomers'  => $regularCustomers,
+            'potentialCustomers'=> $potentialCustomers,
+            'segmentCounts'     => $segmentCounts,
+            'pager'             => service('pager'),
+            'filters'           => [
+                'q'           => $keyword,
+                'care_status' => $careStatus,
+                'segment'     => $activeSegment,
+                'per_page'    => $perPage,
+            ],
             'title'             => 'Phân loại khách hàng A/B/C | L.A.N ERP'
         ];
 
@@ -370,14 +426,38 @@ class CustomerCareController extends BaseController
         }
 
         $segment = $this->request->getPost('customer_segment');
+        $assignedStaffId = $this->request->getPost('assigned_care_staff_id');
         if (!in_array($segment, ['vip', 'regular', 'potential'])) {
             return redirect()->back()->with('error', 'Nhóm khách hàng không hợp lệ.');
         }
 
-        $this->customerModel->update($customerId, [
+        $updateData = [
             'customer_segment' => $segment,
             'updated_at'       => date('Y-m-d H:i:s')
-        ]);
+        ];
+
+        if ($assignedStaffId !== null && $assignedStaffId !== '') {
+            $activeStaff = \Config\Database::connect()
+                ->table('employees')
+                ->select('employees.id')
+                ->join('users', 'users.id = employees.user_id', 'inner')
+                ->where('employees.id', (int) $assignedStaffId)
+                ->where('employees.deleted_at', null)
+                ->where('users.active_status', 1)
+                ->where('users.deleted_at', null)
+                ->get()
+                ->getRowArray();
+
+            if (!$activeStaff) {
+                return redirect()->back()->with('error', 'Nhan su CSKH khong hop le hoac da nghi/bi khoa.');
+            }
+
+            $updateData['assigned_care_staff_id'] = (int) $assignedStaffId;
+        } else {
+            $updateData['assigned_care_staff_id'] = null;
+        }
+
+        $this->customerModel->update($customerId, $updateData);
 
         return redirect()->to(base_url('customer-care/care-plan/' . $customerId))->with('success', 'Đã cập nhật phân nhóm khách hàng thủ công thành công.');
     }
@@ -409,6 +489,7 @@ class CustomerCareController extends BaseController
 
         $slaService = new CustomerSlaService();
         $settingModel = new CustomerSlaSettingModel();
+        $monitoringStatusService = new CustomerMonitoringStatusService();
 
         // Lấy báo cáo bảng hiệu suất SLA và các cảnh báo trễ hạn (Báo đỏ)
         $leaderboard = $slaService->getStaffSlaPerformance($staffFilterId);
@@ -416,11 +497,13 @@ class CustomerCareController extends BaseController
 
         // Lấy cấu hình các trạng thái động hiện tại (Rule #6 - Bắt buộc deleted_at IS NULL)
         $slaSettings = $settingModel->where('deleted_at', null)->orderBy('sort_order', 'ASC')->findAll();
+        $monitoringSettings = $monitoringStatusService->getSettings();
 
         $data = [
             'leaderboard'   => $leaderboard,
             'overdueAlerts' => $overdueAlerts,
             'slaSettings'   => $slaSettings,
+            'monitoringSettings' => $monitoringSettings,
             'isAdmin'       => $isAdmin,
             'title'         => 'Báo cáo & Cấu hình SLA Chăm sóc Khách hàng | L.A.N ERP'
         ];
@@ -502,5 +585,35 @@ class CustomerCareController extends BaseController
             'status'  => 'error',
             'message' => 'Không thể xóa cấu hình trạng thái.'
         ]);
+    }
+
+    public function saveMonitoringStatusSetting()
+    {
+        if (!has_permission('care.manage') && !has_permission('sys.admin')) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Bạn không có quyền cấu hình trạng thái giám sát.'
+            ]);
+        }
+
+        $monitoringStatusService = new CustomerMonitoringStatusService();
+        $result = $monitoringStatusService->saveSetting($this->request->getPost());
+
+        return $this->response->setJSON($result);
+    }
+
+    public function deleteMonitoringStatusSetting($id)
+    {
+        if (!has_permission('care.manage') && !has_permission('sys.admin')) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Bạn không có quyền cấu hình trạng thái giám sát.'
+            ]);
+        }
+
+        $monitoringStatusService = new CustomerMonitoringStatusService();
+        $result = $monitoringStatusService->deleteSetting((int) $id);
+
+        return $this->response->setJSON($result);
     }
 }

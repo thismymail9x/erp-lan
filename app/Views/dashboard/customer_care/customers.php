@@ -5,28 +5,77 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
-<div class="container-fluid py-4">
+<?php
+$segmentCounts = $segmentCounts ?? [
+    'vip'       => count($vipCustomers ?? []),
+    'regular'   => count($regularCustomers ?? []),
+    'potential' => count($potentialCustomers ?? []),
+];
+$filters = $filters ?? ['q' => '', 'care_status' => '', 'segment' => 'potential', 'per_page' => 12];
+$activeSegment = $filters['segment'] ?? 'potential';
+$careStatusOptions = [
+    ''          => 'Tất cả trạng thái',
+    'new'       => 'Mới',
+    'phase1'    => 'Giai đoạn 1',
+    'phase2'    => 'Giai đoạn 2',
+    'phase3'    => 'Giai đoạn 3',
+    'completed' => 'Hoàn thành',
+    'dormant'   => 'Ngủ đông',
+];
+?>
+<div class="container-fluid py-4 customer-care-shell">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 customer-care-header">
         <div>
             <h1 class="h3 font-weight-700 text-dark mb-1">Phân Nhóm Khách Hàng (A/B/C)</h1>
             <p class="text-muted font-size-0.9">Quản lý và thiết kế các chiến dịch CSKH chuyên biệt cho từng phân nhóm khách hàng.</p>
         </div>
-        <a href="<?= base_url('customer-care') ?>" class="btn btn-secondary d-flex align-items-center gap-2">
+        <a href="<?= base_url('customer-care') ?>" class="btn-secondary d-flex align-items-center gap-2">
             <i class="fas fa-chevron-left"></i> <span>Quay lại Dashboard</span>
         </a>
     </div>
 
+    <form action="<?= base_url('customer-care/customers') ?>" method="get" class="customer-care-filter-bar">
+        <input type="hidden" name="segment" id="customerCareSegmentInput" value="<?= esc($filters['segment'] ?? 'potential') ?>">
+        <input
+            type="search"
+            name="q"
+            class="form-control"
+            value="<?= esc($filters['q'] ?? '') ?>"
+            placeholder="Tìm theo tên, mã, SĐT, email"
+        >
+        <select name="care_status" class="form-control">
+            <?php foreach ($careStatusOptions as $value => $label): ?>
+                <option value="<?= esc($value) ?>" <?= (($filters['care_status'] ?? '') === $value) ? 'selected' : '' ?>>
+                    <?= esc($label) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <select name="per_page" class="form-control">
+            <?php foreach ([12, 24, 48] as $option): ?>
+                <option value="<?= $option ?>" <?= ((int) ($filters['per_page'] ?? 12) === $option) ? 'selected' : '' ?>>
+                    <?= $option ?>/trang
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <button type="submit" class="btn-premium">
+            <i class="fas fa-filter"></i> <span>Lọc</span>
+        </button>
+        <a href="<?= base_url('customer-care/customers') ?>" class="btn-secondary">
+            <i class="fas fa-times"></i> <span>Xóa lọc</span>
+        </a>
+    </form>
+
     <!-- Tabs header -->
     <div class="segment-tabs">
-        <button class="segment-tab-btn active vip-tab" data-target="vip">
-            <i class="fas fa-crown"></i> Nhóm A — VIP (<?= count($vipCustomers) ?>)
+        <button class="segment-tab-btn vip-tab <?= $activeSegment === 'vip' ? 'active' : '' ?>" data-target="vip">
+            <i class="fas fa-crown"></i> Nhóm A — VIP (<?= esc($segmentCounts['vip'] ?? 0) ?>)
         </button>
-        <button class="segment-tab-btn" data-target="regular">
-            <i class="fas fa-user-friends"></i> Nhóm B — Phổ thông (<?= count($regularCustomers) ?>)
+        <button class="segment-tab-btn <?= $activeSegment === 'regular' ? 'active' : '' ?>" data-target="regular">
+            <i class="fas fa-user-friends"></i> Nhóm B — Phổ thông (<?= esc($segmentCounts['regular'] ?? 0) ?>)
         </button>
-        <button class="segment-tab-btn" data-target="potential">
-            <i class="fas fa-snowflake"></i> Nhóm C — Tiềm năng nguội (<?= count($potentialCustomers) ?>)
+        <button class="segment-tab-btn <?= $activeSegment === 'potential' ? 'active' : '' ?>" data-target="potential">
+            <i class="fas fa-snowflake"></i> Nhóm C — Tiềm năng nguội (<?= esc($segmentCounts['potential'] ?? 0) ?>)
         </button>
     </div>
 
@@ -34,7 +83,7 @@
     <div class="segment-content-wrapper">
         
         <!-- NHÓM A - VIP -->
-        <div class="segment-tab-pane" id="pane-vip">
+        <div class="segment-tab-pane" id="pane-vip" style="<?= $activeSegment === 'vip' ? '' : 'display:none;' ?>">
             <?php if (empty($vipCustomers)): ?>
                 <div class="text-center py-5 bg-white rounded-lg shadow-sm">
                     <i class="fas fa-crown fa-3x text-muted mb-3" style="opacity: 0.3;"></i>
@@ -85,11 +134,16 @@
                         </div>
                     <?php endforeach; ?>
                 </div>
+                <?php if (!empty($pager)): ?>
+                    <div class="customer-care-pagination">
+                        <?= $pager->only(['q', 'care_status', 'segment', 'per_page'])->links('vip', 'default_full') ?>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
 
         <!-- NHÓM B - REGULAR -->
-        <div class="segment-tab-pane" id="pane-regular" style="display:none;">
+        <div class="segment-tab-pane" id="pane-regular" style="<?= $activeSegment === 'regular' ? '' : 'display:none;' ?>">
             <?php if (empty($regularCustomers)): ?>
                 <div class="text-center py-5 bg-white rounded-lg shadow-sm">
                     <i class="fas fa-user-friends fa-3x text-muted mb-3" style="opacity: 0.3;"></i>
@@ -137,11 +191,16 @@
                         </div>
                     </div>
                 </div>
+                <?php if (!empty($pager)): ?>
+                    <div class="customer-care-pagination">
+                        <?= $pager->only(['q', 'care_status', 'segment', 'per_page'])->links('regular', 'default_full') ?>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
 
         <!-- NHÓM C - POTENTIAL -->
-        <div class="segment-tab-pane" id="pane-potential" style="display:none;">
+        <div class="segment-tab-pane" id="pane-potential" style="<?= $activeSegment === 'potential' ? '' : 'display:none;' ?>">
             <?php if (empty($potentialCustomers)): ?>
                 <div class="text-center py-5 bg-white rounded-lg shadow-sm">
                     <i class="fas fa-snowflake fa-3x text-muted mb-3" style="opacity: 0.3;"></i>
@@ -187,6 +246,11 @@
                         </div>
                     </div>
                 </div>
+                <?php if (!empty($pager)): ?>
+                    <div class="customer-care-pagination">
+                        <?= $pager->only(['q', 'care_status', 'segment', 'per_page'])->links('potential', 'default_full') ?>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
 

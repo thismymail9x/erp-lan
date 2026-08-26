@@ -42,7 +42,6 @@ class DocumentModel extends BaseModel
     protected $updatedField  = 'updated_at';
     protected $deletedField  = 'deleted_at';
 
-    // Validation rules for DMS
     protected $validationRules = [
         'file_name'         => 'required|min_length[3]',
         'file_path'         => 'required',
@@ -50,16 +49,51 @@ class DocumentModel extends BaseModel
         'uploaded_by'       => 'required'
     ];
 
+    protected $insertValidationRules = [
+        'file_name'         => 'required|min_length[3]',
+        'file_path'         => 'required',
+        'document_category' => 'required',
+        'uploaded_by'       => 'required',
+    ];
+
+    protected $updateValidationRules = [];
+
+    public function insert($row = null, bool $returnID = true)
+    {
+        $this->validationRules = $this->insertValidationRules;
+        return parent::insert($row, $returnID);
+    }
+
+    public function update($id = null, $data = null): bool
+    {
+        $this->validationRules = $this->updateValidationRules;
+        return parent::update($id, $data);
+    }
+
     /**
      * Tìm kiếm tài liệu theo bộ lọc và Phân quyền dữ liệu (Security Scoping).
      */
-    public function searchDocuments($filters = [], $employeeId = null)
+    public function searchDocuments($filters = [], $employeeId = null, ?int $perPage = null)
     {
-        $builder = $this->builder();
+        $builder = $this;
+        $hasDocumentFiles = $this->db->tableExists('document_files');
+        $fileSummarySql = '(SELECT document_id, COUNT(*) AS attachment_count, SUM(size) AS total_size, GROUP_CONCAT(id ORDER BY sort_order SEPARATOR ",") AS attachment_ids, GROUP_CONCAT(original_name ORDER BY sort_order SEPARATOR "\n") AS attachment_names FROM document_files WHERE deleted_at IS NULL GROUP BY document_id) document_file_summary';
+
         $builder->select('documents.*, customers.name as customer_name, cases.code as case_code, cases.title as case_title, employees.full_name as uploader_name');
+        if ($hasDocumentFiles) {
+            $builder->select('COALESCE(document_file_summary.attachment_count, 1) AS attachment_count', false);
+            $builder->select('COALESCE(document_file_summary.total_size, documents.size) AS total_size', false);
+            $builder->select('document_file_summary.attachment_ids', false);
+            $builder->select('document_file_summary.attachment_names', false);
+        } else {
+            $builder->select('1 AS attachment_count, documents.size AS total_size, NULL AS attachment_ids, NULL AS attachment_names', false);
+        }
         $builder->join('customers', 'customers.id = documents.customer_id', 'left');
         $builder->join('cases', 'cases.id = documents.case_id', 'left');
         $builder->join('employees', 'employees.user_id = documents.uploaded_by', 'left');
+        if ($hasDocumentFiles) {
+            $builder->join($fileSummarySql, 'document_file_summary.document_id = documents.id', 'left', false);
+        }
         
         // --- BẢO MẬT: PHÂN LẬP DỮ LIỆU TÀI LIỆU (DMS isolation) ---
         if ($employeeId) {
@@ -147,7 +181,10 @@ class DocumentModel extends BaseModel
             $builder->orderBy('documents.created_at', 'DESC');
         }
 
-        $result = $builder->get();
-        return $result ? $result->getResultArray() : [];
+        if ($perPage !== null) {
+            return $builder->paginate($perPage);
+        }
+
+        return $builder->findAll();
     }
 }

@@ -71,6 +71,9 @@
                 <div class="nav-tab-item" data-tab="documents">
                     <i class="fas fa-file-contract"></i> Tài liệu (<?= !empty($documents) && is_array($documents) ? count($documents) : 0 ?>)
                 </div>
+                <div class="nav-tab-item" data-tab="expenses">
+                    <i class="fas fa-receipt"></i> Chi phí (<?= !empty($caseExpenses) && is_array($caseExpenses) ? count($caseExpenses) : 0 ?>)
+                </div>
             </div>
 
             <!-- Overview & Timeline Section -->
@@ -693,6 +696,82 @@
                                         </td>
                                     </tr>
                                 <?php } ?>
+                            <?php } ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-expenses" class="tab-content">
+                <div class="premium-card p-20 m-b-24">
+                    <div class="header-with-action m-b-20 case-log-row">
+                        <h3 class="section-header-title p-0 m-0">Chi phí xử lý vụ việc</h3>
+                        <?php if (has_permission('case_expense.submit')) { ?>
+                            <a href="<?= base_url('case-expenses?case_id=' . $case['id']) ?>" class="btn-premium-sm">
+                                <i class="fas fa-plus"></i> Nhập chi phí
+                            </a>
+                        <?php } ?>
+                    </div>
+
+                    <div class="case-expense-summary">
+                        <div>
+                            <span>Đề nghị</span>
+                            <strong><?= number_format($caseExpenseStats['requested_total'] ?? 0, 0, ',', '.') ?>đ</strong>
+                        </div>
+                        <div>
+                            <span>Đã duyệt</span>
+                            <strong><?= number_format($caseExpenseStats['approved_total'] ?? 0, 0, ',', '.') ?>đ</strong>
+                        </div>
+                        <div>
+                            <span>Chờ duyệt</span>
+                            <strong><?= number_format($caseExpenseStats['pending_total'] ?? 0, 0, ',', '.') ?>đ</strong>
+                        </div>
+                        <div>
+                            <span>Giờ duyệt</span>
+                            <strong><?= number_format($caseExpenseStats['approved_hours'] ?? 0, 2, ',', '.') ?>h</strong>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="premium-table">
+                            <thead>
+                            <tr>
+                                <th>Ngày</th>
+                                <th>Nhân sự</th>
+                                <th>Loại</th>
+                                <th class="table-cell-center">Số tiền</th>
+                                <th class="table-cell-center">Giờ</th>
+                                <th>Ghi chú</th>
+                                <th class="table-cell-center">Trạng thái</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <?php if (empty($caseExpenses)) { ?>
+                                <tr><td colspan="7" class="empty-state-container text-center text-muted-dark">Chưa có chi phí xử lý.</td></tr>
+                            <?php } ?>
+                            <?php foreach (($caseExpenses ?? []) as $expense) { ?>
+                                <tr>
+                                    <td><?= date('d/m/Y', strtotime($expense['expense_date'])) ?></td>
+                                    <td><?= esc($expense['employee_name']) ?></td>
+                                    <td><?= esc($caseExpenseCategoryLabels[$expense['category']] ?? $expense['category']) ?></td>
+                                    <td class="table-cell-center"><?= number_format($expense['amount'], 0, ',', '.') ?>đ</td>
+                                    <td class="table-cell-center"><?= number_format(abs((float)$expense['actual_hours']), 2, ',', '.') ?>h</td>
+                                    <td>
+                                        <?php if (!empty($expense['note'])) { ?>
+                                            <div class="case-expense-note"><?= esc($expense['note']) ?></div>
+                                        <?php } ?>
+                                        <?php if (!empty($expense['approval_note'])) { ?>
+                                            <div class="case-expense-note case-expense-approval-note"><?= esc($expense['approval_note']) ?></div>
+                                        <?php } ?>
+                                        <?php if (empty($expense['note']) && empty($expense['approval_note'])) { ?>
+                                            <span class="text-muted-dark">-</span>
+                                        <?php } ?>
+                                    </td>
+                                    <td class="table-cell-center">
+                                        <span class="badge-secondary-minimal text-xs"><?= esc($caseExpenseStatusLabels[$expense['status']] ?? $expense['status']) ?></span>
+                                    </td>
+                                </tr>
                             <?php } ?>
                             </tbody>
                         </table>

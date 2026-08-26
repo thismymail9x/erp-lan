@@ -134,7 +134,7 @@ if (has_permission('sys.admin') || has_permission('customer.manage') || has_perm
                 <!-- Grid 1: Care Staff, Zalo Phone, Occupation -->
                 <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px;">
                     <div class="form-group-premium">
-                        <label class="label-premium">Nhân sự phụ trách chăm sóc</label>
+                        <label class="label-premium">Nhân chăm sóc tư vấn</label>
                         <select name="assigned_care_staff_id" class="form-control-premium" <?= !$isAdminOrManager ? 'disabled' : '' ?> title="Nhân sự phụ trách chăm sóc, tư vấn cho khách hàng này">
                             <option value="">-- Chọn nhân sự --</option>
                             <?php foreach ($employees as $emp): ?>
@@ -155,7 +155,7 @@ if (has_permission('sys.admin') || has_permission('customer.manage') || has_perm
                 <!-- Grid 2: Customer Segment, Care Status, Service Completed Date -->
                 <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px;">
                     <div class="form-group-premium">
-                        <label class="label-premium">Nhóm khách hàng (Phân loại A/B/C)</label>
+                        <label class="label-premium">Nhóm khách hàng (A/B/C)</label>
                         <select name="customer_segment" class="form-control-premium">
                             <option value="vip">Nhóm A — VIP</option>
                             <option value="regular" selected>Nhóm B — Phổ thông</option>
@@ -174,21 +174,20 @@ if (has_permission('sys.admin') || has_permission('customer.manage') || has_perm
                         </select>
                     </div>
                     <div class="form-group-premium">
-                        <label class="label-premium">Ngày hoàn tất dịch vụ gần nhất</label>
+                        <label class="label-premium">Ngày hoàn tất DV gần nhất</label>
                         <input type="date" name="service_completed_date" class="form-control-premium">
                     </div>
                     <div class="form-group-premium">
-                        <label class="label-premium">Qu&#224; t&#7863;ng</label>
                         <label class="gift-checkbox-option">
                             <input type="hidden" name="has_received_gift" value="0">
                             <input type="checkbox" name="has_received_gift" value="1">
-                            <span>&#272;&#227; t&#7863;ng qu&#224;</span>
+                            <span>Đã tặng quà</span>
                         </label>
                     </div>
                 </div>
 
                 <!-- Grid 3: Source, Tags -->
-                <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px;">
                     <div class="form-group-premium">
                         <label class="label-premium">Nguồn khách hàng</label>
                         <?php 
@@ -204,6 +203,15 @@ if (has_permission('sys.admin') || has_permission('customer.manage') || has_perm
                             <option value="google" <?= ($sourceVal === 'google') ? 'selected' : '' ?>>Google Search</option>
                             <option value="gioi_thieu" <?= ($sourceVal === 'gioi_thieu') ? 'selected' : '' ?>>Được giới thiệu</option>
                             <option value="website" <?= ($sourceVal === 'website') ? 'selected' : '' ?>>Website</option>
+                        </select>
+                    </div>
+                    <div class="form-group-premium">
+                        <label class="label-premium">Đối tác giới thiệu</label>
+                        <select name="referred_partner_id" class="form-control-premium">
+                            <option value="">-- Không gán --</option>
+                            <?php foreach (($partners ?? []) as $partner): ?>
+                                <option value="<?= (int)$partner['id'] ?>"><?= esc($partner['name']) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="form-group-premium">

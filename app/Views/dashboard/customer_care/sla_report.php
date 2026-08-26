@@ -5,7 +5,7 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
-<div class="sla-report-wrapper">
+<div class="sla-report-wrapper customer-care-shell">
     <div class="dashboard-header-wrapper" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <div class="header-title-container">
             <h2 class="content-title">Ch&#259;m s&#243;c Kh&#225;ch h&#224;ng &amp; Theo d&#245;i ti&#7871;n &#273;&#7897;</h2>
@@ -20,6 +20,9 @@
         <?php if (has_permission('care.manage') || has_permission('sys.admin')) { ?>
             <button class="sla-tab-btn" data-tab="sla-configuration">
                 <i class="fas fa-sliders-h"></i> C&#7845;u h&#236;nh B&#432;&#7899;c Tr&#7841;ng th&#225;i CSKH
+            </button>
+            <button class="sla-tab-btn" data-tab="monitoring-configuration">
+                <i class="fas fa-eye"></i> C&#7845;u h&#236;nh Gi&#225;m s&#225;t CSKH
             </button>
         <?php } ?>
     </div>
@@ -250,6 +253,77 @@
                 </div>
             </div>
         </div>
+
+        <div class="sla-tab-pane" id="monitoring-configuration">
+            <div class="premium-card" style="border: 1px solid rgba(0,0,0,0.06); box-shadow: 0 4px 20px rgba(0,0,0,0.01);">
+                <div style="padding: 16px 20px; border-bottom: 1px solid #f2f2f7; display: flex; justify-content: space-between; align-items: center;">
+                    <h4 style="margin:0; font-size:14px; font-weight:700; color:#1d1d1f;"><i class="fas fa-eye" style="color: #8e8e93; margin-right: 8px;"></i>Danh s&#225;ch tr&#7841;ng th&#225;i gi&#225;m s&#225;t CSKH</h4>
+                    <button class="btn-premium-sm" onclick="openAddMonitoringModal()" style="border-radius: 20px; background: var(--regular-blue-gradient); border: none; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; color: #fff; padding: 6px 15px;">
+                        <i class="fas fa-plus"></i> Th&#234;m tr&#7841;ng th&#225;i m&#7899;i
+                    </button>
+                </div>
+
+                <div style="overflow-x: auto;">
+                    <table class="sla-performance-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 80px; text-align: center;">Th&#7913; t&#7921;</th>
+                                <th>T&#234;n tr&#7841;ng th&#225;i</th>
+                                <th>M&#227; &#273;&#7883;nh danh (Key)</th>
+                                <th style="text-align: center;">M&#224;u &#273;&#7841;i di&#7879;n</th>
+                                <th style="text-align: center;">Tr&#7841;ng th&#225;i</th>
+                                <th style="width: 150px; text-align: center;">Thao t&#225;c</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($monitoringSettings)) { ?>
+                                <tr>
+                                    <td colspan="6" class="text-center" style="padding: 40px; color: #86868b;">Kh&#244;ng c&#243; tr&#7841;ng th&#225;i gi&#225;m s&#225;t n&#224;o &#273;&#432;&#7907;c c&#7845;u h&#236;nh.</td>
+                                </tr>
+                            <?php } else { ?>
+                                <?php foreach ($monitoringSettings as $set) { ?>
+                                    <tr>
+                                        <td style="text-align: center; font-weight: 600;"><?= esc($set['sort_order']) ?></td>
+                                        <td><strong style="color: #1d1d1f;"><?= esc($set['status_name']) ?></strong></td>
+                                        <td><code><?= esc($set['status_key']) ?></code></td>
+                                        <td style="text-align: center;">
+                                            <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; background-color: <?= esc($set['color']) ?>15; color: <?= esc($set['color']) ?>; font-size: 11px; font-weight: 700; border: 1px solid <?= esc($set['color']) ?>30;">
+                                                <span style="width: 6px; height: 6px; border-radius: 50%; background-color: <?= esc($set['color']) ?>;"></span>
+                                                <?= esc($set['color']) ?>
+                                            </span>
+                                        </td>
+                                        <td style="text-align: center;">
+                                            <?php if ($set['is_active'] == 1) { ?>
+                                                <span class="badge-status-completed" style="font-size: 10px; padding: 2px 8px; border-radius: 12px; font-weight: 600;">K&#237;ch ho&#7841;t</span>
+                                            <?php } else { ?>
+                                                <span class="badge-status-cancelled" style="font-size: 10px; padding: 2px 8px; border-radius: 12px; font-weight: 600;">&#272;ang kh&#243;a</span>
+                                            <?php } ?>
+                                        </td>
+                                        <td style="text-align: center; display: flex; justify-content: center; gap: 8px;">
+                                            <button class="btn-secondary-sm" style="border-radius: 20px; font-size: 11px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px;"
+                                                    data-id="<?= $set['id'] ?>"
+                                                    data-key="<?= esc($set['status_key']) ?>"
+                                                    data-name="<?= esc($set['status_name']) ?>"
+                                                    data-color="<?= esc($set['color']) ?>"
+                                                    data-sort="<?= esc($set['sort_order']) ?>"
+                                                    data-active="<?= esc($set['is_active']) ?>"
+                                                    onclick="openEditMonitoringModal(this)">
+                                                <i class="fas fa-edit"></i> S&#7917;a
+                                            </button>
+                                            <button class="btn-secondary-sm text-danger" style="border-radius: 20px; font-size: 11px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px;"
+                                                    data-name="<?= esc($set['status_name']) ?>"
+                                                    onclick="deleteMonitoringSetting(<?= $set['id'] ?>, this.getAttribute('data-name'))">
+                                                <i class="fas fa-trash"></i> X&#243;a
+                                            </button>
+                                        </td>
+                                    </tr>
+                                <?php } ?>
+                            <?php } ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     <?php } ?>
 </div>
 
@@ -304,6 +378,57 @@
 
             <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 25px; border-top: 1px solid #f2f2f7; padding-top: 15px;">
                 <button type="button" class="btn-secondary" onclick="closeSlaModal()" style="border-radius: 20px; font-size: 13px; font-weight: 600; padding: 8px 18px;">H&#7911;y b&#7887;</button>
+                <button type="submit" class="btn-premium" style="border-radius: 20px; font-size: 13px; font-weight: 600; padding: 8px 18px; background: var(--regular-blue-gradient); border: none; color: #fff;">L&#432;u c&#7845;u h&#236;nh</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modalMonitoringSetting" class="modal-overlay-sla">
+    <div class="modal-content-sla">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f2f2f7; padding-bottom: 15px; margin-bottom: 20px;">
+            <h3 id="modalMonitoringTitle" style="margin: 0; font-size: 16px; font-weight: 700; color: #1d1d1f;">Th&#234;m c&#7845;u h&#236;nh tr&#7841;ng th&#225;i gi&#225;m s&#225;t</h3>
+            <button type="button" onclick="closeMonitoringModal()" style="border: none; background: none; font-size: 18px; color: #86868b; cursor: pointer; padding: 0;"><i class="fas fa-times"></i></button>
+        </div>
+
+        <form id="formMonitoringSetting">
+            <input type="hidden" name="id" id="monitoring_setting_id">
+
+            <div class="form-group-premium m-b-15">
+                <label class="label-premium" for="monitoring_status_name">T&#234;n tr&#7841;ng th&#225;i gi&#225;m s&#225;t</label>
+                <input type="text" name="status_name" id="monitoring_status_name" class="form-control-premium" required placeholder="V&#237; d&#7909;: Kh&#225;ch g&#7885;i ph&#224;n n&#224;n">
+            </div>
+
+            <div class="form-group-premium m-b-15">
+                <label class="label-premium" for="monitoring_status_key">M&#227; &#273;&#7883;nh danh (Key h&#7879; th&#7889;ng)</label>
+                <input type="text" name="status_key" id="monitoring_status_key" class="form-control-premium" required placeholder="V&#237; d&#7909;: khach_goi_phan_nan">
+                <small style="font-size: 11px; color: #86868b; margin-top: 4px; display: block;">Vi&#7871;t li&#7873;n kh&#244;ng d&#7845;u, d&#249;ng g&#7841;ch d&#432;&#7899;i.</small>
+            </div>
+
+            <div class="form-group-premium m-b-15">
+                <label class="label-premium" for="monitoring_color">M&#227; m&#224;u hi&#7875;n th&#7883; (Hex color)</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="color" id="monitoring_color_picker" class="form-control-premium" style="width: 50px; padding: 0; height: 38px; border: 1px solid #d2d2d7;" oninput="document.getElementById('monitoring_color').value = this.value">
+                    <input type="text" name="color" id="monitoring_color" class="form-control-premium" style="flex: 1;" required placeholder="#ff3b30" oninput="document.getElementById('monitoring_color_picker').value = this.value">
+                </div>
+            </div>
+
+            <div class="form-group-premium m-b-15" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label class="label-premium" for="monitoring_sort_order">Th&#7913; t&#7921; hi&#7875;n th&#7883;</label>
+                    <input type="number" name="sort_order" id="monitoring_sort_order" class="form-control-premium" required min="0" value="0">
+                </div>
+                <div>
+                    <label class="label-premium" for="monitoring_is_active">Tr&#7841;ng th&#225;i v&#7853;n h&#224;nh</label>
+                    <select name="is_active" id="monitoring_is_active" class="form-control-premium">
+                        <option value="1">K&#237;ch ho&#7841;t</option>
+                        <option value="0">T&#7841;m kh&#243;a</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 25px; border-top: 1px solid #f2f2f7; padding-top: 15px;">
+                <button type="button" class="btn-secondary" onclick="closeMonitoringModal()" style="border-radius: 20px; font-size: 13px; font-weight: 600; padding: 8px 18px;">H&#7911;y b&#7887;</button>
                 <button type="submit" class="btn-premium" style="border-radius: 20px; font-size: 13px; font-weight: 600; padding: 8px 18px; background: var(--regular-blue-gradient); border: none; color: #fff;">L&#432;u c&#7845;u h&#236;nh</button>
             </div>
         </form>

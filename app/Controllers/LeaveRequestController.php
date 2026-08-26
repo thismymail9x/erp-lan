@@ -110,6 +110,7 @@ class LeaveRequestController extends BaseController
         $data = [
             'title' => 'Gửi đơn xin nghỉ phép | L.A.N ERP',
             'staffs' => get_available_employees(), // Core helper function
+            'canCreateForEmployee' => has_permission('sys.admin') || has_permission('leave.approve'),
             'leaveTypes' => [
                 'annual'   => 'Nghỉ phép năm (P)',
                 'personal' => 'Nghỉ có lương (Công tác/Việc riêng)',
@@ -134,7 +135,17 @@ class LeaveRequestController extends BaseController
         $data = $this->request->getPost();
         
         // Gán ID nhân viên từ Session để bảo mật (Rule #7)
-        $data['employee_id'] = session()->get('employee_id');
+        $canCreateForEmployee = has_permission('sys.admin') || has_permission('leave.approve');
+        $postedEmployeeId = (int)($data['employee_id'] ?? 0);
+
+        // Staff can only create their own request; approvers can backfill historical leave for employees.
+        $data['employee_id'] = ($canCreateForEmployee && $postedEmployeeId > 0)
+            ? $postedEmployeeId
+            : session()->get('employee_id');
+
+        if ($canCreateForEmployee && !empty($data['start_date']) && $data['start_date'] < date('Y-m-d')) {
+            $data['is_emergency'] = 1;
+        }
 
         // Đẩy toàn bộ cho Service xử lý logic và Rule 1
         $result = $this->service->create($data);

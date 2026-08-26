@@ -33,6 +33,38 @@ if (!function_exists('renderSortHeader')) {
              . '</span>';
     }
 }
+
+if (!function_exists('normalizeMonitoringStatusKeysForView')) {
+    function normalizeMonitoringStatusKeysForView($value) {
+        if (is_array($value)) {
+            $keys = $value;
+        } else {
+            $raw = trim((string) ($value ?? ''));
+            $decoded = json_decode($raw, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $keys = $decoded;
+            } elseif ($raw !== '') {
+                $keys = strpos($raw, ',') !== false ? explode(',', $raw) : [$raw];
+            } else {
+                $keys = ['good'];
+            }
+        }
+
+        $normalized = [];
+        foreach ($keys as $key) {
+            $key = trim((string) $key);
+            if ($key !== '' && preg_match('/^[A-Za-z0-9_-]{1,80}$/', $key) && !in_array($key, $normalized, true)) {
+                $normalized[] = $key;
+            }
+        }
+
+        if (count($normalized) > 1 && in_array('good', $normalized, true)) {
+            $normalized = array_values(array_filter($normalized, static fn ($key) => $key !== 'good'));
+        }
+
+        return empty($normalized) ? ['good'] : $normalized;
+    }
+}
 ?>
 <div class="table-container">
     <table class="premium-table">
@@ -45,16 +77,17 @@ if (!function_exists('renderSortHeader')) {
                 <?php } ?>
                 <th class="table-cell-center" style="width: 75px;">STT (<?= $pager->getDetails()['total'] ?>)</th>
                 <th><?= renderSortHeader('code', 'Mã KH', $currentSort, $currentOrder) ?></th>
-                <th style="width: 15%"><?= renderSortHeader('name', 'Khách hàng', $currentSort, $currentOrder) ?></th>
+                <th style="width: 12%"><?= renderSortHeader('name', 'Khách hàng', $currentSort, $currentOrder) ?></th>
                 <th>Liên hệ</th>
 <!--                <th>Định danh</th>-->
                 <th style="max-width: 25%;">Thông tin bổ sung</th>
-                <th style="min-width: 180px;"><?= renderSortHeader('care_staff_name', 'Nhân sự tư vấn', $currentSort, $currentOrder) ?></th>
+                <th style="min-width: 150px;"><?= renderSortHeader('care_staff_name', 'Nhân sự tư vấn', $currentSort, $currentOrder) ?></th>
                 <th style="min-width: 160px;"><?= renderSortHeader('care_status', 'Trạng thái tư vấn', $currentSort, $currentOrder) ?></th>
+                <th style="min-width: 170px;"><?= renderSortHeader('monitoring_status', 'Giám sát', $currentSort, $currentOrder) ?></th>
                 <th class="table-cell-center gift-status-col">Qu&#224;</th>
                 <th class="table-cell-right"><?= renderSortHeader('total_cases', 'Vụ việc', $currentSort, $currentOrder) ?></th>
                 <th class="table-cell-center" style="width: 110px;"><?= renderSortHeader('created_at', 'Ngày tạo', $currentSort, $currentOrder) ?></th>
-                <th style="width: 15%" class="table-cell-center">Thao tác</th>
+                <th style="width: 10%" class="table-cell-center">Thao tác</th>
             </tr>
             <?php if ($showCheckboxes) { ?>
             <!-- Floating Bulk Actions Bar -->
@@ -79,7 +112,7 @@ if (!function_exists('renderSortHeader')) {
             <?php $stt = isset($pager) ? ($pager->getCurrentPage() - 1) * $pager->getPerPage() : 0; ?>
             <?php if (empty($customers)) { ?>
                 <tr>
-                    <td colspan="<?= $showCheckboxes ? 12 : 11 ?>" class="empty-state-container">
+                    <td colspan="<?= $showCheckboxes ? 13 : 12 ?>" class="empty-state-container">
                         <i class="fas fa-search-minus empty-state-icon" title="Không có dữ liệu"></i>
                         Không tìm thấy khách hàng nào phù hợp với bộ lọc.
                     </td>
@@ -99,6 +132,9 @@ if (!function_exists('renderSortHeader')) {
                     <td data-label="Khách hàng">
                         <a href="<?= base_url('customers/show/' . $customer['id']) ?>" class="font-weight-600 text-apple-main text-decoration-none hover-underline">
                             <?= esc($customer['name']) ?>
+                            <?php if (!empty($customer['profile_document_count'])) { ?>
+                                <i class="fas fa-image text-apple-blue m-l-5" title="Khách hàng có tệp hồ sơ đính kèm"></i>
+                            <?php } ?>
                         </a>
                         <div class="text-xs text-muted-dark" title="Loại khách hàng">
                             <?= ($customer['type'] == 'ca_nhan') ? 'Cá nhân' : 'Doanh nghiệp' ?>
@@ -192,14 +228,15 @@ if (!function_exists('renderSortHeader')) {
                             <?php } ?>
                         </div>
                     </td>
-                    <td data-label="Trạng thái tư vấn" class="care-status-cell" data-customer-id="<?= $customer['id'] ?>" data-current-status-key="<?= esc($customer['care_status'] ?? 'chua_tu_van') ?>">
+                    <td data-label="Trạng thái tư vấn" class="care-status-cell" data-customer-id="<?= $customer['id'] ?>" data-current-status-key="<?= esc(\App\Services\CustomerSlaService::normalizeStatusKey($customer['care_status'] ?? 'chua_tu_van')) ?>">
                         <div class="care-status-display-wrapper" style="position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%;">
                             <?php 
                             $canChangeStatus = $isAdminOrManager || (!empty($customer['assigned_care_staff_id']) && $customer['assigned_care_staff_id'] == session()->get('employee_id'));
+                            $currentCareStatusKey = \App\Services\CustomerSlaService::normalizeStatusKey($customer['care_status'] ?? 'chua_tu_van');
                             $statusName = 'Chưa tư vấn';
                             $statusColor = '#8e8e93';
                             foreach ($slaSettings as $s) {
-                                if ($s['status_key'] === ($customer['care_status'] ?? 'chua_tu_van')) {
+                                if ($s['status_key'] === $currentCareStatusKey) {
                                     $statusName = $s['status_name'];
                                     $statusColor = $s['color'];
                                     break;
@@ -246,7 +283,40 @@ if (!function_exists('renderSortHeader')) {
                             <?php if ($canChangeStatus) { ?>
                             <select class="care-status-select-inline form-control-premium no-select2" style="display: none; width: 100%; height: 30px; padding: 2px 6px; font-size: 13px; margin-top: 4px;">
                                 <?php foreach ($slaSettings as $s) { ?>
-                                    <option value="<?= esc($s['status_key']) ?>" <?= (($customer['care_status'] ?? 'chua_tu_van') === $s['status_key']) ? 'selected' : '' ?>>
+                                    <option value="<?= esc($s['status_key']) ?>" <?= ($currentCareStatusKey === $s['status_key']) ? 'selected' : '' ?>>
+                                        <?= esc($s['status_name']) ?>
+                                    </option>
+                                <?php } ?>
+                            </select>
+                            <?php } ?>
+                        </div>
+                    </td>
+                    <td data-label="Giám sát" class="monitoring-status-cell" data-customer-id="<?= $customer['id'] ?>" data-current-status-keys='<?= esc(json_encode(normalizeMonitoringStatusKeysForView($customer['monitoring_status'] ?? 'good')), 'attr') ?>'>
+                        <div class="monitoring-status-display-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
+                            <?php
+                            $monitoringStatusKeys = normalizeMonitoringStatusKeysForView($customer['monitoring_status'] ?? 'good');
+                            $monitoringSettingsByKey = [];
+                            foreach ($monitoringSettings as $s) {
+                                $monitoringSettingsByKey[$s['status_key']] = $s;
+                            }
+                            $canChangeMonitoringStatus = $isAdminOrManager || (!empty($customer['assigned_care_staff_id']) && $customer['assigned_care_staff_id'] == session()->get('employee_id'));
+                            ?>
+                            <span class="monitoring-status-display-name <?= $canChangeMonitoringStatus ? 'clickable-monitoring-status' : '' ?> text-sm font-weight-600" style="<?= $canChangeMonitoringStatus ? 'cursor: pointer;' : '' ?> display: flex; flex-wrap: wrap; gap: 4px; width: 100%;" title="<?= $canChangeMonitoringStatus ? 'Đúp click để thay đổi trạng thái giám sát nhanh' : 'Chỉ Ban quản lý hoặc Người phụ trách chăm sóc mới được quyền thay đổi' ?>">
+                                <?php foreach ($monitoringStatusKeys as $monitoringStatusKey) {
+                                    $setting = $monitoringSettingsByKey[$monitoringStatusKey] ?? null;
+                                    $monitoringStatusName = $setting['status_name'] ?? $monitoringStatusKey;
+                                    $monitoringStatusColor = $setting['color'] ?? '#34c759';
+                                ?>
+                                    <span class="badge-care-status" style="background-color: <?= esc($monitoringStatusColor) ?>15; color: <?= esc($monitoringStatusColor) ?>; padding: 3px 8px; border-radius: 12px; font-size: 11px; border: 1px solid <?= esc($monitoringStatusColor) ?>25;">
+                                        <?= esc($monitoringStatusName) ?>
+                                    </span>
+                                <?php } ?>
+                            </span>
+
+                            <?php if ($canChangeMonitoringStatus) { ?>
+                            <select class="monitoring-status-select-inline form-control-premium select2-monitoring-inline" multiple="multiple" style="display: none; width: 100%; min-height: 96px; padding: 4px 6px; font-size: 13px;">
+                                <?php foreach ($monitoringSettings as $s) { ?>
+                                    <option value="<?= esc($s['status_key']) ?>" <?= in_array($s['status_key'], $monitoringStatusKeys, true) ? 'selected' : '' ?>>
                                         <?= esc($s['status_name']) ?>
                                     </option>
                                 <?php } ?>
@@ -304,3 +374,4 @@ if (!function_exists('renderSortHeader')) {
 <div class="pagination-wrapper p-20 m-t-16">
     <?= $pager->links() ?>
 </div>
+

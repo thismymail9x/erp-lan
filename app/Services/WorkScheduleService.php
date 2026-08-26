@@ -179,10 +179,12 @@ class WorkScheduleService extends BaseService
      */
     public function getDetail(int $id)
     {
-        return $this->model->select('work_schedules.*, e.full_name as employee_name, creator.full_name as creator_name, assigner.full_name as assigner_name')
+        return $this->model->select('work_schedules.*, e.full_name as employee_name, creator.full_name as creator_name, assigner.full_name as assigner_name, cases.code as case_code, cases.title as case_title, customers.name as case_customer_name')
                         ->join('employees e', 'e.id = work_schedules.employee_id', 'left')
                         ->join('employees creator', 'creator.id = work_schedules.created_by', 'left')
                         ->join('employees assigner', 'assigner.id = work_schedules.assigned_by_id', 'left')
+                        ->join('cases', 'cases.id = work_schedules.case_id AND cases.deleted_at IS NULL', 'left')
+                        ->join('customers', 'customers.id = cases.customer_id', 'left')
                         ->where('work_schedules.id', $id)
                         ->first();
     }

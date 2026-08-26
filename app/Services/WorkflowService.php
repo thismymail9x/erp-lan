@@ -814,38 +814,19 @@ class WorkflowService extends BaseService
             'last_overdue_notified_at' => date('Y-m-d')
         ]);
 
-        // 2. Tìm người phụ trách để trừ điểm tiềm năng
-        // 3. Thông báo leo thang (Escalation Dispatch)
         $recipientIds = [];
-        
-        // 3.1 Thêm Admin & Manager (Ban quản lý)
-        $adminRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_ADMIN)->first();
-        $managerRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_TRUONG_PHONG)->first();
+        $assignedEmployeeId = $step['assigned_to'] ?? null;
+        if (empty($assignedEmployeeId)) {
+            $assignedEmployeeId = $case['assigned_lawyer_id'] ?: ($case['assigned_staff_id'] ?? null);
+        }
 
-        if ($adminRole) {
-            $recipientIds = $this->userModel->where('role_id', $adminRole['id'])->where('active_status', 1)->findColumn('id') ?? [];
+        if (!empty($assignedEmployeeId)) {
+            $employee = $this->employeeModel->find($assignedEmployeeId);
+            if ($employee && !empty($employee['user_id'])) {
+                $recipientIds[] = $employee['user_id'];
+            }
         }
-        if ($managerRole) {
-            $managerIds = $this->userModel->where('role_id', $managerRole['id'])->where('active_status', 1)->findColumn('id') ?? [];
-            $recipientIds = array_merge($recipientIds, $managerIds);
-        }
-        
-        // 3.2 Thêm thành viên vụ việc
-        $members = model('CaseMemberModel')->where('case_id', $step['case_id'])->findAll();
-        foreach ($members as $m) {
-            $emp = $this->employeeModel->find($m['employee_id']);
-            if ($emp && $emp['user_id']) $recipientIds[] = $emp['user_id'];
-        }
-        
-        // Bổ sung nhân sự chính
-        if (!empty($case['assigned_lawyer_id'])) {
-            $l = $this->employeeModel->find($case['assigned_lawyer_id']);
-            if ($l && $l['user_id']) $recipientIds[] = $l['user_id'];
-        }
-        if (!empty($case['assigned_staff_id'])) {
-            $s = $this->employeeModel->find($case['assigned_staff_id']);
-            if ($s && $s['user_id']) $recipientIds[] = $s['user_id'];
-        }
+
         $this->notificationService->sendToMultiple($recipientIds, $title, $msg, 'danger', $link);
     }
 

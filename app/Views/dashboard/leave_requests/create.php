@@ -25,6 +25,18 @@
             <?= csrf_field() ?>
             
             <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <?php if (!empty($canCreateForEmployee)) { ?>
+                <div class="form-group-premium" style="grid-column: span 2;">
+                    <label class="label-premium">Nh&#226;n s&#7921; ngh&#7881; <span class="text-red">*</span></label>
+                    <select name="employee_id" required class="form-control-premium select2-enable">
+                        <?php foreach ($staffs as $s) { ?>
+                            <option value="<?= $s['id'] ?>" <?= old('employee_id', session()->get('employee_id')) == $s['id'] ? 'selected' : '' ?>>
+                                <?= esc($s['full_name']) ?>
+                            </option>
+                        <?php } ?>
+                    </select>
+                </div>
+                <?php } ?>
                 <!-- Loại hình & Khẩn cấp -->
                 <div class="form-group-premium" style="grid-column: span 2;">
                     <label class="label-premium">Hình thức nghỉ <span class="text-red">*</span></label>
@@ -55,14 +67,14 @@
                 <!-- Thời gian -->
                 <div class="form-group-premium">
                     <label class="label-premium"><i class="fas fa-sign-out-alt"></i> Bắt đầu <span class="text-red">*</span></label>
-                    <input type="date" name="start_date" id="start_date" required class="form-control-premium" 
-                           min="<?= date('Y-m-d') ?>" value="<?= old('start_date', date('Y-m-d')) ?>">
+                    <input type="date" name="start_date" id="start_date" required class="form-control-premium"
+                           <?= empty($canCreateForEmployee) ? 'min="' . date('Y-m-d') . '"' : '' ?> value="<?= old('start_date', date('Y-m-d')) ?>">
                 </div>
 
                 <div class="form-group-premium" id="end_date_group">
                     <label class="label-premium"><i class="fas fa-sign-in-alt"></i> Kết thúc <span class="text-red">*</span></label>
                     <input type="date" name="end_date" id="end_date" required class="form-control-premium"
-                           min="<?= date('Y-m-d') ?>" value="<?= old('end_date', date('Y-m-d')) ?>">
+                           <?= empty($canCreateForEmployee) ? 'min="' . date('Y-m-d') . '"' : '' ?> value="<?= old('end_date', date('Y-m-d')) ?>">
                 </div>
 
                 <!-- Bàn giao (Optional - Rule Update) -->

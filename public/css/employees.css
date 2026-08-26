@@ -128,3 +128,109 @@
 #new-rate-after-group.hidden {
     display: none;
 }
+
+.annual-leave-panel {
+    border: 1px solid #e5e5ea;
+    border-radius: 8px;
+    padding: 14px;
+    background: #fbfbfd;
+}
+
+.annual-leave-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.annual-leave-panel-head h4 {
+    margin: 0;
+    color: var(--apple-text-main);
+    font-size: 1rem;
+}
+
+.annual-leave-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.annual-leave-status.is-active {
+    background: #e9f9ef;
+    color: #1b7f3a;
+}
+
+.annual-leave-status.is-inactive {
+    background: #f2f2f7;
+    color: #6e6e73;
+}
+
+.annual-leave-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.annual-leave-stat {
+    min-height: 76px;
+    border: 1px solid #ededf2;
+    border-radius: 8px;
+    padding: 10px;
+    background: #fff;
+}
+
+.annual-leave-stat span {
+    display: block;
+    color: #6e6e73;
+    font-size: 0.78rem;
+    line-height: 1.3;
+}
+
+.annual-leave-stat strong {
+    display: block;
+    margin-top: 6px;
+    color: #1d1d1f;
+    font-size: 1.35rem;
+    line-height: 1;
+}
+
+.annual-leave-stat-primary {
+    border-color: rgba(0, 122, 255, 0.28);
+    background: #f2f8ff;
+}
+
+.annual-leave-stat-primary strong {
+    color: var(--apple-blue);
+}
+
+.annual-leave-note {
+    display: block;
+    margin: 7px 0 0;
+    color: #8e8e93;
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+@media (max-width: 768px) {
+    .annual-leave-panel-head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .annual-leave-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+}
+
+@media (max-width: 420px) {
+    .annual-leave-stats {
+        grid-template-columns: 1fr;
+    }
+}

@@ -3,11 +3,21 @@
  */
 
 $(document).ready(function() {
+    enhanceCustomerCareTables();
+
     $('.segment-tab-btn').on('click', function() {
         const targetTab = $(this).data('target');
+        const segmentInput = $('#customerCareSegmentInput');
+
+        if (segmentInput.length && segmentInput.val() !== targetTab) {
+            segmentInput.val(targetTab);
+            segmentInput.closest('form').trigger('submit');
+            return;
+        }
 
         $('.segment-tab-btn').removeClass('active');
         $(this).addClass('active');
+        segmentInput.val(targetTab);
 
         if ($('.segment-tab-pane').length) {
             $('.segment-tab-pane').hide();
@@ -19,6 +29,8 @@ $(document).ready(function() {
             $(`.customer-care-item[data-segment="${targetTab}"]`).fadeIn(200);
         }
     });
+
+    activateCustomerCareSegmentFromUrl();
 
     let activeTaskId = null;
     let activeTaskElement = null;
@@ -122,6 +134,59 @@ $(document).ready(function() {
     initCustomerCareMonthlyReportCharts();
 });
 
+function enhanceCustomerCareTables() {
+    $('.customer-care-shell table').each(function() {
+        const headers = [];
+
+        $(this).find('thead th').each(function() {
+            headers.push($(this).text().replace(/\s+/g, ' ').trim());
+        });
+
+        if (!headers.length) {
+            return;
+        }
+
+        $(this).find('tbody tr').each(function() {
+            $(this).children('td').each(function(index) {
+                if (!$(this).attr('data-label')) {
+                    $(this).attr('data-label', headers[index] || '');
+                }
+            });
+        });
+    });
+}
+
+function activateCustomerCareSegmentFromUrl() {
+    const tabs = $('.segment-tab-btn');
+
+    if (!tabs.length || typeof URLSearchParams === 'undefined') {
+        return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    let targetTab = params.get('segment');
+
+    if (!targetTab) {
+        if (params.has('page_regular')) {
+            targetTab = 'regular';
+        } else if (params.has('page_potential')) {
+            targetTab = 'potential';
+        } else if (params.has('page_vip')) {
+            targetTab = 'vip';
+        }
+    }
+
+    if (!targetTab) {
+        return;
+    }
+
+    const activeTab = $(`.segment-tab-btn[data-target="${targetTab}"]`);
+
+    if (activeTab.length) {
+        activeTab.trigger('click');
+    }
+}
+
 function initCustomerCareDashboardChart() {
     const chartEl = document.getElementById('segmentChart');
     const config = window.customerCareDashboardConfig;
@@ -187,9 +252,9 @@ function initCustomerCareMonthlyReportCharts() {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        position: 'right',
-                        labels: {
+                legend: {
+                    position: window.innerWidth < 768 ? 'bottom' : 'right',
+                    labels: {
                             boxWidth: 12,
                             font: {
                                 family: 'Inter',

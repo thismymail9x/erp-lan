@@ -40,6 +40,19 @@ class AccessControlService extends BaseService
     {
         $isAdmin = ($roleName === \Config\AppConstants::ROLE_ADMIN || has_permission('sys.admin'));
 
+        if (has_permission('partner.portal') && !$isAdmin && !has_permission('partner.manage') && !has_permission('partner.payout')) {
+            return $this->enrichMenuWithFeatures($this->uniqueMenu([
+                [
+                    'title' => 'Cổng đối tác',
+                    'icon' => 'fas fa-handshake',
+                    'submenu' => [
+                        ['title' => 'Tổng quan', 'url' => 'partner-portal', 'icon' => 'fas fa-chart-line'],
+                        ['title' => 'Khách giới thiệu', 'url' => 'partner-portal/customers', 'icon' => 'fas fa-user-friends'],
+                    ],
+                ],
+            ]));
+        }
+
         if ($isAdmin) {
             $menu = [
                 ['title' => 'Dashboard', 'url' => 'dashboard', 'icon' => 'fas fa-th-large'],
@@ -104,6 +117,18 @@ class AccessControlService extends BaseService
             }
 
             $menu[] = ['title' => 'T&#224;i ch&#237;nh V&#7909; vi&#7879;c', 'url' => 'finance/cases', 'icon' => 'fas fa-file-invoice-dollar'];
+            if (has_permission('partner.manage') || has_permission('partner.payout')) {
+                $menu[] = ['title' => 'Đối tác', 'url' => 'partners', 'icon' => 'fas fa-handshake'];
+            }
+            if (has_permission('office_expense.view') || has_permission('office_expense.manage') || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH) {
+                $menu[] = ['title' => 'Chi ph&#237; v&#7853;n h&#224;nh', 'url' => 'office-expenses', 'icon' => 'fas fa-chart-pie'];
+            }
+            if (has_permission('violation_fund.view') || has_permission('violation_fund.view_own') || has_permission('violation_fund.manage') || has_permission('violation_fund.collect') || session()->get('employee_id')) {
+                $menu[] = ['title' => 'Qu&#7929; vi ph&#7841;m', 'url' => 'violation-funds', 'icon' => 'fas fa-user-shield'];
+            }
+            if (has_permission('sys.admin') || has_permission('case_expense.submit') || has_permission('case_expense.view_own') || has_permission('case_expense.view_team') || has_permission('case_expense.view_all') || has_permission('case_expense.approve')) {
+                $menu[] = ['title' => 'Chi ph&#237; x&#7917; l&#253;', 'url' => 'case-expenses', 'icon' => 'fas fa-receipt'];
+            }
 
             $sub1 = [];
             if (has_permission('leave.view') || session()->get('employee_id')) {
@@ -221,6 +246,18 @@ class AccessControlService extends BaseService
 
             if (session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH) {
                 $menu[] = ['title' => 'T&#224;i ch&#237;nh V&#7909; vi&#7879;c', 'url' => 'finance/cases', 'icon' => 'fas fa-file-invoice-dollar'];
+            }
+            if (has_permission('partner.manage') || has_permission('partner.payout')) {
+                $menu[] = ['title' => 'Đối tác', 'url' => 'partners', 'icon' => 'fas fa-handshake'];
+            }
+            if (has_permission('office_expense.view') || has_permission('office_expense.manage') || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH) {
+                $menu[] = ['title' => 'Chi ph&#237; v&#7853;n h&#224;nh', 'url' => 'office-expenses', 'icon' => 'fas fa-chart-pie'];
+            }
+            if (has_permission('violation_fund.view') || has_permission('violation_fund.view_own') || has_permission('violation_fund.manage') || has_permission('violation_fund.collect') || session()->get('employee_id')) {
+                $menu[] = ['title' => 'Qu&#7929; vi ph&#7841;m', 'url' => 'violation-funds', 'icon' => 'fas fa-user-shield'];
+            }
+            if (has_permission('sys.admin') || has_permission('case_expense.submit') || has_permission('case_expense.view_own') || has_permission('case_expense.view_team') || has_permission('case_expense.view_all') || has_permission('case_expense.approve')) {
+                $menu[] = ['title' => 'Chi ph&#237; x&#7917; l&#253;', 'url' => 'case-expenses', 'icon' => 'fas fa-receipt'];
             }
 
             if (has_permission('leave.view') || session()->get('employee_id')) {

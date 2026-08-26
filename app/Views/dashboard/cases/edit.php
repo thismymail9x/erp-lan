@@ -68,7 +68,7 @@
 
             <div class="case-edit-span-2 case-edit-staff-grid">
                 <div class="form-group-premium">
-                    <label for="approvers">Người phê duyệt (Manager/Leader)</label>
+                    <label for="approvers">Người phê duyệt</label>
                     <select name="approvers[]" id="approvers" class="form-control-premium select2-multi" multiple="multiple">
                         <?php 
                         $currentApproverIds = array_column(array_filter($members, function($m) { return $m['role_in_case'] === 'approver'; }), 'employee_id');

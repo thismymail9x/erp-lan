@@ -15,6 +15,15 @@ $(document).ready(function() {
         });
     }
 
+    if (typeof $ !== 'undefined' && $.fn.select2) {
+        $('.select2-basic:not(.select2-hidden-accessible)').select2({
+            width: 'resolve',
+            allowClear: false
+        });
+    }
+
+    initMonitoringStatusSelect2(document);
+
     $(document).on('change', '.ajax-filter', function() {
         triggerFilter();
     });
@@ -72,6 +81,7 @@ $(document).ready(function() {
             });
             const html = await response.text();
             tableContainer.html(html);
+            initMonitoringStatusSelect2(tableContainer);
         } catch (err) {
             console.error('L\u1ed7i filter kh\u00e1ch h\u00e0ng AJAX:', err);
         } finally {
@@ -313,7 +323,17 @@ $(document).ready(function() {
                 },
                 body: bodyParams
             });
-            const res = await response.json();
+            const rawResponse = await response.text();
+            let res;
+            try {
+                res = JSON.parse(rawResponse);
+            } catch (parseError) {
+                throw new Error(response.ok ? 'Máy chủ trả về dữ liệu không hợp lệ.' : 'Máy chủ trả lỗi HTTP ' + response.status + '.');
+            }
+
+            if (!response.ok) {
+                throw new Error(res.message || ('Máy chủ trả lỗi HTTP ' + response.status + '.'));
+            }
 
             if (res.status === 'success') {
                 const data = res.data;
@@ -340,7 +360,7 @@ $(document).ready(function() {
             }
         } catch (err) {
             console.error('L\u1ed7i AJAX:', err);
-            alert('L\u1ed7i k\u1ebft n\u1ed1i m\u00e1y ch\u1ee7 khi c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i t\u01b0 v\u1ea5n.');
+            alert('Kh\u00f4ng th\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i t\u01b0 v\u1ea5n: ' + (err.message || 'L\u1ed7i k\u1ebft n\u1ed1i m\u00e1y ch\u1ee7.'));
             select.val(oldStatusKey);
         } finally {
             select.removeClass('updating');
@@ -381,6 +401,230 @@ $(document).ready(function() {
             displaySpan.show();
         }
     });
+});
+
+function escapeMonitoringHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function safeMonitoringColor(value) {
+    const color = String(value || '').trim();
+    return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : '#6c757d';
+}
+
+function renderMonitoringStatusBadges(statuses) {
+    const list = Array.isArray(statuses) && statuses.length ? statuses : [{
+        status_name: 'Good',
+        color: '#34c759'
+    }];
+
+    return list.map(item => {
+        const color = safeMonitoringColor(item.color);
+        return `
+            <span class="badge-care-status" style="background-color: ${color}15; color: ${color}; padding: 3px 8px; border-radius: 12px; font-size: 11px; border: 1px solid ${color}25;">
+                ${escapeMonitoringHtml(item.status_name || item.status_key || 'Good')}
+            </span>
+        `;
+    }).join('');
+}
+
+function parseMonitoringStatusKeys(cell) {
+    try {
+        const parsed = JSON.parse(cell.attr('data-current-status-keys') || '["good"]');
+        return Array.isArray(parsed) && parsed.length ? parsed : ['good'];
+    } catch (err) {
+        return ['good'];
+    }
+}
+
+function initMonitoringStatusSelect2(scope) {
+    if (typeof $ === 'undefined' || !$.fn.select2) {
+        return;
+    }
+
+    const root = scope ? $(scope) : $(document);
+    root.find('.select2-monitoring-inline').each(function() {
+        const select = $(this);
+        if (select.hasClass('select2-hidden-accessible')) {
+            select.next('.select2-container').hide();
+            return;
+        }
+
+        select.select2({
+            width: '100%',
+            closeOnSelect: false,
+            placeholder: 'Ch\u1ecdn l\u1ed7i gi\u00e1m s\u00e1t'
+        });
+        select.next('.select2-container').hide();
+
+        select.on('select2:close', function() {
+            if (select.hasClass('updating')) {
+                return;
+            }
+
+            hideMonitoringStatusSelect(select, false);
+        });
+    });
+}
+
+function hideMonitoringStatusSelect(select, closeDropdown = true) {
+    const wrapper = select.closest('.monitoring-status-display-wrapper');
+    wrapper.find('.monitoring-status-display-name').show();
+
+    const select2Container = select.next('.select2-container');
+    if (
+        typeof $ !== 'undefined'
+        && $.fn.select2
+        && select.hasClass('select2-hidden-accessible')
+        && select2Container.hasClass('select2-container--open')
+        && closeDropdown
+    ) {
+        select.select2('close');
+    }
+
+    select2Container.hide();
+    select.hide();
+}
+
+$(document).on('dblclick click', '.monitoring-status-cell', function(e) {
+    if ($(e.target).is('select') || $(e.target).closest('select, .select2-container').length) {
+        return;
+    }
+
+    const wrapper = $(this).find('.monitoring-status-display-wrapper');
+    const displaySpan = wrapper.find('.monitoring-status-display-name');
+    const select = wrapper.find('.monitoring-status-select-inline');
+
+    if (!displaySpan.hasClass('clickable-monitoring-status') || !select.length) {
+        return;
+    }
+
+    displaySpan.hide();
+    select.show();
+    initMonitoringStatusSelect2(this);
+
+    if (typeof $ !== 'undefined' && $.fn.select2 && select.hasClass('select2-hidden-accessible')) {
+        select.next('.select2-container').show();
+        select.select2('open');
+    } else {
+        select.focus();
+    }
+});
+
+$(document).on('change', '.monitoring-status-select-inline', async function() {
+    const select = $(this);
+    const wrapper = select.closest('.monitoring-status-display-wrapper');
+    const displaySpan = wrapper.find('.monitoring-status-display-name');
+    const cell = select.closest('.monitoring-status-cell');
+    const customerId = cell.data('customer-id');
+    const oldStatusKeys = parseMonitoringStatusKeys(cell);
+    let newStatusKeys = select.val() || [];
+
+    if (newStatusKeys.length === 0) {
+        newStatusKeys = ['good'];
+    }
+
+    if (newStatusKeys.length > 1 && newStatusKeys.includes('good')) {
+        newStatusKeys = newStatusKeys.filter(key => key !== 'good');
+    }
+
+    select.val(newStatusKeys).trigger('change.select2');
+
+    const csrfToken = $('input[name="csrf_test_name"]').val() || '';
+    const bodyParams = new URLSearchParams();
+
+    newStatusKeys.forEach(key => {
+        bodyParams.append('status_keys[]', key);
+    });
+
+    if (csrfToken) {
+        bodyParams.append('csrf_test_name', csrfToken);
+    }
+
+    select.addClass('updating');
+    select.attr('disabled', true);
+    wrapper.css('opacity', '0.5');
+
+    try {
+        const response = await fetch(baseUrl + 'customers/update-monitoring-status/' + customerId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: bodyParams
+        });
+        const res = await response.json();
+
+        if (res.status !== 'success') {
+            alert('Kh\u00f4ng th\u1ec3 c\u1eadp nh\u1eadt: ' + (res.message || 'Tr\u1ea1ng th\u00e1i gi\u00e1m s\u00e1t kh\u00f4ng h\u1ee3p l\u1ec7.'));
+            select.val(oldStatusKeys).trigger('change.select2');
+            return;
+        }
+
+        const data = res.data;
+        const savedKeys = Array.isArray(data.status_keys) && data.status_keys.length ? data.status_keys : ['good'];
+        cell.attr('data-current-status-keys', JSON.stringify(savedKeys));
+        displaySpan.html(renderMonitoringStatusBadges(data.statuses));
+        cell.css('background-color', 'rgba(52, 199, 89, 0.15)');
+        setTimeout(() => {
+            cell.css('transition', 'background-color 0.5s ease');
+            cell.css('background-color', '');
+        }, 1000);
+    } catch (err) {
+        console.error('Monitoring status update error:', err);
+        alert('L\u1ed7i k\u1ebft n\u1ed1i m\u00e1y ch\u1ee7 khi c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i gi\u00e1m s\u00e1t.');
+        select.val(oldStatusKeys).trigger('change.select2');
+    } finally {
+        select.removeClass('updating');
+        select.removeAttr('disabled');
+        select.trigger('change.select2');
+        wrapper.css('opacity', '1');
+        hideMonitoringStatusSelect(select);
+    }
+});
+
+$(document).on('mousedown', function(e) {
+    if ($(e.target).closest('.monitoring-status-display-wrapper, .select2-container, .select2-dropdown').length) {
+        return;
+    }
+
+    $('.monitoring-status-select-inline').each(function() {
+        const select = $(this);
+        if (!select.hasClass('updating') && select.next('.select2-container').is(':visible')) {
+            hideMonitoringStatusSelect(select);
+        }
+    });
+});
+
+$(document).on('blur', '.monitoring-status-select-inline', function() {
+    const select = $(this);
+    if (select.hasClass('updating')) {
+        return;
+    }
+
+    const wrapper = select.closest('.monitoring-status-display-wrapper');
+    const displaySpan = wrapper.find('.monitoring-status-display-name');
+    setTimeout(() => {
+        if (!select.hasClass('updating')) {
+            hideMonitoringStatusSelect(select);
+        }
+    }, 150);
+});
+
+$(document).on('keyup', '.monitoring-status-select-inline', function(e) {
+    if (e.key === 'Escape') {
+        const select = $(this);
+        const wrapper = select.closest('.monitoring-status-display-wrapper');
+        const displaySpan = wrapper.find('.monitoring-status-display-name');
+
+        hideMonitoringStatusSelect(select);
+    }
 });
 
 $(document).on('change', '.gift-status-checkbox', async function() {

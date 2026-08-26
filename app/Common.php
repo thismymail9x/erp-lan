@@ -69,6 +69,7 @@ if (!function_exists('get_available_employees')) {
         $query = $model->select('employees.*, roles.name as role_name')
                        ->join('users', 'users.id = employees.user_id', 'inner')
                        ->join('roles', 'roles.id = users.role_id', 'inner')
+                       ->where('employees.deleted_at', null)
                        ->where('users.active_status', 1)
                        ->where('users.deleted_at', null);
 
@@ -218,4 +219,3 @@ if (!function_exists('format_seconds_to_duration')) {
         return implode(' ', $parts);
     }
 }
-

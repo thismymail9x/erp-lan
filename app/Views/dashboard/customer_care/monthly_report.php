@@ -5,13 +5,13 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
-<div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid py-4 customer-care-shell">
+    <div class="d-flex justify-content-between align-items-center mb-4 customer-care-header">
         <div>
             <h1 class="h3 font-weight-700 text-dark mb-1">B&#225;o C&#225;o Hi&#7879;u Su&#7845;t CSKH</h1>
             <p class="text-muted font-size-0.9">&#272;o l&#432;&#7901;ng ch&#7845;t l&#432;&#7907;ng gi&#7919; ch&#226;n, t&#7927; l&#7879; kh&#7843;o s&#225;t ph&#7843;n h&#7891;i v&#224; hi&#7879;u qu&#7843; c&#7911;a c&#417; c&#7845;u VIP/Loyalty.</p>
         </div>
-        <a href="<?= base_url('customer-care') ?>" class="btn btn-secondary d-flex align-items-center gap-2">
+        <a href="<?= base_url('customer-care') ?>" class="btn-secondary d-flex align-items-center gap-2">
             <i class="fas fa-chevron-left"></i> <span>Quay l&#7841;i Dashboard</span>
         </a>
     </div>

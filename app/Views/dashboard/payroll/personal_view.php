@@ -25,6 +25,41 @@
         </div>
     <?php } else { ?>
         <?php 
+            $notes = json_decode($payroll['notes_json'] ?? '[]', true);
+            if (!is_array($notes)) {
+                $notes = [];
+            }
+
+            $transitionBreakdown = null;
+            foreach ($notes as $note) {
+                $noteText = (string)($note['text'] ?? '');
+                if (strpos($noteText, 'Chuy') === false) {
+                    continue;
+                }
+
+                if (preg_match('/([\d]+(?:\.\d+)?)\D+([\d]+(?:\.\d+)?)%\D+([\d]+(?:\.\d+)?)\D+([\d]+(?:\.\d+)?)%/u', $noteText, $matches)) {
+                    $standardDays = (float)($payroll['total_standard_days'] ?? 0);
+                    $salaryBase = (float)($payroll['salary_base'] ?? 0);
+                    $daysBefore = (float)$matches[1];
+                    $rateBefore = (float)$matches[2];
+                    $daysAfter = (float)$matches[3];
+                    $rateAfter = (float)$matches[4];
+                    $amountBefore = $standardDays > 0 ? ($salaryBase * ($rateBefore / 100) / $standardDays) * $daysBefore : 0;
+                    $amountAfter = $standardDays > 0 ? ($salaryBase * ($rateAfter / 100) / $standardDays) * $daysAfter : 0;
+
+                    $transitionBreakdown = [
+                        'days_before' => $daysBefore,
+                        'rate_before' => $rateBefore,
+                        'amount_before' => $amountBefore,
+                        'days_after' => $daysAfter,
+                        'rate_after' => $rateAfter,
+                        'amount_after' => $amountAfter,
+                        'total' => $amountBefore + $amountAfter,
+                    ];
+                    break;
+                }
+            }
+
             $holidays = json_decode($config['holidays_json'] ?: '{}', true);
             if (!empty($holidays)) { ?>
             <div class="premium-card m-b-20" style="padding: 15px;">
@@ -96,6 +131,29 @@
                         <div class="col-6"><strong>Lương theo ngày công (TNCT):</strong></div>
                         <div class="col-6 text-right"><strong><?= number_format($payroll['taxable_income'] ?? 0) ?> đ</strong></div>
                     </div>
+                    <?php if ($transitionBreakdown !== null) { ?>
+                    <div class="payroll-transition-breakdown m-b-15">
+                        <div class="payroll-transition-title">
+                            <i class="fas fa-level-up-alt"></i>
+                            <span>Di&#7877;n gi&#7843;i l&#432;&#417;ng ng&#224;y c&#244;ng khi chuy&#7875;n h&#7841;ng trong th&#225;ng</span>
+                        </div>
+                        <div class="payroll-transition-row">
+                            <span>Tr&#432;&#7899;c ng&#224;y chuy&#7875;n h&#7841;ng</span>
+                            <strong><?= $transitionBreakdown['days_before'] ?> ng&#224;y x <?= $transitionBreakdown['rate_before'] ?>% = <?= number_format($transitionBreakdown['amount_before']) ?> &#273;</strong>
+                        </div>
+                        <div class="payroll-transition-row">
+                            <span>Sau ng&#224;y chuy&#7875;n h&#7841;ng</span>
+                            <strong><?= $transitionBreakdown['days_after'] ?> ng&#224;y x <?= $transitionBreakdown['rate_after'] ?>% = <?= number_format($transitionBreakdown['amount_after']) ?> &#273;</strong>
+                        </div>
+                        <div class="payroll-transition-row payroll-transition-total">
+                            <span>T&#7893;ng l&#432;&#417;ng theo ng&#224;y c&#244;ng</span>
+                            <strong><?= number_format($transitionBreakdown['total']) ?> &#273;</strong>
+                        </div>
+                        <?php if (abs($transitionBreakdown['total'] - (float)($payroll['taxable_income'] ?? 0)) >= 1) { ?>
+                            <small class="payroll-transition-note">S&#7889; ti&#7873;n hi&#7875;n th&#7883; c&#243; th&#7875; ch&#234;nh l&#7879;ch nh&#7887; do l&#224;m tr&#242;n.</small>
+                        <?php } ?>
+                    </div>
+                    <?php } ?>
                     <hr>
                     <div class="row m-b-15">
                         <div class="col-6"><strong>Phụ cấp chuyên cần:</strong></div>
@@ -106,7 +164,7 @@
                         <div class="col-6 text-right text-green">+ <span id="petrol-display"><?= number_format($payroll['petrol_allowance'] ?? 0) ?></span> đ</div>
                     </div>
                     <div class="row m-b-15">
-                        <div class="col-6"><strong>Lương KPI (Tháng):</strong></div>
+                        <div class="col-6"><strong>Lương trách nhiệm:</strong></div>
                         <div class="col-6 text-right text-green">+ <?= number_format($payroll['salary_kpi'] ?? 0) ?> đ</div>
                     </div>
                     <?php if (($payroll['salary_bonus'] ?? 0) > 0) { ?>

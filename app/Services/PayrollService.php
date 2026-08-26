@@ -125,6 +125,10 @@ class PayrollService extends BaseService
             && ($probationEndDate >= $monthStart)
             && ($probationEndDate <= $monthEnd);
 
+        if (!$hasTransition && !empty($probationEndDate) && $probationEndDate < $monthStart) {
+            $probationRate = $newRateAfter > 0 ? $newRateAfter : $probationRate;
+        }
+
         if (!$hasTransition) {
             // ===== TRƯỜNG HỢP 1: Toàn tháng một hệ số (trường hợp phổ biến) =====
             // Tính lương thực tế = lương cơ bản × hệ số % / số ngày chuẩn × số ngày thực tế
@@ -146,6 +150,23 @@ class PayrollService extends BaseService
         //   Phần 1: các ngày <= 15/06  → dùng probation_rate (85%)
         //   Phần 2: các ngày > 15/06   → dùng new_rate_after (100%)
         // Manual adjust days cộng vào phần trước (nhân viên mới, delay thường xảy ra đầu tháng)
+        $rateBefore = $probationRate;
+        $rateAfter  = $newRateAfter > 0 ? $newRateAfter : $probationRate;
+
+        if (abs($rateBefore - $rateAfter) < 0.01) {
+            $previousPayroll = $this->payrollModel
+                ->where('employee_id', $emp['id'])
+                ->where('month <', $month)
+                ->orderBy('month', 'DESC')
+                ->orderBy('id', 'DESC')
+                ->first();
+
+            $previousRate = (float)($previousPayroll['probation_rate_snapshot'] ?? 0);
+            if ($previousRate > 0 && abs($previousRate - $rateAfter) >= 0.01) {
+                $rateBefore = $previousRate;
+            }
+        }
+
         $daysBefore = 0;
         $daysAfter  = 0;
 
@@ -162,32 +183,33 @@ class PayrollService extends BaseService
 
         // Tính thu nhập từng phần
         $incomeBefore = ($standardDays > 0)
-            ? ($salaryBase * ($probationRate / 100.0) / $standardDays) * $daysBefore
+            ? ($salaryBase * ($rateBefore / 100.0) / $standardDays) * $daysBefore
             : 0;
 
         $incomeAfter = ($standardDays > 0)
-            ? ($salaryBase * ($newRateAfter / 100.0) / $standardDays) * $daysAfter
+            ? ($salaryBase * ($rateAfter / 100.0) / $standardDays) * $daysAfter
             : 0;
 
         $taxableIncome = $incomeBefore + $incomeAfter;
 
         // Lương 1 ngày công hiển thị = theo probation_rate (hệ số chính, trước chuyển hạng)
-        $salaryPerDay = ($standardDays > 0) ? ($salaryBase * ($probationRate / 100.0) / $standardDays) : 0;
+        $totalPaidDays = $daysBefore + $daysAfter;
+        $salaryPerDay = $totalPaidDays > 0 ? ($taxableIncome / $totalPaidDays) : 0;
 
         // Ghi chú tự động cho trường hợp chuyển hạng
         // Định dạng: "[Chuyển hạng] X ngày hệ số A% + Y ngày hệ số B%"
         $transitionNote = sprintf(
             '[Chuyển hạng] %.1f ngày hệ số %.0f%% + %.1f ngày hệ số %.0f%%',
             $daysBefore,
-            $probationRate,
+            $rateBefore,
             $daysAfter,
-            $newRateAfter
+            $rateAfter
         );
 
         return [
             'taxable_income'          => $taxableIncome,
             'salary_per_day'          => $salaryPerDay,
-            'probation_rate_snapshot' => $probationRate,
+            'probation_rate_snapshot' => $rateBefore,
             'transition_note'         => $transitionNote,
         ];
     }
@@ -300,6 +322,10 @@ class PayrollService extends BaseService
         $retroActualDays = 0;
         $daysBefore      = 0;
         $daysAfter       = 0;
+        $salaryBase       = (float)($emp['salary_base'] ?? 0);
+        $probationRate    = (float)($emp['probation_rate'] ?? 100.0);
+        $probationEndDate = $emp['probation_end_date'] ?? null;
+        $newRateAfter     = (float)($emp['new_rate_after'] ?? 100.0);
 
         $startDateObj = new \DateTime($joinDate);
         $endDateObj   = new \DateTime($prevMonthEnd);
@@ -363,16 +389,15 @@ class PayrollService extends BaseService
         }
 
         // Tính số tiền truy lĩnh
-        $salaryBase       = (float)($emp['salary_base'] ?? 0);
-        $probationRate    = (float)($emp['probation_rate'] ?? 100.0);
-        $probationEndDate = $emp['probation_end_date'] ?? null;
-        $newRateAfter     = (float)($emp['new_rate_after'] ?? 100.0);
-
         $hasTransitionInPrev = (!empty($probationEndDate))
             && ($probationEndDate >= $prevMonthStart)
             && ($probationEndDate <= $prevMonthEnd);
 
         if (!$hasTransitionInPrev) {
+            if (!empty($probationEndDate) && $probationEndDate < $prevMonthStart) {
+                $probationRate = $newRateAfter > 0 ? $newRateAfter : $probationRate;
+            }
+
             // Trường hợp thông thường: một hệ số toàn tháng trước
             $retroAmount = ($prevStdDays > 0)
                 ? ($salaryBase * ($probationRate / 100.0) / $prevStdDays) * $retroActualDays

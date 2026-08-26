@@ -1306,3 +1306,380 @@ WHERE `deadline` IS NOT NULL;
 UPDATE `cases`
 SET `deadline` = CONCAT(DATE(`deadline`), ' 23:59:59')
 WHERE `deadline` IS NOT NULL;
+
+-- --------------------------------------------------------
+-- Update 20/07/2026: Bang tep vat ly cua tai lieu DMS nhieu file
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `document_files` (
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Khoa chinh cua tep vat ly trong tai lieu DMS',
+  `document_id` INT(11) UNSIGNED NOT NULL COMMENT 'Tai lieu cha trong bang documents',
+  `original_name` VARCHAR(255) NOT NULL COMMENT 'Ten tep goc nguoi dung tai len',
+  `file_path` VARCHAR(255) NOT NULL COMMENT 'Duong dan tep trong WRITEPATH uploads/dms',
+  `file_type` VARCHAR(20) NULL COMMENT 'Phan mo rong tep',
+  `mime_type` VARCHAR(150) NULL COMMENT 'MIME type cua tep',
+  `size` BIGINT(20) NOT NULL DEFAULT 0 COMMENT 'Dung luong tep tinh bang byte',
+  `sort_order` INT(11) NOT NULL DEFAULT 0 COMMENT 'Thu tu hien thi tep trong mot tai lieu',
+  `created_at` DATETIME NULL COMMENT 'Thoi diem tao ban ghi',
+  `updated_at` DATETIME NULL COMMENT 'Thoi diem cap nhat gan nhat',
+  `deleted_at` DATETIME NULL COMMENT 'Thoi diem xoa mem tep',
+  PRIMARY KEY (`id`),
+  KEY `idx_document_files_document_id` (`document_id`),
+  CONSTRAINT `fk_document_files_document` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Danh sach tep vat ly thuoc mot tai lieu DMS';
+
+-- --------------------------------------------------------
+-- Update 23/07/2026: Chi phi xu ly vu viec va lien ket lich cong tac voi vu viec
+-- --------------------------------------------------------
+ALTER TABLE `work_schedules`
+  ADD COLUMN IF NOT EXISTS `case_id` INT(11) UNSIGNED NULL COMMENT 'Vu viec lien quan den lich cong tac, chi hien thi cho nguoi co quyen' AFTER `assigned_by_id`;
+
+CREATE TABLE IF NOT EXISTS `case_expenses` (
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Khoa chinh cua phieu chi phi xu ly vu viec',
+  `case_id` INT(11) UNSIGNED NOT NULL COMMENT 'Vu viec phat sinh chi phi xu ly',
+  `work_schedule_id` INT(11) UNSIGNED NULL COMMENT 'Lich cong tac lien quan neu chi phi duoc nhap tu lich',
+  `employee_id` INT(11) UNSIGNED NOT NULL COMMENT 'Nhan su truc tiep phat sinh chi phi',
+  `created_by` INT(11) UNSIGNED NOT NULL COMMENT 'Nhan su tao phieu chi phi',
+  `expense_date` DATE NOT NULL COMMENT 'Ngay phat sinh chi phi',
+  `category` VARCHAR(40) NOT NULL DEFAULT 'other' COMMENT 'Loai chi phi: travel, fuel, taxi, meal, lodging, fee, other',
+  `amount` BIGINT(20) NOT NULL DEFAULT 0 COMMENT 'So tien de nghi thanh toan bang VND',
+  `actual_start_at` DATETIME NULL COMMENT 'Thoi diem bat dau xu ly thuc te',
+  `actual_end_at` DATETIME NULL COMMENT 'Thoi diem ket thuc xu ly thuc te',
+  `actual_hours` DECIMAL(6,2) NOT NULL DEFAULT 0 COMMENT 'Tong so gio nhan su di xu ly vu viec',
+  `note` TEXT NULL COMMENT 'Ghi chu nghiep vu hoac giai trinh khoan chi',
+  `status` ENUM('draft','pending','approved','rejected') NOT NULL DEFAULT 'pending' COMMENT 'Trang thai duyet chi phi',
+  `approved_amount` BIGINT(20) NULL COMMENT 'So tien ke toan duyet thuc thanh toan',
+  `approval_note` TEXT NULL COMMENT 'Ghi chu duyet hoac ly do tu choi',
+  `approved_by` INT(11) UNSIGNED NULL COMMENT 'Nhan su ke toan/quan ly duyet phieu',
+  `approved_at` DATETIME NULL COMMENT 'Thoi diem duyet chi phi',
+  `created_at` DATETIME NULL COMMENT 'Thoi diem tao ban ghi',
+  `updated_at` DATETIME NULL COMMENT 'Thoi diem cap nhat gan nhat',
+  `deleted_at` DATETIME NULL COMMENT 'Thoi diem xoa mem',
+  PRIMARY KEY (`id`),
+  KEY `idx_case_expenses_case_status` (`case_id`, `status`),
+  KEY `idx_case_expenses_employee_date` (`employee_id`, `expense_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Chi phi va thoi gian nhan su xu ly tung vu viec';
+
+CREATE TABLE IF NOT EXISTS `case_expense_attachments` (
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Khoa chinh cua chung tu chi phi',
+  `expense_id` INT(11) UNSIGNED NOT NULL COMMENT 'Phieu chi phi so huu chung tu',
+  `file_name` VARCHAR(255) NOT NULL COMMENT 'Ten tep chung tu goc',
+  `file_path` VARCHAR(500) NOT NULL COMMENT 'Duong dan luu chung tu trong writable/uploads',
+  `file_type` VARCHAR(80) NULL COMMENT 'MIME type cua tep chung tu',
+  `uploaded_by` INT(11) UNSIGNED NOT NULL COMMENT 'Nhan su tai chung tu len',
+  `created_at` DATETIME NULL COMMENT 'Thoi diem tao ban ghi',
+  `updated_at` DATETIME NULL COMMENT 'Thoi diem cap nhat gan nhat',
+  `deleted_at` DATETIME NULL COMMENT 'Thoi diem xoa mem',
+  PRIMARY KEY (`id`),
+  KEY `idx_case_expense_attachments_expense` (`expense_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Chung tu dinh kem phieu chi phi xu ly vu viec';
+
+-- --------------------------------------------------------
+-- Update 24/07/2026: Chi phi van hanh noi bo cho ke toan va admin
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `office_expenses` (
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Khoa chinh cua khoan chi phi van hanh',
+  `expense_date` DATE NOT NULL COMMENT 'Ngay phat sinh chi phi van hanh',
+  `category` VARCHAR(80) NOT NULL COMMENT 'Loai chi phi van hanh: electricity, water, internet, rent, stationery, maintenance, software, tax_fee, salary_misc, other',
+  `vendor` VARCHAR(255) NULL COMMENT 'Nha cung cap hoac don vi nhan thanh toan',
+  `amount` BIGINT(20) UNSIGNED NOT NULL DEFAULT 0 COMMENT 'So tien chi phi van hanh bang VND',
+  `payment_method` VARCHAR(50) NOT NULL DEFAULT 'cash' COMMENT 'Phuong thuc thanh toan: cash, transfer, card hoac other',
+  `note` TEXT NULL COMMENT 'Ghi chu ky thanh toan, ma hoa don hoac ly do phat sinh',
+  `receipt_file_name` VARCHAR(255) NULL COMMENT 'Ten file chung tu goc do ke toan tai len',
+  `receipt_file_path` VARCHAR(500) NULL COMMENT 'Duong dan luu chung tu trong writable/uploads',
+  `receipt_file_type` VARCHAR(80) NULL COMMENT 'MIME type cua file chung tu',
+  `created_by` INT(11) UNSIGNED NOT NULL COMMENT 'Nhan su ke toan hoac admin tao khoan chi',
+  `created_at` DATETIME NULL COMMENT 'Thoi diem tao ban ghi',
+  `updated_at` DATETIME NULL COMMENT 'Thoi diem cap nhat gan nhat',
+  `deleted_at` DATETIME NULL COMMENT 'Thoi diem xoa mem ban ghi',
+  PRIMARY KEY (`id`),
+  KEY `idx_office_expenses_date_category` (`expense_date`, `category`),
+  KEY `idx_office_expenses_created_by` (`created_by`),
+  CONSTRAINT `fk_office_expenses_created_by` FOREIGN KEY (`created_by`) REFERENCES `employees` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Chi phi van hanh noi bo khong gan truc tiep voi vu viec';
+
+-- --------------------------------------------------------
+-- Update 24/07/2026: Chuan hoa so gio chi phi vu viec khong am
+-- --------------------------------------------------------
+UPDATE `case_expenses`
+SET `actual_hours` = ABS(`actual_hours`)
+WHERE `actual_hours` < 0;
+
+-- --------------------------------------------------------
+-- Update 24/07/2026: So du phep nam cho vai tro Truong phong hoac Nhan vien chinh thuc
+-- --------------------------------------------------------
+ALTER TABLE `employees`
+    ADD COLUMN IF NOT EXISTS `annual_leave_start_date` DATE NULL COMMENT 'Ngay bat dau tinh phep nam cho vai tro Truong phong hoac Nhan vien chinh thuc' AFTER `join_date`;
+
+-- --------------------------------------------------------
+-- Update 25/07/2026: Dang ky quyen cho module chi phi xu ly va chi phi van hanh
+-- --------------------------------------------------------
+INSERT INTO `permissions` (`name`, `module_group`, `description`, `created_at`, `updated_at`) VALUES
+('case_expense.submit', 'Chi phí xử lý vụ việc', 'Tạo phiếu chi phí cho vụ việc mình được phân công hoặc tham gia', NOW(), NOW()),
+('case_expense.view_own', 'Chi phí xử lý vụ việc', 'Xem chi phí vụ việc của cá nhân', NOW(), NOW()),
+('case_expense.view_team', 'Chi phí xử lý vụ việc', 'Xem chi phí của nhân sự cấp dưới trực tiếp', NOW(), NOW()),
+('case_expense.view_all', 'Chi phí xử lý vụ việc', 'Xem toàn bộ chi phí xử lý vụ việc', NOW(), NOW()),
+('case_expense.approve', 'Chi phí xử lý vụ việc', 'Duyệt hoặc từ chối chi phí xử lý vụ việc', NOW(), NOW()),
+('office_expense.view', 'Chi phí vận hành', 'Xem thống kê và danh sách chi phí vận hành', NOW(), NOW()),
+('office_expense.manage', 'Chi phí vận hành', 'Nhập và xóa chi phí vận hành', NOW(), NOW())
+ON DUPLICATE KEY UPDATE
+  `module_group` = VALUES(`module_group`),
+  `description` = VALUES(`description`),
+  `updated_at` = NOW();
+
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`)
+SELECT role_id, p.id
+FROM (
+    SELECT 1 role_id UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7
+) r
+JOIN `permissions` p ON p.name IN ('case_expense.submit', 'case_expense.view_own');
+
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`)
+SELECT role_id, p.id
+FROM (
+    SELECT 1 role_id UNION ALL SELECT 2 UNION ALL SELECT 3
+) r
+JOIN `permissions` p ON p.name = 'case_expense.view_team';
+
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`)
+SELECT role_id, p.id
+FROM (
+    SELECT 1 role_id UNION ALL SELECT 2
+) r
+JOIN `permissions` p ON p.name IN ('case_expense.view_all', 'case_expense.approve', 'office_expense.view', 'office_expense.manage');
+
+-- --------------------------------------------------------
+-- Update 11/08/2026: CRM quan he khach hang va co hoi phat trien dich vu
+-- --------------------------------------------------------
+ALTER TABLE `customers`
+  ADD COLUMN IF NOT EXISTS `relationship_level` VARCHAR(50) NOT NULL DEFAULT 'lead' COMMENT 'Cap do quan he: lead, active, loyal, strategic' AFTER `care_status`,
+  ADD COLUMN IF NOT EXISTS `relationship_score` INT(11) NOT NULL DEFAULT 0 COMMENT 'Diem quan he khach hang tu 0 den 100' AFTER `relationship_level`,
+  ADD COLUMN IF NOT EXISTS `relationship_status` VARCHAR(30) NOT NULL DEFAULT 'healthy' COMMENT 'Trang thai quan he: healthy, watch, risk, critical' AFTER `relationship_score`,
+  ADD COLUMN IF NOT EXISTS `health_score` INT(11) NOT NULL DEFAULT 0 COMMENT 'Diem suc khoe khach hang tu 0 den 100' AFTER `relationship_status`,
+  ADD COLUMN IF NOT EXISTS `next_interaction_date` DATE NULL COMMENT 'Ngay du kien tuong tac ke tiep voi khach hang' AFTER `last_contact_date`,
+  ADD COLUMN IF NOT EXISTS `relationship_manager_id` INT(11) UNSIGNED NULL COMMENT 'Nhan su quan ly quan he khach hang' AFTER `assigned_care_staff_id`,
+  ADD COLUMN IF NOT EXISTS `referred_by_customer_id` INT(11) UNSIGNED NULL COMMENT 'Khach hang da gioi thieu khach hang nay' AFTER `referred_by`,
+  ADD COLUMN IF NOT EXISTS `referral_score` TINYINT(3) NOT NULL DEFAULT 0 COMMENT 'Diem tiem nang gioi thieu tu 0 den 100' AFTER `referral_count`,
+  ADD COLUMN IF NOT EXISTS `interests` TEXT NULL COMMENT 'Moi quan tam, so thich, nhu cau thuong gap cua khach hang' AFTER `occupation`,
+  ADD COLUMN IF NOT EXISTS `identified_issues` TEXT NULL COMMENT 'Van de phap ly hoac nhu cau da duoc nhan dien' AFTER `interests`;
+
+ALTER TABLE `customer_interactions`
+  ADD COLUMN IF NOT EXISTS `interaction_result` VARCHAR(50) NULL COMMENT 'Ket qua tuong tac: positive, neutral, negative, no_response' AFTER `summary`,
+  ADD COLUMN IF NOT EXISTS `importance_level` VARCHAR(20) NOT NULL DEFAULT 'normal' COMMENT 'Muc do quan trong: low, normal, high, urgent' AFTER `interaction_result`,
+  ADD COLUMN IF NOT EXISTS `requires_follow_up` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Danh dau tuong tac can theo doi lai' AFTER `importance_level`;
+
+CREATE TABLE IF NOT EXISTS `customer_opportunities` (
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Khoa chinh co hoi phat trien dich vu',
+  `customer_id` INT(11) UNSIGNED NOT NULL COMMENT 'Khach hang so huu co hoi',
+  `issue_title` VARCHAR(255) NOT NULL COMMENT 'Ten van de hoac nhu cau khach hang',
+  `issue_description` TEXT NULL COMMENT 'Mo ta chi tiet van de da phat hien',
+  `service_suggestion` TEXT NULL COMMENT 'Dich vu hoac giai phap de xuat',
+  `estimated_value` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Gia tri doanh thu du kien cua co hoi',
+  `probability` TINYINT(3) NOT NULL DEFAULT 0 COMMENT 'Xac suat chuyen doi phan tram',
+  `assigned_staff_id` INT(11) UNSIGNED NULL COMMENT 'Nhan su phu trach theo doi co hoi',
+  `discovered_at` DATE NULL COMMENT 'Ngay phat hien co hoi',
+  `follow_up_date` DATE NULL COMMENT 'Ngay can theo doi co hoi',
+  `stage` VARCHAR(50) NOT NULL DEFAULT 'detected' COMMENT 'Giai doan co hoi: detected, consulting, quoted, won, lost',
+  `status` VARCHAR(30) NOT NULL DEFAULT 'active' COMMENT 'Trang thai co hoi: active, won, lost, paused',
+  `source_type` VARCHAR(50) NOT NULL DEFAULT 'manual' COMMENT 'Nguon phat hien co hoi: manual, interaction, referral, case',
+  `created_by` INT(11) UNSIGNED NULL COMMENT 'Nhan su tao co hoi',
+  `created_at` DATETIME NULL COMMENT 'Thoi diem tao ban ghi',
+  `updated_at` DATETIME NULL COMMENT 'Thoi diem cap nhat ban ghi',
+  `deleted_at` DATETIME NULL COMMENT 'Thoi diem xoa mem',
+  PRIMARY KEY (`id`),
+  KEY `idx_customer_opportunities_customer_status` (`customer_id`, `status`),
+  KEY `idx_customer_opportunities_follow_up` (`follow_up_date`),
+  CONSTRAINT `fk_customer_opportunities_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_customer_opportunities_assigned_staff` FOREIGN KEY (`assigned_staff_id`) REFERENCES `employees` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Co hoi phat trien dich vu tu cham soc quan he khach hang';
+
+-- --------------------------------------------------------
+-- Update 13/08/2026: Quan ly quy vi pham noi bo
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `violation_funds` (
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Khoa chinh khoan quy vi pham',
+  `employee_id` INT(11) UNSIGNED NOT NULL COMMENT 'Nhan su bi ghi nhan vi pham noi bo',
+  `violation_date` DATE NOT NULL COMMENT 'Ngay xay ra hanh vi vi pham',
+  `due_month` CHAR(7) NOT NULL COMMENT 'Thang hanh chinh can theo doi thu quy, dinh dang YYYY-MM',
+  `category` VARCHAR(80) NOT NULL COMMENT 'Nhom vi pham: cham cong, bao cao, bao mat, noi quy, nghi phep hoac nhom khac',
+  `behavior` VARCHAR(500) NOT NULL COMMENT 'Hanh vi vi pham cu the theo quy dinh hoac noi dung nhap thu cong',
+  `rank_level` TINYINT(1) UNSIGNED NOT NULL DEFAULT 2 COMMENT 'Cap bac ap dung tai thoi diem vi pham: 1, 2 hoac 3',
+  `base_amount` BIGINT(20) UNSIGNED NOT NULL DEFAULT 0 COMMENT 'Muc san theo bang quy dinh truoc khi dieu chinh tai pham hoac nhap tay',
+  `amount` BIGINT(20) UNSIGNED NOT NULL DEFAULT 0 COMMENT 'So tien thuc te can thu vao quy vi pham noi bo bang VND',
+  `recurrence_count` INT(11) UNSIGNED NOT NULL DEFAULT 1 COMMENT 'So lan tai pham cung loi trong thang tai thoi diem ghi nhan',
+  `status` VARCHAR(30) NOT NULL DEFAULT 'notified' COMMENT 'Trang thai thu quy: notified, collected hoac waived',
+  `collection_method` VARCHAR(50) NOT NULL DEFAULT 'cash' COMMENT 'Hinh thuc thu: tien mat, chuyen khoan, can tru bang luong hoac hinh thuc khac',
+  `explanation` TEXT NULL COMMENT 'Giai trinh hoac boi canh xem xet truoc khi ghi nhan vi pham',
+  `hr_note` TEXT NULL COMMENT 'Ghi chu cua nhan su/admin khi lap khoan vi pham',
+  `admin_note` TEXT NULL COMMENT 'Ghi chu hanh chinh khi thu, mien hoac xu ly khoan vi pham',
+  `notified_at` DATETIME NULL COMMENT 'Thoi diem he thong thong bao cho nguoi vi pham va hanh chinh',
+  `collected_at` DATETIME NULL COMMENT 'Thoi diem hanh chinh xac nhan da thu khoan vi pham',
+  `created_by` INT(11) UNSIGNED NOT NULL COMMENT 'Nhan su tao ban ghi vi pham',
+  `updated_by` INT(11) UNSIGNED NULL COMMENT 'Nhan su cap nhat trang thai hoac ghi chu gan nhat',
+  `created_at` DATETIME NULL COMMENT 'Thoi diem tao ban ghi',
+  `updated_at` DATETIME NULL COMMENT 'Thoi diem cap nhat gan nhat',
+  `deleted_at` DATETIME NULL COMMENT 'Thoi diem xoa mem ban ghi',
+  PRIMARY KEY (`id`),
+  KEY `idx_violation_funds_month_status` (`due_month`, `status`),
+  KEY `idx_violation_funds_employee_date` (`employee_id`, `violation_date`),
+  KEY `idx_violation_funds_created_by` (`created_by`),
+  CONSTRAINT `fk_violation_funds_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_violation_funds_created_by` FOREIGN KEY (`created_by`) REFERENCES `employees` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_violation_funds_updated_by` FOREIGN KEY (`updated_by`) REFERENCES `employees` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Quan ly cac khoan dong quy vi pham noi bo';
+
+INSERT INTO `permissions` (`name`, `module_group`, `description`, `created_at`, `updated_at`) VALUES
+('violation_fund.view', 'Quỹ vi phạm nội bộ', 'Xem toàn bộ báo cáo quỹ vi phạm nội bộ', NOW(), NOW()),
+('violation_fund.view_own', 'Quỹ vi phạm nội bộ', 'Xem các khoản vi phạm của bản thân', NOW(), NOW()),
+('violation_fund.manage', 'Quỹ vi phạm nội bộ', 'Ghi nhận và xóa khoản vi phạm', NOW(), NOW()),
+('violation_fund.collect', 'Quỹ vi phạm nội bộ', 'Cập nhật trạng thái hành chính đã thu', NOW(), NOW())
+ON DUPLICATE KEY UPDATE
+  `module_group` = VALUES(`module_group`),
+  `description` = VALUES(`description`),
+  `updated_at` = NOW();
+
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`)
+SELECT role_id, p.id
+FROM (
+    SELECT 1 role_id UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7
+) r
+JOIN `permissions` p ON p.name = 'violation_fund.view_own';
+
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`)
+SELECT role_id, p.id
+FROM (
+    SELECT 1 role_id UNION ALL SELECT 2
+) r
+JOIN `permissions` p ON p.name IN ('violation_fund.view', 'violation_fund.manage', 'violation_fund.collect');
+
+-- --------------------------------------------------------
+-- Update 17/08/2026: Doi tac va hoa hong theo tien do thanh toan vu viec
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `partners` (
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Khoa chinh ho so doi tac',
+  `user_id` INT(11) UNSIGNED NULL COMMENT 'Tai khoan users dung de doi tac dang nhap nhu user binh thuong',
+  `name` VARCHAR(255) NOT NULL COMMENT 'Ten ca nhan hoac cong ty doi tac',
+  `partner_type` VARCHAR(50) NOT NULL DEFAULT 'individual' COMMENT 'Loai doi tac: individual hoac company',
+  `phone` VARCHAR(50) NULL COMMENT 'So dien thoai lien he doi tac',
+  `email` VARCHAR(255) NULL COMMENT 'Email lien he doi tac',
+  `tax_code` VARCHAR(100) NULL COMMENT 'Ma so thue hoac thong tin dinh danh thanh toan',
+  `bank_name` VARCHAR(255) NULL COMMENT 'Ngan hang nhan thanh toan',
+  `bank_account` VARCHAR(100) NULL COMMENT 'So tai khoan nhan thanh toan',
+  `bank_owner` VARCHAR(255) NULL COMMENT 'Chu tai khoan nhan thanh toan',
+  `status` VARCHAR(30) NOT NULL DEFAULT 'active' COMMENT 'Trang thai hop tac: active, paused, ended',
+  `notes` TEXT NULL COMMENT 'Ghi chu noi bo ve doi tac',
+  `created_at` DATETIME NULL COMMENT 'Thoi diem tao ban ghi',
+  `updated_at` DATETIME NULL COMMENT 'Thoi diem cap nhat gan nhat',
+  `deleted_at` DATETIME NULL COMMENT 'Thoi diem xoa mem',
+  PRIMARY KEY (`id`),
+  KEY `idx_partners_user` (`user_id`),
+  KEY `idx_partners_status` (`status`),
+  CONSTRAINT `fk_partners_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Ho so doi tac cong ty lien ket voi tai khoan users de dang nhap';
+
+CREATE TABLE IF NOT EXISTS `case_partners` (
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Khoa chinh cau hinh hop tac doi tac theo vu viec',
+  `case_id` INT(11) UNSIGNED NOT NULL COMMENT 'Vu viec duoc gan doi tac',
+  `partner_id` INT(11) UNSIGNED NOT NULL COMMENT 'Doi tac tham gia hoac gioi thieu vu viec',
+  `role_label` VARCHAR(100) NOT NULL DEFAULT 'referrer' COMMENT 'Vai tro doi tac: referrer, consultant, closer, operator, expert, other',
+  `calculation_base` VARCHAR(30) NOT NULL DEFAULT 'paid' COMMENT 'Co so tinh hoa hong: contract hoac paid',
+  `percentage` DECIMAL(8,4) NOT NULL DEFAULT 0 COMMENT 'Phan tram doi tac duoc huong',
+  `fixed_amount` BIGINT(20) NOT NULL DEFAULT 0 COMMENT 'So tien co dinh doi tac duoc huong them theo vu viec',
+  `status` VARCHAR(30) NOT NULL DEFAULT 'active' COMMENT 'Trang thai cau hinh hop tac: active, paused, ended',
+  `notes` TEXT NULL COMMENT 'Ghi chu dieu kien hop tac rieng cua vu viec',
+  `created_at` DATETIME NULL COMMENT 'Thoi diem tao ban ghi',
+  `updated_at` DATETIME NULL COMMENT 'Thoi diem cap nhat gan nhat',
+  `deleted_at` DATETIME NULL COMMENT 'Thoi diem xoa mem',
+  PRIMARY KEY (`id`),
+  KEY `idx_case_partners_case_partner` (`case_id`, `partner_id`),
+  KEY `idx_case_partners_status` (`status`),
+  CONSTRAINT `fk_case_partners_case` FOREIGN KEY (`case_id`) REFERENCES `cases` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_case_partners_partner` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Cau hinh ty le va so tien doi tac duoc huong theo tung vu viec';
+
+CREATE TABLE IF NOT EXISTS `partner_commission_entries` (
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Khoa chinh dong hoa hong doi tac phat sinh',
+  `case_partner_id` INT(11) UNSIGNED NOT NULL COMMENT 'Cau hinh hop tac sinh ra dong hoa hong',
+  `partner_id` INT(11) UNSIGNED NOT NULL COMMENT 'Doi tac duoc huong hoa hong',
+  `case_id` INT(11) UNSIGNED NOT NULL COMMENT 'Vu viec phat sinh hoa hong',
+  `payment_index` INT(11) NOT NULL DEFAULT 0 COMMENT 'Thu tu dot thanh toan trong cases.payment_progress',
+  `payment_title` VARCHAR(255) NULL COMMENT 'Ten dot thanh toan cua khach hang',
+  `payment_date` DATE NULL COMMENT 'Ngay ghi nhan khach da thanh toan dot nay',
+  `calculation_base` VARCHAR(30) NOT NULL DEFAULT 'paid' COMMENT 'Co so tinh tai thoi diem phat sinh: contract hoac paid',
+  `base_amount` BIGINT(20) NOT NULL DEFAULT 0 COMMENT 'Gia tri goc dung de tham chieu cong thuc tinh',
+  `percentage` DECIMAL(8,4) NOT NULL DEFAULT 0 COMMENT 'Phan tram ap dung tai thoi diem phat sinh',
+  `fixed_amount` BIGINT(20) NOT NULL DEFAULT 0 COMMENT 'Phan tien co dinh duoc phan bo vao dot thanh toan nay',
+  `commission_amount` BIGINT(20) NOT NULL DEFAULT 0 COMMENT 'So tien hoa hong doi tac duoc nhan trong dot nay',
+  `status` VARCHAR(30) NOT NULL DEFAULT 'accrued' COMMENT 'Trang thai chi tra: accrued, requested, approved, paid, held',
+  `request_note` TEXT NULL COMMENT 'Ghi chu yeu cau thanh toan cua doi tac',
+  `admin_note` TEXT NULL COMMENT 'Ghi chu duyet chi hoac thanh toan cua noi bo',
+  `requested_at` DATETIME NULL COMMENT 'Thoi diem doi tac gui yeu cau thanh toan',
+  `approved_at` DATETIME NULL COMMENT 'Thoi diem noi bo duyet chi',
+  `paid_at` DATETIME NULL COMMENT 'Thoi diem xac nhan da thanh toan cho doi tac',
+  `created_at` DATETIME NULL COMMENT 'Thoi diem tao ban ghi',
+  `updated_at` DATETIME NULL COMMENT 'Thoi diem cap nhat gan nhat',
+  `deleted_at` DATETIME NULL COMMENT 'Thoi diem xoa mem',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_partner_commission_case_payment` (`case_partner_id`, `payment_index`),
+  KEY `idx_partner_commission_partner_status` (`partner_id`, `status`),
+  KEY `idx_partner_commission_case_status` (`case_id`, `status`),
+  CONSTRAINT `fk_partner_commission_case_partner` FOREIGN KEY (`case_partner_id`) REFERENCES `case_partners` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_partner_commission_partner` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_partner_commission_case` FOREIGN KEY (`case_id`) REFERENCES `cases` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Cac khoan hoa hong doi tac tu phat sinh khi khach thanh toan vu viec';
+
+INSERT INTO `permissions` (`name`, `module_group`, `description`, `created_at`, `updated_at`) VALUES
+('partner.portal', 'Doi tac', 'Doi tac xem doanh thu duoc nhan va gui yeu cau thanh toan', NOW(), NOW()),
+('partner.manage', 'Doi tac', 'Quan ly ho so doi tac va cau hinh hop tac theo vu viec', NOW(), NOW()),
+('partner.payout', 'Doi tac', 'Duyet va cap nhat trang thai chi tra hoa hong doi tac', NOW(), NOW())
+ON DUPLICATE KEY UPDATE
+  `module_group` = VALUES(`module_group`),
+  `description` = VALUES(`description`),
+  `updated_at` = NOW();
+
+INSERT IGNORE INTO `roles_permissions` (`role_id`, `permission_id`)
+SELECT role_id, p.id
+FROM (
+    SELECT 1 role_id UNION ALL SELECT 2
+) r
+JOIN `permissions` p ON p.name IN ('partner.manage', 'partner.payout');
+
+-- Update 18/08/2026: Gan doi tac gioi thieu vao khach hang
+ALTER TABLE `customers`
+  ADD COLUMN IF NOT EXISTS `referred_partner_id` INT(11) UNSIGNED NULL COMMENT 'Doi tac gioi thieu khach hang' AFTER `referred_by`;
+
+-- ----------------------------
+-- UPDATE LOG: 24/08/2026 - Cấu hình trạng thái Giám sát CSKH
+-- ----------------------------
+ALTER TABLE `customers`
+    ADD COLUMN IF NOT EXISTS `monitoring_status` TEXT NULL COMMENT 'JSON array trạng thái giám sát chất lượng tư vấn CSKH' AFTER `care_status`;
+
+ALTER TABLE `customers`
+    MODIFY COLUMN `monitoring_status` TEXT NULL COMMENT 'JSON array trạng thái giám sát chất lượng tư vấn CSKH';
+
+UPDATE `customers`
+SET `monitoring_status` = CONCAT('[', JSON_QUOTE(`monitoring_status`), ']')
+WHERE `monitoring_status` IS NOT NULL
+  AND `monitoring_status` != ''
+  AND JSON_VALID(`monitoring_status`) = 0;
+
+CREATE TABLE IF NOT EXISTS `customer_monitoring_status_settings` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT 'Khóa chính',
+    `status_key` VARCHAR(80) NOT NULL COMMENT 'Khóa định danh trạng thái giám sát',
+    `status_name` VARCHAR(150) NOT NULL COMMENT 'Tên hiển thị trạng thái giám sát',
+    `color` VARCHAR(20) NOT NULL DEFAULT '#6c757d' COMMENT 'Màu sắc đại diện trạng thái',
+    `sort_order` INT(11) NOT NULL DEFAULT 0 COMMENT 'Thứ tự hiển thị',
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Trạng thái hoạt động',
+    `created_at` DATETIME DEFAULT NULL COMMENT 'Ngày tạo',
+    `updated_at` DATETIME DEFAULT NULL COMMENT 'Ngày cập nhật',
+    `deleted_at` DATETIME DEFAULT NULL COMMENT 'Ngày xóa mềm',
+    UNIQUE KEY `idx_monitoring_status_key` (`status_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Cấu hình trạng thái giám sát CSKH cho khách hàng';
+
+INSERT IGNORE INTO `customer_monitoring_status_settings` (`status_key`, `status_name`, `color`, `sort_order`, `created_at`, `updated_at`) VALUES
+('good', 'Good', '#34c759', 1, NOW(), NOW()),
+('miss_tin_03_phut_khi_tao_nhom', 'Miss tin trong 03 phút khi tạo nhóm', '#ff3b30', 2, NOW(), NOW()),
+('miss_tuong_tac_trong_qua_trinh_tv', 'Miss tương tác trong quá trình TV', '#ff9500', 3, NOW(), NOW()),
+('chua_gui_bao_phi', 'Chưa gửi báo phí', '#af52de', 4, NOW(), NOW()),
+('chua_co_anh_cham_soc_cuoi_cung', 'Chưa có ảnh chăm sóc cuối cùng', '#5856d6', 5, NOW(), NOW()),
+('tu_van_chua_than_thiet_nhiet_tinh', 'Tư vấn chưa thân thiện, nhiệt tình', '#ff2d55', 6, NOW(), NOW()),
+('khach_goi_phan_nan', 'Khách gọi phàn nàn', '#d70015', 7, NOW(), NOW());

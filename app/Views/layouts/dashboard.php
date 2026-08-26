@@ -34,7 +34,8 @@
                     <h2>L.A.N <span class="text-blue">ERP</span></h2>
                 </div>
                 <div class="user-mini-profile">
-                    <a href="<?= base_url('employees/edit/' . session()->get('employee_id')) ?>" class="user-avatar" title="Xem h&#7891; s&#417; c&#225; nh&#226;n: <?= esc(session()->get('full_name')) ?> (<?= esc(session()->get('role_name')) ?>)" style="text-decoration: none;">
+                    <?php $profileUrl = session()->get('employee_id') ? base_url('employees/edit/' . session()->get('employee_id')) : base_url('partner-portal'); ?>
+                    <a href="<?= $profileUrl ?>" class="user-avatar" title="Xem h&#7891; s&#417; c&#225; nh&#226;n: <?= esc(session()->get('full_name')) ?> (<?= esc(session()->get('role_name')) ?>)" style="text-decoration: none;">
                         <?= mb_strtoupper(mb_substr(session()->get('full_name') ?? 'U', 0, 1)) ?>
                     </a>
                     <a href="<?= base_url('logout') ?>" class="logout-mini" title="K&#7871;t th&#250;c phi&#234;n l&#224;m vi&#7879;c v&#224; &#273;&#259;ng xu&#7845;t">

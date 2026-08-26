@@ -203,6 +203,7 @@ class UserService extends BaseService
                 $employeeData['user_id'] = $userId;
                 $employeeData['position'] = $employeeData['position'] ?? 'Chưa xác định';
                 $this->employeeModel->insert($employeeData);
+                $this->syncAnnualLeaveStartForRole($userId);
             }
 
             // Ghi nhận hành động vào nhật ký hệ thống
@@ -296,6 +297,10 @@ class UserService extends BaseService
             }
 
             // Ghi log bảo mật
+            if (isset($data['role_id']) && (int)$oldData['role_id'] !== (int)$data['role_id']) {
+                $this->syncAnnualLeaveStartForRole($id);
+            }
+
             $this->logService->log('UPDATE', 'Users', $id, $changes);
 
             return $this->success(null, 'Đã cập nhật cấu hình tài khoản cá nhân.');
@@ -307,6 +312,26 @@ class UserService extends BaseService
     /**
      * Tiêu hủy tài khoản vĩnh viễn (Chỉ Admin).
      */
+    /**
+     * Set leave accrual start when a user becomes annual-leave eligible by role.
+     */
+    private function syncAnnualLeaveStartForRole(int $userId): void
+    {
+        $employee = $this->employeeModel->where('user_id', $userId)->first();
+        if (!$employee || !empty($employee['annual_leave_start_date'])) {
+            return;
+        }
+
+        $leaveService = new LeaveRequestService();
+        if (!$leaveService->isAnnualLeaveEligibleEmployee($employee)) {
+            return;
+        }
+
+        $this->employeeModel->update($employee['id'], [
+            'annual_leave_start_date' => $leaveService->firstDayOfNextMonth(date('Y-m-d')),
+        ]);
+    }
+
     public function deleteUser(int $id)
     {
         $roleName = session()->get('role_name');

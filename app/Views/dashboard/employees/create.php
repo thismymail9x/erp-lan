@@ -63,6 +63,12 @@
                 </div>
 
                 <div class="form-group-premium">
+                    <label for="annual_leave_start_date">B&#7855;t &#273;&#7847;u t&#237;nh ph&#233;p n&#259;m</label>
+                    <input type="date" name="annual_leave_start_date" id="annual_leave_start_date" class="form-control-premium">
+                    <small class="annual-leave-note">N&#7871;u &#273;&#7875; tr&#7889;ng, h&#7879; th&#7889;ng s&#7869; t&#7921; l&#7845;y th&#225;ng k&#7871; ti&#7871;p sau ng&#224;y ch&#237;nh th&#7913;c/ng&#224;y v&#224;o l&#224;m khi vai tr&#242; &#273;&#7911; m&#7889;c.</small>
+                </div>
+
+                <div class="form-group-premium">
                     <label for="identity_card">S&#7889; CMND/CCCD</label>
                     <input type="text" name="identity_card" id="identity_card" class="form-control-premium" placeholder="Nh&#7853;p s&#7889; &#273;&#7883;nh danh...">
                 </div>

@@ -449,6 +449,9 @@ class CaseController extends BaseController
             $memberGroups[$m['role_in_case']][] = $m;
         }
 
+        $caseExpenseService = new \App\Services\CaseExpenseService();
+        $caseExpenseData = $caseExpenseService->getByCase((int)$id);
+
         // 4. Tổng hợp dữ liệu hiển thị (Aggregated Data)
         $data = [
             'case'      => $case,
@@ -465,6 +468,10 @@ class CaseController extends BaseController
             'availableTags' => get_available_tags('cases'), // Core Function
             'templates' => model('WorkflowTemplateModel')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'statusLabels' => \Config\AppConstants::CASE_STATUS_LABELS,
+            'caseExpenses' => $caseExpenseData['rows'],
+            'caseExpenseStats' => $caseExpenseData['stats'],
+            'caseExpenseCategoryLabels' => \App\Services\CaseExpenseService::CATEGORY_LABELS,
+            'caseExpenseStatusLabels' => \App\Services\CaseExpenseService::STATUS_LABELS,
             'isApprover' => false, 
             'isAssignee' => false, 
             'title'     => 'Hồ sơ: ' . $case['code'] . ' | L.A.N ERP'
@@ -715,6 +722,9 @@ class CaseController extends BaseController
             $caseMemberModel->syncMembers($id, 'assignee', $this->request->getPost('assignees') ?? []);
             $caseMemberModel->syncMembers($id, 'supporter', $this->request->getPost('supporters') ?? []);
             $this->syncUnfinishedStepAssignee($id, $assignees, $input);
+            if (array_key_exists('payment_progress', $input)) {
+                (new \App\Services\PartnerCommissionService())->syncCaseCommissions((int)$id);
+            }
 
             $this->logHistory($id, 'update_info', null, null, 'Cập nhật thông tin hành chính & phân công nhân sự hồ sơ.');
             return redirect()->to(base_url('cases/show/' . $id))->with('success', 'Hồ sơ đã được cập nhật thành công.');
@@ -1359,19 +1369,9 @@ class CaseController extends BaseController
     {
         $file = $this->request->getFile('doc_file');
         if (!$file) return redirect()->back()->with('error', 'Chưa chọn tệp tin để tải lên.');
-
-        // 1. KIỂM TRA QUYỀN TRUY CẬP (Thành viên vụ việc hoặc Admin)
-        $myEmpId = session()->get('employee_id');
         $case = $this->caseModel->find($id);
         if (!$case) return redirect()->back()->with('error', 'Vụ việc không tồn tại.');
 
-        if (!has_permission('sys.admin') && !has_permission('case.manage')) {
-            $isAssigned = ($case['assigned_lawyer_id'] == $myEmpId || $case['assigned_staff_id'] == $myEmpId);
-            $isMember = model('CaseMemberModel')->where('case_id', $id)->where('employee_id', $myEmpId)->first();
-            if (!$isAssigned && !$isMember) {
-                return redirect()->back()->with('error', 'Bạn không có quyền tải tài liệu lên hồ sơ này.');
-            }
-        }
 
         // 2. CHUẨN BỊ METADATA TỰ ĐỘNG (Automation)
         $data = [

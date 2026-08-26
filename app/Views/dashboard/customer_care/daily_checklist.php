@@ -5,19 +5,20 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
-<div class="container-fluid py-4">
+<div class="container-fluid py-4 customer-care-shell">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 font-weight-700 text-dark mb-1">Checklist Công Việc Hôm Nay</h1>
-            <p class="text-muted font-size-0.9">Danh sách các công việc CSKH được chỉ định cho bạn cần hoàn thành trong ngày hôm nay.</p>
-        </div>
-        <div class="d-flex gap-2">
-            <a href="<?= base_url('customer-care') ?>" class="btn btn-secondary d-flex align-items-center gap-2">
+    <div class="d-flex justify-content-between align-items-center mb-4 customer-care-header">
+      <div>
+          <h1 class="h3 font-weight-700 text-dark mb-1">Checklist Công Việc Hôm Nay</h1>
+          <p class="text-muted font-size-0.9">Danh sách các công việc CSKH được chỉ định cho bạn cần hoàn thành trong ngày hôm nay.</p>
+      </div>
+        <div class="d-flex gap-2 customer-care-actions">
+            <a href="<?= base_url('customer-care') ?>" class="btn-secondary d-flex align-items-center gap-2">
                 <i class="fas fa-chevron-left"></i> <span>Quay lại Dashboard</span>
             </a>
         </div>
     </div>
+
 
     <!-- Checklist Body -->
     <div class="card border-0 shadow-sm" style="border-radius: 16px;">

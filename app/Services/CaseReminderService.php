@@ -129,11 +129,16 @@ class CaseReminderService
         error_log("CRITICAL OVERDUE: " . $case['code'] . " - Step ID: " . $step['id']);
         
         $link = base_url('cases/show/' . $case['id']);
-        // Thông báo cho Ban quản trị/Trưởng phòng
-        $this->notificationService->notifyManagement("🚨 CẢNH BÁO QUÁ HẠN", $message, 'alert', $link);
-        
-        // Thông báo cho các thành viên vụ việc
-        $workflowService = new \App\Services\WorkflowService();
-        $workflowService->notifyCaseMembers($case['id'], "🚨 CẢNH BÁO QUÁ HẠN", $message, 'alert', $link);
+        $assignedEmployeeId = $step['assigned_to'] ?? null;
+        if (empty($assignedEmployeeId)) {
+            $assignedEmployeeId = $case['assigned_lawyer_id'] ?: ($case['assigned_staff_id'] ?? null);
+        }
+
+        if (!empty($assignedEmployeeId)) {
+            $employee = $this->employeeModel->find($assignedEmployeeId);
+            if ($employee && !empty($employee['user_id'])) {
+                $this->notificationService->sendToUser($employee['user_id'], "🚨 CẢNH BÁO QUÁ HẠN", $message, 'alert', $link);
+            }
+        }
     }
 }

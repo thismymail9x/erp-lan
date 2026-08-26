@@ -5,9 +5,9 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
-<div class="container-fluid py-4">
+<div class="container-fluid py-4 customer-care-shell">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 customer-care-header">
         <div>
             <div class="d-flex align-items-center gap-2 mb-1">
                 <a href="<?= base_url('customer-care/care-plan/' . $customer['id']) ?>" class="text-muted font-size-0.85 text-decoration-none">
@@ -18,7 +18,7 @@
             </div>
             <h1 class="h3 font-weight-700 text-dark mb-0">Hạng Thành Viên & Thẻ VIP</h1>
         </div>
-        <a href="<?= base_url('customer-care/care-plan/' . $customer['id']) ?>" class="btn btn-secondary d-flex align-items-center gap-2">
+        <a href="<?= base_url('customer-care/care-plan/' . $customer['id']) ?>" class="btn-secondary d-flex align-items-center gap-2">
             <i class="fas fa-chevron-left"></i> <span>Quay lại Kế hoạch</span>
         </a>
     </div>

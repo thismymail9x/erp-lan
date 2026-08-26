@@ -136,6 +136,8 @@ class EmployeeService extends BaseService
      */
     public function createEmployee(array $data)
     {
+        $data = $this->normalizeAnnualLeaveStart($data);
+
         // Thực hiện ghi dữ liệu mới vào DB
         if ($this->employeeModel->insert($data)) {
             $empId = $this->employeeModel->getInsertID();
@@ -155,8 +157,22 @@ class EmployeeService extends BaseService
      */
     public function updateEmployee(int $id, array $data)
     {
+        $data = $this->normalizeAnnualLeaveStart($data);
+
         // 1. Sao lưu dữ liệu cũ để phục vụ đối soát thay đổi
         $oldData = $this->employeeModel->find($id);
+
+        if ($oldData && !empty($data['probation_end_date']) && array_key_exists('probation_rate', $data)) {
+            $oldRate = (float)($oldData['probation_rate'] ?? 100);
+            $postedRate = (float)$data['probation_rate'];
+
+            $postedNewRate = (float)($data['new_rate_after'] ?? $postedRate);
+
+            if (abs($oldRate - $postedRate) >= 0.01 && abs($postedRate - $postedNewRate) < 0.01) {
+                $data['new_rate_after'] = $postedRate;
+                $data['probation_rate'] = $oldRate;
+            }
+        }
         
         // 2. Thực thi cập nhật
         if ($this->employeeModel->update($id, $data)) {
@@ -189,6 +205,42 @@ class EmployeeService extends BaseService
             return $this->success(null, 'Đã gỡ bỏ hồ sơ nhân viên hoàn toàn khỏi hệ thống.');
         }
         return $this->fail('Thao tác xóa thất bại do ràng buộc dữ liệu hoặc lỗi server.');
+    }
+
+    /**
+     * Keep annual leave start aligned with the rule: accrual starts next month.
+     */
+    private function normalizeAnnualLeaveStart(array $data): array
+    {
+        if (array_key_exists('annual_leave_start_date', $data)) {
+            if (!empty($data['annual_leave_start_date'])) {
+                $data['annual_leave_start_date'] = (new \DateTime($data['annual_leave_start_date']))
+                    ->modify('first day of this month')
+                    ->format('Y-m-d');
+
+                return $data;
+            }
+
+            $data['annual_leave_start_date'] = null;
+        }
+
+        $leaveService = new LeaveRequestService();
+        if (!$leaveService->isAnnualLeaveEligibleEmployee($data)) {
+            return $data;
+        }
+
+        $fallbackDate = $data['probation_end_date'] ?? null;
+        $isOfficialNow = !isset($data['probation_rate']) || (float)$data['probation_rate'] >= 100;
+
+        if (!$fallbackDate && $isOfficialNow) {
+            $fallbackDate = $data['join_date'] ?? null;
+        }
+
+        if ($fallbackDate) {
+            $data['annual_leave_start_date'] = $leaveService->firstDayOfNextMonth($fallbackDate);
+        }
+
+        return $data;
     }
 
     /**

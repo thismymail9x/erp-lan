@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\DocumentModel;
+use App\Models\DocumentFileModel;
 use App\Models\DocumentVersionModel;
 use App\Models\DocumentAccessLogModel;
 use App\Models\CaseModel;
@@ -17,6 +18,7 @@ use CodeIgniter\Files\File;
 class DocumentService extends BaseService
 {
     protected $docModel;
+    protected $fileModel;
     protected $versionModel;
     protected $accessLogModel;
 
@@ -24,6 +26,7 @@ class DocumentService extends BaseService
     {
         parent::__construct();
         $this->docModel = new DocumentModel();
+        $this->fileModel = new DocumentFileModel();
         $this->versionModel = new DocumentVersionModel();
         $this->accessLogModel = new DocumentAccessLogModel();
     }
@@ -39,22 +42,6 @@ class DocumentService extends BaseService
     {
         if (!$file->isValid() || $file->hasMoved()) {
             return $this->fail('File không hợp lệ hoặc đã được di chuyển.');
-        }
-
-        // 1. Kiểm tra quyền upload (RBAC)
-        if (!has_permission('case.manage') && !has_permission('sys.admin')) {
-            // Nhân viên thường chỉ được upload vào vụ việc họ được gán
-            if (!empty($data['case_id'])) {
-                $caseModel = new CaseModel();
-                $isMember = $caseModel->db->table('case_members')
-                    ->where('case_id', $data['case_id'])
-                    ->where('employee_id', session()->get('employee_id'))
-                    ->countAllResults() > 0;
-                
-                if (!$isMember) {
-                    return $this->fail('Bạn không có quyền tải lên tài liệu cho vụ việc này.');
-                }
-            }
         }
 
         // 2. Chế độ lưu trữ an toàn (Safe Storage)
@@ -132,6 +119,18 @@ class DocumentService extends BaseService
                     throw new \Exception('Không thể lấy ID tài liệu vừa tạo.');
                 }
 
+                if ($this->docModel->db->tableExists('document_files')) {
+                    $this->fileModel->insert([
+                        'document_id'   => $docId,
+                        'original_name' => $clientName,
+                        'file_path'     => $filePath,
+                        'file_type'     => $extension,
+                        'mime_type'     => $mimeType,
+                        'size'          => $fileSize,
+                        'sort_order'    => 1,
+                    ]);
+                }
+
                 // ĐỒNG BỘ NHÃN DÁN (Smart Tagging System)
                 if (isset($data['tags']) && is_array($data['tags'])) {
                     $tagService = new \App\Services\TagService();
@@ -159,6 +158,124 @@ class DocumentService extends BaseService
         }
 
         return $this->success(['id' => $docId], 'Tài liệu đã được tải lên thành công.');
+    }
+
+
+    /**
+     * Upload nhiều tệp thành một tài liệu cha để metadata chỉ xuất hiện một dòng trên DMS.
+     *
+     * @param array $files Danh sách UploadedFile từ request.
+     * @param array $data Metadata áp dụng chung cho toàn bộ tài liệu.
+     */
+    public function uploadMultiple(array $files, array $data)
+    {
+        $files = array_values(array_filter($files, function ($file) {
+            return $file && $file->getClientName() !== '';
+        }));
+
+        if (empty($files)) {
+            return $this->fail('Vui lòng chọn ít nhất một tệp tin để tải lên.');
+        }
+
+        if (!$this->docModel->db->tableExists('document_files')) {
+            return $this->fail('Chưa có bảng document_files. Vui lòng chạy migration trước khi upload nhiều tệp trong một tài liệu.');
+        }
+
+        foreach ($files as $file) {
+            if (!$file->isValid() || $file->hasMoved()) {
+                return $this->fail($file->getClientName() . ': File không hợp lệ hoặc đã được di chuyển.');
+            }
+        }
+
+        $subDir = $data['document_category'] ?? 'internal';
+        $uploadPath = WRITEPATH . 'uploads/dms/' . $subDir;
+
+        if (!is_dir($uploadPath)) {
+            mkdir($uploadPath, 0777, true);
+        }
+
+        $storedFiles = [];
+        $totalSize = 0;
+
+        foreach ($files as $index => $file) {
+            $newName = $file->getRandomName();
+            $clientName = $file->getClientName();
+            $extension = $file->getExtension();
+            $mimeType = $file->getClientMimeType();
+            $fileSize = $file->getSize();
+
+            $file->move($uploadPath, $newName);
+            $filePath = 'uploads/dms/' . $subDir . '/' . $newName;
+            $totalSize += $fileSize;
+
+            $storedFiles[] = [
+                'original_name' => $clientName,
+                'file_path'     => $filePath,
+                'file_type'     => $extension,
+                'mime_type'     => $mimeType,
+                'size'          => $fileSize,
+                'sort_order'    => $index + 1,
+            ];
+        }
+
+        $firstFile = $storedFiles[0];
+        $documentTitle = !empty($data['file_name']) ? trim($data['file_name']) : pathinfo($firstFile['original_name'], PATHINFO_FILENAME);
+
+        $dbData = [
+            'file_name'         => $documentTitle,
+            'file_path'         => $firstFile['file_path'],
+            'file_type'         => $firstFile['file_type'],
+            'mime_type'         => $firstFile['mime_type'],
+            'size'              => $totalSize,
+            'uploaded_by'       => session()->get('user_id'),
+            'document_category' => $data['document_category'] ?? 'case_file',
+            'customer_id'       => !empty($data['customer_id']) ? $data['customer_id'] : null,
+            'case_id'           => !empty($data['case_id']) ? $data['case_id'] : null,
+            'step_id'           => !empty($data['step_id']) ? $data['step_id'] : null,
+            'is_confidential'   => $data['is_confidential'] ?? 0,
+            'description'       => $data['description'] ?? '',
+            'retention_period'  => $data['retention_period'] ?? 10,
+            'expiry_date'       => $data['expiry_date'] ?? null,
+        ];
+
+        $this->docModel->db->transStart();
+        try {
+            if (!$this->docModel->insert($dbData)) {
+                throw new \Exception('Insert failed: ' . implode(', ', $this->docModel->errors()));
+            }
+
+            $docId = $this->docModel->getInsertID() ?: $this->docModel->db->insertID();
+            if (empty($docId)) {
+                throw new \Exception('Không thể lấy ID tài liệu vừa tạo.');
+            }
+
+            foreach ($storedFiles as $storedFile) {
+                $storedFile['document_id'] = $docId;
+                $this->fileModel->insert($storedFile);
+            }
+
+            if (isset($data['tags']) && is_array($data['tags'])) {
+                $tagService = new \App\Services\TagService();
+                $tagService->syncTags($docId, 'documents', $data['tags']);
+
+                $tags = $tagService->getTagsByEntity($docId, 'documents');
+                $tagNames = array_column($tags, 'name');
+                $this->docModel->update($docId, ['tags' => json_encode($tagNames)]);
+            }
+
+            $this->logAccess($docId, 'upload');
+            $this->docModel->db->transComplete();
+
+            if ($this->docModel->db->transStatus() === false) {
+                throw new \Exception('Transaction failed. Có lỗi ràng buộc dữ liệu.');
+            }
+        } catch (\Exception $e) {
+            $this->docModel->db->transRollback();
+            log_message('error', 'DMS Multi Upload Error: ' . $e->getMessage());
+            return $this->fail('Lỗi hệ thống: ' . $e->getMessage());
+        }
+
+        return $this->success(['id' => $docId, 'file_count' => count($storedFiles)], 'Đã tải lên tài liệu kèm ' . count($storedFiles) . ' tệp.');
     }
 
     /**

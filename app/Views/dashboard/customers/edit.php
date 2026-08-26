@@ -54,7 +54,7 @@ $canEditCareStatus = $isAdminOrManager || $isCaretaker;
                 </div>
             </div>
 
-            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 20px;">
                 <div class="form-group-premium">
                     <label class="label-premium">Số điện thoại chính <span style="color:red">*</span></label>
                     <input type="text" name="phone" class="form-control-premium" required value="<?= esc($customer['phone']) ?>">
@@ -62,6 +62,10 @@ $canEditCareStatus = $isAdminOrManager || $isCaretaker;
                 <div class="form-group-premium">
                     <label class="label-premium">Email chính</label>
                     <input type="email" name="email" class="form-control-premium" value="<?= esc($customer['email']) ?>">
+                </div>
+                <div class="form-group-premium">
+                    <label class="label-premium">Ngày sinh</label>
+                    <input type="date" name="date_of_birth" class="form-control-premium datepicker-native" value="<?= esc($customer['date_of_birth'] ?? '') ?>" title="Ngày tháng năm sinh của khách hàng">
                 </div>
             </div>
 
@@ -83,6 +87,17 @@ $canEditCareStatus = $isAdminOrManager || $isCaretaker;
                     </select>
                 </div>
                 <div class="form-group-premium">
+                    <label class="label-premium">Đối tác giới thiệu</label>
+                    <select name="referred_partner_id" class="form-control-premium">
+                        <option value="">-- Không gán --</option>
+                        <?php foreach (($partners ?? []) as $partner): ?>
+                            <option value="<?= (int)$partner['id'] ?>" <?= (int)($customer['referred_partner_id'] ?? 0) === (int)$partner['id'] ? 'selected' : '' ?>>
+                                <?= esc($partner['name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group-premium">
                     <label class="label-premium">Tags (Phân loại dữ liệu)</label>
                     <select name="tags[]" class="form-control-premium select2-tags" multiple="multiple" style="width: 100%;">
                         <?php foreach ($availableTags as $tag): ?>
@@ -96,7 +111,7 @@ $canEditCareStatus = $isAdminOrManager || $isCaretaker;
 
             <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 20px;">
                 <div class="form-group-premium">
-                    <label class="label-premium">Nhân sự phụ trách chăm sóc tư vấn</label>
+                    <label class="label-premium">Nhân sự chăm sóc tư vấn</label>
                     <select name="assigned_care_staff_id" class="form-control-premium" <?= !$isAdminOrManager ? 'disabled' : '' ?> title="Nhân sự phụ trách chăm sóc, tư vấn cho khách hàng này">
                         <option value="">-- Chọn nhân sự --</option>
                         <?php foreach ($employees as $emp): ?>
@@ -118,7 +133,7 @@ $canEditCareStatus = $isAdminOrManager || $isCaretaker;
 
             <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 20px;">
                 <div class="form-group-premium">
-                    <label class="label-premium">Nhóm khách hàng (Phân loại A/B/C)</label>
+                    <label class="label-premium">Nhóm khách hàng(A/B/C)</label>
                     <select name="customer_segment" class="form-control-premium">
                         <option value="vip" <?= (($customer['customer_segment'] ?? '') === 'vip') ? 'selected' : '' ?>>Nhóm A — VIP</option>
                         <option value="regular" <?= (($customer['customer_segment'] ?? 'regular') === 'regular') ? 'selected' : '' ?>>Nhóm B — Phổ thông</option>
@@ -137,15 +152,14 @@ $canEditCareStatus = $isAdminOrManager || $isCaretaker;
                     </select>
                 </div>
                 <div class="form-group-premium">
-                    <label class="label-premium">Ngày hoàn tất dịch vụ gần nhất</label>
+                    <label class="label-premium">Ngày hoàn tất DV gần nhất</label>
                     <input type="date" name="service_completed_date" class="form-control-premium" value="<?= esc($customer['service_completed_date'] ?? '') ?>">
                 </div>
                 <div class="form-group-premium">
-                    <label class="label-premium">Qu&#224; t&#7863;ng</label>
                     <label class="gift-checkbox-option">
                         <input type="hidden" name="has_received_gift" value="0">
                         <input type="checkbox" name="has_received_gift" value="1" <?= !empty($customer['has_received_gift']) ? 'checked' : '' ?>>
-                        <span>&#272;&#227; t&#7863;ng qu&#224;</span>
+                        <span>Đã tặng quà</span>
                     </label>
                 </div>
             </div>

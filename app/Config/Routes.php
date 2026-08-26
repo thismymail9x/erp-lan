@@ -41,7 +41,8 @@ $routes->group('employees', function($routes) {
     $routes->post('update/(:num)', 'EmployeeController::update/$1'); // Cập nhật thông tin nhân sự
     $routes->get('delete/(:num)', 'EmployeeController::delete/$1'); // Xóa 1 nhân sự
     $routes->post('bulk-delete', 'EmployeeController::bulkDelete'); // Xóa nhiều nhân sự cùng lúc
-    $routes->post('change-password', 'EmployeeController::changePassword'); // Thay đổi mật khẩu nhân sự
+    $routes->post('change-password/(:num)', 'EmployeeController::changePassword/$1'); // Thay đổi mật khẩu nhân sự
+    $routes->post('change-password', 'EmployeeController::changePassword'); // Legacy fallback
 });
 
 // User Management Routes
@@ -108,6 +109,47 @@ $routes->group('finance', function($routes) {
     $routes->get('cases', 'FinanceController::index'); // Quản lý tài chính của các vụ việc
 });
 
+// Partner Commission Routes
+$routes->group('partners', function($routes) {
+    $routes->get('/', 'PartnerController::index');
+    $routes->post('store', 'PartnerController::storePartner');
+    $routes->post('case-partners/store', 'PartnerController::storeCasePartner');
+    $routes->post('entries/status/(:num)', 'PartnerController::updateEntryStatus/$1');
+});
+
+$routes->group('partner-portal', function($routes) {
+    $routes->get('/', 'PartnerPortalController::index');
+    $routes->get('customers', 'PartnerPortalController::customers');
+    $routes->post('request-payment/(:num)', 'PartnerPortalController::requestPayment/$1');
+});
+
+// Case Expense Routes
+$routes->group('case-expenses', function($routes) {
+    $routes->get('schedules', 'CaseExpenseController::schedules'); // Lay lich cong tac theo vu viec de gan chi phi
+    $routes->get('/', 'CaseExpenseController::index'); // Theo dõi chi phí xử lý vụ việc
+    $routes->post('store', 'CaseExpenseController::store'); // Nhân sự gửi chi phí chờ duyệt
+    $routes->post('update/(:num)', 'CaseExpenseController::update/$1'); // Admin/kế toán sửa chi phí
+    $routes->post('approve/(:num)', 'CaseExpenseController::approve/$1'); // Duyệt hoặc từ chối chi phí
+    $routes->get('delete/(:num)', 'CaseExpenseController::delete/$1'); // Xóa phiếu chi phí khi còn được phép
+});
+
+// Office Expense Routes
+$routes->group('office-expenses', function($routes) {
+    $routes->get('/', 'OfficeExpenseController::index');
+    $routes->post('store', 'OfficeExpenseController::store');
+    $routes->get('receipt/(:num)', 'OfficeExpenseController::receipt/$1');
+    $routes->get('receipt/(:num)/download', 'OfficeExpenseController::receipt/$1/download');
+    $routes->get('delete/(:num)', 'OfficeExpenseController::delete/$1');
+});
+
+// Violation Fund Routes
+$routes->group('violation-funds', function($routes) {
+    $routes->get('/', 'ViolationFundController::index'); // Quản lý quỹ vi phạm nội bộ
+    $routes->post('store', 'ViolationFundController::store'); // Ghi nhận vi phạm và gửi thông báo
+    $routes->post('collect/(:num)', 'ViolationFundController::updateCollection/$1'); // Hành chính cập nhật trạng thái thu
+    $routes->get('delete/(:num)', 'ViolationFundController::delete/$1'); // Xóa mềm khoản vi phạm
+});
+
 // Notification Routes
 $routes->group('notifications', function($routes) {
     $routes->get('/', 'NotificationController::index'); // Danh sách thông báo
@@ -130,6 +172,8 @@ $routes->group('customers', function($routes) {
     $routes->post('store', 'CustomerController::store'); // Lưu thông tin khách hàng mới
     
     // API actions
+    $routes->post('update-relationship/(:num)', 'CustomerController::updateRelationship/$1');
+    $routes->post('store-opportunity/(:num)', 'CustomerController::storeOpportunity/$1');
     $routes->get('check-duplicate', 'CustomerController::checkDuplicate'); // Kiểm tra trùng lặp số điện thoại/email
     $routes->post('add-interaction/(:num)', 'CustomerController::addInteraction/$1'); // Thêm lịch sử tương tác với khách hàng
     $routes->post('upload-doc/(:num)', 'CustomerController::uploadDocument/$1'); // Tải tài liệu của khách hàng
@@ -138,6 +182,7 @@ $routes->group('customers', function($routes) {
     
     $routes->post('update-care-staff/(:num)', 'CustomerController::updateCareStaff/$1'); // Cập nhật nhân sự tư vấn qua AJAX
     $routes->post('update-gift-status/(:num)', 'CustomerController::updateGiftStatus/$1'); // Cập nhật trạng thái quà tặng qua AJAX
+    $routes->post('update-monitoring-status/(:num)', 'CustomerController::updateMonitoringStatus/$1'); // Cap nhat trang thai giam sat CSKH qua AJAX
     $routes->post('transition-status/(:num)', 'CustomerController::transitionStatus/$1'); // Chuyển đổi trạng thái tư vấn & SLA nhanh qua AJAX
     $routes->post('update/(:num)', 'CustomerController::update/$1'); // Cập nhật thông tin khách hàng
     $routes->get('delete/(:num)', 'CustomerController::delete/$1'); // Xóa khách hàng
@@ -159,6 +204,8 @@ $routes->group('customer-care', function($routes) {
     $routes->get('sla-report', 'CustomerCareController::slaReport'); // Báo cáo & Cấu hình SLA chăm sóc khách hàng
     $routes->post('save-sla-setting', 'CustomerCareController::saveSlaSetting'); // API Lưu/Sửa cấu hình SLA
     $routes->post('delete-sla-setting/(:num)', 'CustomerCareController::deleteSlaSetting/$1'); // API Xóa cấu hình SLA
+    $routes->post('save-monitoring-status-setting', 'CustomerCareController::saveMonitoringStatusSetting'); // API luu/sua cau hinh giam sat
+    $routes->post('delete-monitoring-status-setting/(:num)', 'CustomerCareController::deleteMonitoringStatusSetting/$1'); // API xoa cau hinh giam sat
     $routes->get('loyalty/(:num)', 'CustomerCareController::loyalty/$1');
     $routes->post('update-segment/(:num)', 'CustomerCareController::updateSegment/$1');
 });
@@ -210,8 +257,10 @@ $routes->group('documents', function($routes) {
     $routes->get('edit/(:any)', 'DocumentController::edit/$1'); // Sửa thông tin tài liệu
     $routes->post('share/(:any)', 'DocumentController::share/$1'); // Chia sẻ tài liệu
     $routes->post('update/(:num)', 'DocumentController::update/$1'); // Cập nhật tài liệu
+    $routes->post('delete/(:num)/file/(:num)', 'DocumentController::deleteFile/$1/$2'); // Xoa vinh vien mot tep trong tai lieu nhieu file
+    $routes->get('view/(:num)/file/(:num)', 'DocumentController::viewFile/$1/$2'); // Xem/Tải về từng tệp trong tài liệu nhiều file
     $routes->get('view/(:num)', 'DocumentController::view/$1'); // Xem/Tải về tài liệu
-    $routes->get('delete/(:num)', 'DocumentController::delete/$1'); // Xóa tài liệu
+    $routes->match(['get', 'post'], 'delete/(:num)', 'DocumentController::delete/$1'); // Xóa tài liệu
     $routes->get('vault-list', 'DocumentController::getVaultDocuments'); // Lấy danh sách tài liệu bảo mật (Vault)
     $routes->post('bulk-delete', 'DocumentController::bulkDelete'); // Xóa nhiều tài liệu
 });

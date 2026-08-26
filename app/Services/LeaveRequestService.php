@@ -57,6 +57,18 @@ class LeaveRequestService
 
         $data['status'] = 'pending';
 
+        if (($data['leave_type'] ?? '') === 'annual') {
+            $balance = $this->getAnnualLeaveBalance((int)$data['employee_id'], (int)date('Y', strtotime($data['start_date'])));
+            $available = max(0.0, (float)$balance['remaining_days'] - (float)$balance['pending_days']);
+
+            if ((float)$data['total_days'] > $available) {
+                return [
+                    'status'  => 'error',
+                    'message' => 'So ngay phep nam con kha dung khong du. Con ' . number_format($available, 1) . ' ngay, da tinh ca don dang cho duyet.'
+                ];
+            }
+        }
+
         // --- RÀO CHẮN NGÀY THÁNG (RULE #7: Security & Data Integrity) ---
         if (new DateTime($data['end_date']) < new DateTime($data['start_date'])) {
             return [
@@ -437,6 +449,150 @@ class LeaveRequestService
         $db->transComplete();
 
         return ['status' => 'success', 'message' => 'Đã cập nhật thông tin đơn nghỉ phép thành công.'];
+    }
+
+    /**
+     * Return annual leave balance for one employee in a year.
+     */
+    public function getAnnualLeaveBalance(int $employeeId, ?int $year = null): array
+    {
+        $year = $year ?: (int)date('Y');
+        $employee = $this->employeeModel->find($employeeId);
+
+        $base = [
+            'year' => $year,
+            'entitled_days' => 0.0,
+            'used_days' => 0.0,
+            'pending_days' => 0.0,
+            'remaining_days' => 0.0,
+            'annual_leave_start_date' => $employee['annual_leave_start_date'] ?? null,
+            'is_eligible_annual_leave' => false,
+        ];
+
+        if (!$employee) {
+            return $base;
+        }
+
+        $isEligible = $this->isAnnualLeaveEligibleEmployee($employee);
+        $startDate = $employee['annual_leave_start_date'] ?? null;
+
+        if (!$startDate && $isEligible) {
+            $fallbackDate = $employee['probation_end_date'] ?: null;
+            $isOfficialNow = !isset($employee['probation_rate']) || (float)$employee['probation_rate'] >= 100;
+
+            if (!$fallbackDate && $isOfficialNow) {
+                $fallbackDate = $employee['join_date'] ?? null;
+            }
+
+            $startDate = $fallbackDate ? $this->firstDayOfNextMonth($fallbackDate) : null;
+        }
+
+        $base['annual_leave_start_date'] = $startDate;
+        $base['is_eligible_annual_leave'] = $isEligible;
+
+        if (!$isEligible || !$startDate) {
+            return $base;
+        }
+
+        $yearStart = $year . '-01-01';
+        $yearEnd = $year . '-12-31';
+        $accrualStart = max($startDate, $yearStart);
+
+        if ($accrualStart > $yearEnd) {
+            return $base;
+        }
+
+        $startMonth = (int)date('n', strtotime($accrualStart));
+        $entitled = (float)min(12, max(0, 13 - $startMonth));
+        $used = $this->sumAnnualLeaveDays($employeeId, 'approved', $accrualStart, $yearEnd);
+        $pending = $this->sumAnnualLeaveDays($employeeId, 'pending', $accrualStart, $yearEnd);
+
+        return [
+            'year' => $year,
+            'entitled_days' => $entitled,
+            'used_days' => $used,
+            'pending_days' => $pending,
+            'remaining_days' => max(0.0, $entitled - $used),
+            'annual_leave_start_date' => $startDate,
+            'is_eligible_annual_leave' => true,
+        ];
+    }
+
+    /**
+     * Detect annual leave eligibility from Role & Permissions.
+     */
+    public function isAnnualLeaveEligibleEmployee(array $employee): bool
+    {
+        $roleName = $this->getEmployeeRoleName($employee);
+
+        if ($roleName) {
+            return in_array($this->normalizeVietnameseText($roleName), [
+                'truong phong',
+                'nhan vien chinh thuc',
+            ], true);
+        }
+
+        return isset($employee['probation_rate']) && (float)$employee['probation_rate'] >= 100;
+    }
+
+    private function getEmployeeRoleName(array $employee): ?string
+    {
+        if (empty($employee['user_id'])) {
+            return null;
+        }
+
+        $user = $this->userModel->select('roles.name as role_name')
+            ->join('roles', 'roles.id = users.role_id', 'left')
+            ->where('users.id', (int)$employee['user_id'])
+            ->where('users.deleted_at', null)
+            ->first();
+
+        return $user['role_name'] ?? null;
+    }
+
+    private function sumAnnualLeaveDays(int $employeeId, string $status, string $periodStart, string $periodEnd): float
+    {
+        $requests = $this->model->where('employee_id', $employeeId)
+            ->where('leave_type', 'annual')
+            ->where('status', $status)
+            ->where('start_date <=', $periodEnd)
+            ->where('end_date >=', $periodStart)
+            ->findAll();
+
+        $total = 0.0;
+        foreach ($requests as $request) {
+            $overlapStart = max($periodStart, $request['start_date']);
+            $overlapEnd = min($periodEnd, $request['end_date']);
+
+            if ($request['start_date'] === $overlapStart && $request['end_date'] === $overlapEnd) {
+                $total += (float)$request['total_days'];
+                continue;
+            }
+
+            if (in_array($request['leave_duration'] ?? '', ['morning_half', 'afternoon_half'], true)) {
+                $total += 0.5;
+                continue;
+            }
+
+            $total += $this->calculateDays($overlapStart, $overlapEnd);
+        }
+
+        return $total;
+    }
+
+    public function firstDayOfNextMonth(string $date): string
+    {
+        return (new DateTime($date))->modify('first day of next month')->format('Y-m-d');
+    }
+
+    private function normalizeVietnameseText(string $value): string
+    {
+        $value = function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+        $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+        $value = $converted !== false ? $converted : $value;
+        $value = preg_replace('/[^a-z0-9\s]/', ' ', $value);
+
+        return trim(preg_replace('/\s+/', ' ', $value));
     }
 
     /**

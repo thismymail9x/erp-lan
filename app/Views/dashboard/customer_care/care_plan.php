@@ -5,8 +5,8 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
-<div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid py-4 customer-care-shell">
+    <div class="d-flex justify-content-between align-items-center mb-4 customer-care-header">
         <div>
             <div class="d-flex align-items-center gap-2 mb-1">
                 <h1 class="h3 font-weight-700 text-dark m-0">K&#7871; Ho&#7841;ch Ch&#259;m S&#243;c Kh&#225;ch H&#224;ng</h1>
@@ -19,11 +19,11 @@
                 (<?= esc($customer['code']) ?>) | S&#7889; &#273;i&#7879;n tho&#7841;i: <?= esc($customer['phone']) ?>
             </p>
         </div>
-        <div class="d-flex gap-2">
-            <a href="<?= base_url('customer-care/loyalty/' . $customer['id']) ?>" class="btn btn-warning d-flex align-items-center gap-2">
+        <div class="d-flex gap-2 customer-care-actions">
+            <a href="<?= base_url('customer-care/loyalty/' . $customer['id']) ?>" class="btn-premium d-flex align-items-center gap-2">
                 <i class="fas fa-id-card"></i> <span>Th&#7867; VIP / Loyalty</span>
             </a>
-            <a href="<?= base_url('customer-care') ?>" class="btn btn-secondary d-flex align-items-center gap-2">
+            <a href="<?= base_url('customer-care') ?>" class="btn-secondary d-flex align-items-center gap-2">
                 <i class="fas fa-chevron-left"></i> <span>Quay l&#7841;i</span>
             </a>
         </div>

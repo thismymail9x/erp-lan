@@ -20,7 +20,7 @@ class EmployeeModel extends BaseModel
         'address', 'join_date', 'salary_base', 'insurance_salary', 'allowance_base', 
         'diligence_allowance', 'petrol_allowance', 'dependent_count',
         'position', 'bank_name', 'bank_account', 'bank_owner', 'personal_email', 'phone_number',
-        'specialties', 'max_workload',
+        'specialties', 'max_workload', 'annual_leave_start_date',
         // Hệ số lương theo giai đoạn: thử việc, thực tập, học việc
         'probation_rate', 'probation_end_date', 'new_rate_after',
     ];

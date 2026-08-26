@@ -2,17 +2,19 @@
  * L.A.N ERP - Document Management interactions.
  */
 
-function performSearch() {
+function performSearch(url) {
     const filterForm = $('.search-filter-bar');
     const resultsContainer = $('#documents-table-results');
     const formData = filterForm.serialize();
+    const hasUrl = typeof url === 'string' && url.length > 0;
+    const requestUrl = hasUrl ? url : (baseUrl + 'documents');
 
     resultsContainer.css('opacity', '0.5');
 
     $.ajax({
-        url: baseUrl + 'documents',
+        url: requestUrl,
         type: 'GET',
-        data: formData,
+        data: hasUrl ? {} : formData,
         success: function(response) {
             resultsContainer.html(response);
             resultsContainer.css('opacity', '1');
@@ -34,6 +36,14 @@ function bindTableEvents() {
 
     $(document).off('change', '.doc-checkbox').on('change', '.doc-checkbox', function() {
         updateBulkBar();
+    });
+
+    $(document).off('click', '#documents-table-results .pagination a').on('click', '#documents-table-results .pagination a', function(e) {
+        e.preventDefault();
+        const href = $(this).attr('href');
+        if (href) {
+            performSearch(href);
+        }
     });
 }
 
@@ -92,10 +102,14 @@ $(document).ready(function() {
 
     filterForm.find('input[name="keyword"]').on('input', function() {
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(performSearch, 500);
+        debounceTimer = setTimeout(function() {
+            performSearch();
+        }, 500);
     });
 
-    filterForm.find('select').not('.select2-basic').on('change', performSearch);
+    filterForm.find('select').not('.select2-basic').on('change', function() {
+        performSearch();
+    });
 
     $('.filter-select.select2-basic').select2({
         width: '100%',
@@ -157,15 +171,107 @@ $(document).ready(function() {
         });
     });
 
-    $('#dmsFileInput').on('change', function() {
-        const fileName = $(this).val().split('\\').pop();
-        if (fileName) {
-            $(this).next('label').find('span').html('\u0110\u00e3 ch\u1ecdn: <strong style="color:var(--apple-blue)">' + fileName + '</strong>');
+    const uploadInput = $('#dmsFileInput');
+    const uploadZone = $('.dms-upload-zone');
+    const uploadLabelText = uploadInput.next('label').find('span');
+    const selectedFiles = $('#dmsSelectedFiles');
+    let selectedUploadFiles = [];
 
-            const nameInput = $('input[name="file_name"]');
-            if (!nameInput.val()) {
-                nameInput.val(fileName.split('.').shift());
+    function fileKey(file) {
+        return [file.name, file.size, file.lastModified].join('|');
+    }
+
+    function syncUploadInput() {
+        const transfer = new DataTransfer();
+        selectedUploadFiles.forEach(function(file) {
+            transfer.items.add(file);
+        });
+        uploadInput[0].files = transfer.files;
+    }
+
+    function renderUploadFiles() {
+        selectedFiles.empty();
+
+        if (!selectedUploadFiles.length) {
+            uploadLabelText.text('Click \u0111\u1ec3 ch\u1ecdn m\u1ed9t ho\u1eb7c nhi\u1ec1u t\u1ec7p');
+            uploadZone.removeClass('has-files');
+            return;
+        }
+
+        uploadZone.addClass('has-files');
+        uploadLabelText.empty()
+            .append(document.createTextNode('\u0110\u00e3 ch\u1ecdn: '))
+            .append($('<strong></strong>').text(selectedUploadFiles.length + ' t\u1ec7p'));
+
+        selectedUploadFiles.forEach(function(file, index) {
+            const item = $('<div class="dms-selected-file"></div>');
+            const name = $('<span class="dms-selected-file-name"></span>').text(file.name);
+            const size = $('<span class="dms-selected-file-size"></span>').text(formatBytes(file.size));
+            const remove = $('<button type="button" class="dms-selected-file-remove" title="B\u1ecf t\u1ec7p n\u00e0y"><i class="fas fa-times"></i></button>');
+
+            remove.on('click', function() {
+                selectedUploadFiles.splice(index, 1);
+                syncUploadInput();
+                renderUploadFiles();
+            });
+
+            item.append(name).append(size).append(remove);
+            selectedFiles.append(item);
+        });
+
+        const nameInput = $('#formUploadDocument input[name="file_name"]');
+        if (selectedUploadFiles.length === 1 && !nameInput.val()) {
+            const firstFileName = selectedUploadFiles[0].name;
+            nameInput.val(firstFileName.split('.').slice(0, -1).join('.') || firstFileName);
+        }
+    }
+
+    function addUploadFiles(files) {
+        const existingKeys = new Set(selectedUploadFiles.map(fileKey));
+        Array.from(files || []).forEach(function(file) {
+            const key = fileKey(file);
+            if (!existingKeys.has(key)) {
+                selectedUploadFiles.push(file);
+                existingKeys.add(key);
             }
+        });
+
+        syncUploadInput();
+        renderUploadFiles();
+    }
+
+    function formatBytes(bytes) {
+        if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+        if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+        if (bytes >= 1024) return Math.round(bytes / 1024) + ' KB';
+        return bytes + ' B';
+    }
+
+    uploadInput.on('change', function() {
+        addUploadFiles(this.files);
+        this.value = '';
+        syncUploadInput();
+    });
+
+    uploadZone.on('dragover', function(e) {
+        e.preventDefault();
+        uploadZone.addClass('is-dragover');
+    });
+
+    uploadZone.on('dragleave drop', function(e) {
+        e.preventDefault();
+        uploadZone.removeClass('is-dragover');
+    });
+
+    uploadZone.on('drop', function(e) {
+        const files = e.originalEvent.dataTransfer ? e.originalEvent.dataTransfer.files : [];
+        addUploadFiles(files);
+    });
+
+    $('#formUploadDocument').on('submit', function(e) {
+        if (!selectedUploadFiles.length) {
+            e.preventDefault();
+            alert('Vui l\u00f2ng ch\u1ecdn \u00edt nh\u1ea5t m\u1ed9t t\u1ec7p tin \u0111\u1ec3 t\u1ea3i l\u00ean.');
         }
     });
 

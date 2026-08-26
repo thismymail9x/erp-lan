@@ -318,6 +318,46 @@
     margin-top: 10px; 
     display: flex; 
     gap: 10px;
+    flex-wrap: wrap;
+}
+
+.customer-document-attachment-list {
+    margin-top: 10px;
+}
+
+.customer-document-attachment-list .document-attachment-item {
+    max-width: 100%;
+}
+
+.customer-document-attachment-list .document-attachment-name {
+    min-width: 0;
+}
+
+.customer-document-delete-form {
+    display: inline-flex;
+    margin: 0;
+}
+
+.customer-document-delete-btn {
+    border: 0;
+    cursor: pointer;
+    color: #ff3b30;
+}
+
+.vault-actions .customer-document-delete-btn {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(255, 59, 48, 0.1);
+}
+
+.vault-actions .customer-document-delete-btn:hover,
+.document-attachment-actions .customer-document-delete-btn:hover {
+    background: #ff3b30;
+    color: white;
 }
 
 /* Modals */

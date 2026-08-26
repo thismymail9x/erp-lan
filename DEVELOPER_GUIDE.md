@@ -4,6 +4,19 @@ Tài liệu này hướng dẫn cách hệ thống vận hành và các bước 
 
 ---
 
+## Module Chi phí xử lý vụ việc - cập nhật 23/07/2026
+
+- Mục tiêu: lưu số tiền chi, thời gian nhân sự đi xử lý vụ việc/công tác và trạng thái kế toán duyệt theo từng nhân sự.
+- Bảng chính: `case_expenses`, chứng từ: `case_expense_attachments`, liên kết lịch công tác: `work_schedules.case_id`.
+- Bảo mật: lịch công tác chỉ hiển thị thông tin vụ việc khi người xem có quyền truy cập vụ việc đó. API lịch trả `case_code/case_title` có điều kiện, không để frontend tự quyết định mask dữ liệu.
+- Quyền mới:
+  - `case_expense.submit`: nhân sự tạo phiếu chi phí cho vụ việc mình được phân công/tham gia.
+  - `case_expense.view_own`: xem chi phí cá nhân.
+  - `case_expense.view_team`: trưởng nhóm/trưởng phòng xem chi phí cấp dưới trực tiếp theo `manager_id`.
+  - `case_expense.view_all`: xem toàn bộ chi phí.
+  - `case_expense.approve`: duyệt hoặc từ chối chi phí, không phụ thuộc cứng vào phòng hành chính.
+- Luồng chuẩn: nhân sự chọn vụ việc trong lịch công tác hoặc màn Chi phí xử lý -> gửi chi phí -> người có quyền duyệt kiểm tra -> dữ liệu đã duyệt được cộng vào thống kê vụ việc.
+
 ## 1. Hệ thống Phân quyền & Phân lập dữ liệu (Data Isolation)
 Hệ thống ERP tuân thủ nghiêm ngặt nguyên tắc **"Biết vừa đủ" (Need-to-know basis)** và **"Quản lý theo Tổ đội" (Team-based Management)**.
 
@@ -543,3 +556,201 @@ Tiến độ = Tổng contract_value trong tháng / 150.000.000 * 100
   - `kpi_override_at DATETIME NULL`: Thời điểm ghi nhận.
 - Migration: `2026-07-09-170000_AddKpiOverrideAndEndOfDayDeadlines.php`.
 - SQL thủ công đã được append cuối `mysql.sql` theo quy tắc Dual DB Update.
+
+---
+
+## 20. Upload nhieu file tai lieu noi bo DMS - Cap nhat 20/07/2026
+
+### 20.1. Muc tieu nghiep vu
+- Cho phep nguoi dung tai len nhieu tep trong mot lan thao tac tai kho tai lieu DMS.
+- Nhieu tep duoc gom vao mot ban ghi cha trong bang `documents`; tung tep vat ly duoc luu trong bang `document_files`.
+- Metadata chung nhu phan loai, do bao mat, vu viec, khach hang va nhan dan duoc ap dung dong loat cho tat ca tep trong lan upload.
+
+### 20.2. Quyen su dung
+- Tiep tuc dung quyen upload hien co trong `DocumentService::upload`: admin/case manage duoc upload rong, nhan su thuong chi upload vao vu viec minh tham gia.
+- Controller khong tin du lieu front-end; tung lan upload deu di qua service de kiem tra quyen va tinh hop le.
+
+### 20.3. Input/Output
+- Input form DMS: `document[]` la input file multiple, `file_name` la tieu de tai lieu cha tuy chon.
+- Neu chi chon mot tep, `file_name` duoc dung nhu tieu de cu; neu de trong thi lay ten tep goc.
+- Neu chon nhieu tep, `file_name` neu co se la ten tai lieu cha; neu de trong thi lay ten tep dau tien lam ten tai lieu cha. Danh sach tep con hien thi rieng ben duoi ten tai lieu.
+- Output flash message tra ve mot tai lieu cha kem tong so tep da upload.
+
+### 20.4. Co so du lieu
+- Them bang `document_files` de luu cac tep vat ly cua mot tai lieu DMS gom nhieu file.
+- Bang `documents` tiep tuc luu metadata cha va thong tin tep dau tien de tuong thich nguoc voi view/download cu.
+- Migration: `2026-07-20-090000_CreateDocumentFilesTable.php`.
+- SQL thu cong da duoc append cuoi `mysql.sql` theo quy tac Dual DB Update.
+
+---
+
+## 21. Chi phi van hanh ke toan - Cap nhat 24/07/2026
+
+### 21.1. Muc tieu nghiep vu
+- Cho phep ke toan/Admin ghi nhan cac khoan chi phi van hanh noi bo nhu dien, nuoc, internet, van phong pham, sua chua, phan mem va cac khoan khac.
+- Tach rieng khoi `case_expenses` de khong lam sai thong ke chi phi theo vu viec/khach hang.
+- Khi can bao cao tong chi phi cong ty, co the cong `office_expenses` voi cac khoan `case_expenses` da duyet nhung van giu duoc ty trong tung nguon phat sinh.
+
+### 21.2. Quyen su dung
+- `office_expense.view`: Xem danh sach, tong quan, bieu do thang/nam va co cau chi phi.
+- `office_expense.manage`: Nhap va xoa chi phi van hanh.
+- Admin va phong Hanh chinh/Ke toan duoc mo menu theo logic hien tai cua module tai chinh.
+
+### 21.3. Input/Output
+- Input form: ngay chi, loai chi phi, so tien, phuong thuc thanh toan, nha cung cap, chung tu tuy chon va ghi chu.
+- Chung tu chi nhan anh JPG/PNG/WEBP hoac PDF, toi da 10MB.
+- Output man hinh `/office-expenses`: tong chi theo bo loc, trung binh/khoan, so sanh voi nam truoc, so sanh voi thang truoc, bieu do 12 thang, co cau chi phi va top khoan lon.
+
+### 21.4. Co so du lieu
+- Them bang `office_expenses` de luu chi phi van hanh khong gan truc tiep voi vu viec.
+- Migration: `2026-07-24-090000_CreateOfficeExpenses.php`.
+- SQL thu cong da duoc append cuoi `mysql.sql` theo quy tac Dual DB Update.
+
+---
+
+## 22. So du phep nam nhan su - Cap nhat 24/07/2026
+
+### 22.1. Muc tieu nghiep vu
+- Nhan vien chinh thuc duoc huong toi da 12 ngay phep nam, tinh theo 1 ngay/thang du dieu kien.
+- Moc tinh phep bat dau tu thang ke tiep sau khi nhan su thuoc vai tro `Truong phong` hoac `Nhan vien chinh thuc` trong phan Vai tro & Quyen han.
+- Ho so nhan vien hien thi so ngay duoc huong, da su dung, dang cho duyet va con lai trong nam hien tai.
+- Neu can ghi nhan phep da su dung truoc khi trien khai he thong, Admin/nguoi duyet tao don nghi phep nam voi ngay qua khu cho dung nhan su roi duyet don.
+
+### 22.2. Quyen su dung
+- Admin/Mod/Hanh chinh duoc cap nhat `annual_leave_start_date` tren ho so nhan su.
+- Nhan vien thuong chi duoc xem so du phep nam cua chinh minh, khong tu sua moc tinh phep.
+
+### 22.3. Logic tinh toan
+- `LeaveRequestService::getAnnualLeaveBalance()` la nguon logic dung chung cho view ho so va luong tao don nghi phep.
+- Chi tinh don `leave_type = annual`; `approved` tinh vao da su dung, `pending` tinh vao kha dung khi gui don moi.
+- Neu ho so chua co moc tinh phep nhung role du dieu kien, he thong fallback theo ngay ket thuc thu viec hoac ngay vao lam va lay ngay dau thang ke tiep.
+- Admin/nguoi duyet duoc tao don cho nhan su khac va duoc nhap ngay qua khu de backfill du lieu nghi phep cu.
+
+### 22.4. Co so du lieu
+- Bang `employees` them cot `annual_leave_start_date DATE NULL`.
+- Migration: `2026-07-24-110000_AddAnnualLeaveStartToEmployees.php`.
+- SQL thu cong da duoc append cuoi `mysql.sql` theo quy tac Dual DB Update.
+
+---
+
+## 23. Chuan hoa giao dien va quyen module chi phi - Cap nhat 25/07/2026
+
+### 23.1. Giao dien
+- Hai man `case-expenses` va `office-expenses` dung chung chieu cao, border, padding va focus state cho input/select/textarea/file.
+- Bang chi phi van hanh bo sung `data-label` de hien thi dang card tren mobile, dong bo voi bang chi phi xu ly.
+- O nhap tien cua chi phi xu ly tu dong format theo dinh dang tien Viet Nam truoc khi submit.
+
+### 23.2. Phan quyen
+- Quyen chi phi xu ly duoc dang ky ro trong RBAC: `case_expense.submit`, `case_expense.view_own`, `case_expense.view_team`, `case_expense.view_all`, `case_expense.approve`.
+- Role nhan vien/thuc tap/hoc viec duoc mac dinh tao va xem chi phi xu ly cua chinh minh; truong phong xem team; Admin/Mod xem va duyet toan bo.
+- Quyen chi phi van hanh `office_expense.view` va `office_expense.manage` duoc dang ky vao ma tran quyen de Admin co the cap rieng cho nhan su can nhap lieu, mac dinh chi gan Admin/Mod.
+
+### 23.3. Co so du lieu
+- Migration: `2026-07-25-090000_RegisterExpensePermissions.php`.
+- SQL thu cong da duoc append cuoi `mysql.sql` theo quy tac Dual DB Update.
+
+---
+
+## 24. Dong bo chi phi vu viec voi lich cong tac - Cap nhat 28/07/2026
+
+### 24.1. Nguyen tac nghiep vu
+- `work_schedules` la nguon ngu canh cong viec: vu viec, nhan su, thoi gian, dia diem.
+- `case_expenses` la nguon tai chinh: tung khoan chi, chung tu, duyet chi.
+- `case_expenses.work_schedule_id` duoc dung khi khoan chi phat sinh tu mot lich cong tac cu the; van cho phep null de nhap cac khoan hanh chinh khong co lich.
+
+### 24.2. Luong giao dien
+- Trong form `case-expenses`, khi chon vu viec he thong tai danh sach lich cong tac lien quan qua `GET case-expenses/schedules`.
+- Khi chon lich, form tu dien ngay chi, gio bat dau, gio ket thuc va so gio theo lich.
+- Nut `Chi phi` trong modal lich cong tac tro den `case-expenses?work_schedule_id={id}` de prefill dung lich.
+
+### 24.3. Bao ve du lieu
+- Service kiem tra lich cong tac ton tai, chua bi xoa va nguoi dung co quyen xem vu viec truoc khi gan vao chi phi.
+- Khi chi phi co `work_schedule_id`, service lay `case_id`, `employee_id`, ngay va gio tu lich de tranh nhap lech.
+## CRM Quan He Khach Hang - Cap Nhat 11/08/2026
+
+- Da co nen CRM/CSKH truoc do: ho so khach hang 360, lich su tuong tac, nhan su cham soc, stale customers, SLA va checklist CSKH.
+- Bo sung giai doan 1 theo prompt CRM: ho so quan he, diem quan he, health score, ngay tuong tac ke tiep, canh bao nguoi theo moc 30/60/90 ngay, goi y next action va pipeline co hoi phat trien dich vu.
+- Logic nghiep vu nam trong `App\Services\CustomerRelationshipService`; controller chi nhan request, kiem tra quyen va dieu huong.
+- Bang moi `customer_opportunities` luu co hoi theo tung khach hang, co soft delete, nhan su phu trach, gia tri du kien, xac suat, ngay follow-up va trang thai.
+- Cac truong CRM moi tren `customers`: `relationship_level`, `relationship_score`, `relationship_status`, `health_score`, `next_interaction_date`, `relationship_manager_id`, `referred_by_customer_id`, `referral_score`, `interests`, `identified_issues`.
+- `customer_interactions` duoc mo rong them `interaction_result`, `importance_level`, `requires_follow_up`; khi co `next_follow_up`, service dong bo ngay tuong tac ke tiep vao ho so khach hang.
+
+---
+
+## 25. Quy Vi Pham Noi Bo - Cap Nhat 13/08/2026
+
+### 25.1. Muc tieu nghiep vu
+- Admin/nhan su ghi nhan hanh vi vi pham theo quy dinh dong quy noi bo tu tep `abcd.md`, co the chon mau loi hoac nhap khoan tien bat ky khi co truong hop phat sinh.
+- Khi tao khoan vi pham, he thong gui thong bao cho nguoi bi ghi nhan va bo phan Hanh chinh de theo doi thu theo tung khoan.
+- Hanh chinh cap nhat trang thai `Da thong bao`, `Da thu` hoac `Mien/khong thu`, kem note thu tien.
+
+### 25.2. Quyen su dung
+- `violation_fund.view`: xem bao cao toan bo quy vi pham.
+- `violation_fund.view_own`: xem cac khoan vi pham cua ban than.
+- `violation_fund.manage`: ghi nhan va xoa khoan vi pham.
+- `violation_fund.collect`: cap nhat trang thai thu cua Hanh chinh.
+
+### 25.3. Input/Output
+- Input form: nhan su vi pham, ngay vi pham, thang thu, nhom vi pham, hanh vi, cap bac ap dung, so lan trong thang, muc san, so tien thu, hinh thuc thu, giai trinh va note nhan su.
+- Output man hinh `/violation-funds`: tong quy theo bo loc, da thu, can thu, mien/khong thu, co cau theo nhom loi, top nhan su phat sinh va danh sach phan trang.
+
+### 25.4. Co so du lieu
+- Them bang `violation_funds` co soft delete de luu tung khoan dong quy vi pham noi bo.
+- Migration: `2026-08-13-100000_CreateViolationFunds.php`.
+- SQL thu cong da duoc append cuoi `mysql.sql` theo quy tac Dual DB Update.
+
+---
+
+## 26. Module Doi tac & hoa hong vu viec - cap nhat 17/08/2026
+
+### 26.1. Muc tieu nghiep vu
+- Doi tac dang nhap bang tai khoan `users` binh thuong, khong co co che auth rieng.
+- Doi tac xem ten khach hang, ten vu viec, vai tro, cach tinh, %/so tien co dinh va cac khoan da phat sinh theo tung dot khach thanh toan.
+- Doi tac co quyen gui yeu cau thanh toan cho cac khoan da phat sinh.
+
+### 26.2. Quyen su dung
+- `partner.portal`: doi tac xem cong portal va gui yeu cau thanh toan. Quyen nay duoc gan truc tiep cho user doi tac khi tao/link ho so doi tac.
+- `partner.manage`: quan ly ho so doi tac va cau hinh hop tac theo vu viec.
+- `partner.payout`: duyet, tam giu hoac xac nhan da thanh toan hoa hong doi tac.
+
+### 26.3. Input/Output
+- Input quan tri: ho so doi tac, user lien ket hoac login email/password moi, vu viec, vai tro, cach tinh `contract`/`paid`, phan tram va/hoac so tien co dinh.
+- Output quan tri `/partners`: danh sach doi tac, cau hinh hop tac, cac dong hoa hong phat sinh va form cap nhat trang thai chi tra.
+- Output doi tac `/partner-portal`: thong ke tien da phat sinh, da yeu cau, da duyet, da nhan va bang chi tiet theo tung dot thanh toan.
+
+### 26.4. Co so du lieu
+- `partners`: ho so doi tac lien ket tuy chon voi `users.id`.
+- `case_partners`: cau hinh hop tac theo tung vu viec.
+- `partner_commission_entries`: dong hoa hong tu phat sinh khi `cases.payment_progress` co dot `is_paid = 1`.
+- Migration: `2026-08-17-090000_CreatePartnerCommissions.php`.
+- SQL thu cong da duoc append cuoi `mysql.sql` theo quy tac Dual DB Update.
+
+---
+
+## 27. Tính năng Giám sát Trạng thái CSKH - Cập nhật 24/08/2026
+
+### 27.1. Mục tiêu
+Theo dõi chất lượng tư vấn ngay trên danh sách khách hàng bằng một trạng thái giám sát độc lập với `care_status`. Trạng thái này dùng cho các tình huống như miss tin, chưa gửi báo phí, thiếu ảnh chăm sóc cuối cùng hoặc khách gọi phàn nàn.
+
+### 27.2. Thành phần kỹ thuật
+- Bảng cấu hình: `customer_monitoring_status_settings`.
+- Cột khách hàng: `customers.monitoring_status`, lưu JSON array nhiều `status_key`; mặc định nghiệp vụ là `["good"]`.
+- Service nghiệp vụ: `CustomerMonitoringStatusService`.
+- API cấu hình:
+  - `POST /customer-care/save-monitoring-status-setting`.
+  - `POST /customer-care/delete-monitoring-status-setting/{id}`.
+- API cập nhật nhanh trên danh sách khách hàng:
+  - `POST /customers/update-monitoring-status/{customerId}`.
+
+### 27.3. Quyền sử dụng
+- Người có `care.manage` hoặc `sys.admin` được thêm, sửa, xóa danh mục trạng thái giám sát trong tab Cấu hình Giám sát CSKH.
+- Người có quyền quản lý khách hàng, trưởng phòng hoặc nhân sự đang phụ trách chăm sóc khách hàng được cập nhật trạng thái giám sát tại danh sách khách hàng.
+
+### 27.4. Input/Output
+- Input cấu hình: `status_key`, `status_name`, `color`, `sort_order`, `is_active`.
+- Input cập nhật khách hàng: `status_keys[]` gồm các trạng thái giám sát đang kích hoạt; `status_key` cũ vẫn được nhận để tương thích.
+- Output API: JSON chuẩn `status`, `message`, `data.status_keys`, `data.statuses` gồm key, tên hiển thị và màu badge.
+
+### 27.5. Cơ sở dữ liệu
+- Migration: `2026-08-24-090000_CreateCustomerMonitoringStatusSettings.php`.
+- SQL thuần đã được append cuối `mysql.sql` theo quy tắc Dual DB Update.

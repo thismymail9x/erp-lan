@@ -104,7 +104,7 @@ if (!function_exists('translate_category')) {
             <h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">
                 <i class="fas fa-cloud-upload-alt text-blue"></i> Tải lên tài liệu DMS
             </h3>
-            <form action="<?= base_url('documents/upload') ?>" method="post" enctype="multipart/form-data">
+            <form id="formUploadDocument" action="<?= base_url('documents/upload') ?>" method="post" enctype="multipart/form-data">
                 <?= csrf_field() ?>
                 <div class="form-grid-2">
                     <div class="form-group-premium">
@@ -129,7 +129,8 @@ if (!function_exists('translate_category')) {
 
                 <div class="form-group-premium" style="margin-top: 15px;">
                     <label class="label-premium">Tên tài liệu / Tiêu đề</label>
-                    <input type="text" name="file_name" class="form-control-premium" placeholder="Ví dụ: CCCD - Nguyễn Văn A" required>
+                    <input type="text" name="file_name" class="form-control-premium" placeholder="Ví dụ: CCCD - Nguyễn Văn A">
+                    <small class="text-muted">Để trống để hệ thống tự lấy tên tệp. Khi chọn nhiều tệp, tiêu đề này sẽ là tiền tố.</small>
                 </div>
 
                 <div class="form-grid-2" style="margin-top: 15px;">
@@ -171,13 +172,14 @@ if (!function_exists('translate_category')) {
 
                 <div class="form-group-premium" style="margin-top: 15px;">
                     <div class="dms-upload-zone">
-                        <input type="file" name="document" id="dmsFileInput" required>
+                        <input type="file" name="document[]" id="dmsFileInput" multiple required>
                         <label for="dmsFileInput">
                             <i class="fas fa-file-export"></i>
-                            <span>Click để chọn tệp hoặc kéo thả vào đây</span>
+                            <span>Click để chọn một hoặc nhiều tệp</span>
                             <small>Hỗ trợ PDF, DOCX, JPG, PNG (Max 20MB)</small>
                         </label>
                     </div>
+                    <div id="dmsSelectedFiles" class="dms-selected-files"></div>
                 </div>
 
                 <div style="margin-top: 25px; display: flex; gap: 10px; justify-content: flex-end;">
@@ -316,6 +318,7 @@ if (!function_exists('translate_category')) {
         <div class="premium-card" style="padding: 0; overflow: visible;" id="documents-table-results">
             <?= view('dashboard/documents/index_table') ?>
         </div><!-- FLOATING BULK ACTIONS BAR -->
+        <?php if (has_permission('sys.admin')) { ?>
         <div id="bulkActionBar" class="bulk-action-bar" style="display: none;">
             <div class="bulk-info">
                 <span class="selected-count">0</span> tài liệu đã được chọn
@@ -327,6 +330,7 @@ if (!function_exists('translate_category')) {
                 </button>
             </div>
         </div>
+        <?php } ?>
     </form>
 </div>
 <?= $this->endSection() ?>

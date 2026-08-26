@@ -326,6 +326,15 @@ class AuthService extends BaseService
         // Thu thập thông tin vai trò, hồ sơ nhân viên và phòng ban từ CSDL
         $role = $user['role_id'] ? $this->roleModel->find($user['role_id']) : null;
         $employee = $this->employeeModel->where('user_id', $user['id'])->first();
+        $partner = null;
+        $db = \Config\Database::connect();
+        if ($db->tableExists('partners')) {
+            $partner = $db->table('partners')
+                ->where('user_id', $user['id'])
+                ->where('deleted_at', null)
+                ->get()
+                ->getRowArray();
+        }
         $dept = ($employee && $employee['department_id']) ? $this->deptModel->find($employee['department_id']) : null;
         
         // Đóng gói mảng dữ liệu Session chuẩn
@@ -337,7 +346,8 @@ class AuthService extends BaseService
             'role_name'       => $role ? $role['name'] : \Config\AppConstants::ROLE_DEFAULT,
             'department_id'   => $employee ? $employee['department_id'] : null,
             'department_name' => $dept ? $dept['name'] : null,
-            'full_name'       => $employee ? $employee['full_name'] : 'Thành viên mới',
+            'partner_id'      => $partner ? $partner['id'] : null,
+            'full_name'       => $employee ? $employee['full_name'] : ($partner ? $partner['name'] : 'Thành viên mới'),
             'email'           => $user['email'],
             'is_admin'        => ($role && $role['name'] === \Config\AppConstants::ROLE_ADMIN) || $user['role_id'] == 1,
             'isadmin'         => ($role && $role['name'] === \Config\AppConstants::ROLE_ADMIN) || $user['role_id'] == 1,

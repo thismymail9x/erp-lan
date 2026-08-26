@@ -6,21 +6,21 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
-<div class="container-fluid py-4">
+<div class="container-fluid py-4 customer-care-shell">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 customer-care-header">
         <div>
             <h1 class="h3 font-weight-700 text-dark mb-1">Chăm Sóc Khách Hàng Cũ (CSKH)</h1>
             <p class="text-muted font-size-0.9">Hệ thống đo lường hiệu suất chăm sóc sau dịch vụ, phân loại A/B/C và Loyalty/VIP.</p>
         </div>
-        <div class="d-flex gap-2">
-            <a href="<?= base_url('customer-care/sla-report') ?>" class="btn btn-outline-danger d-flex align-items-center gap-2" style="border-radius: 20px; font-weight: 600;">
+        <div class="d-flex gap-2 customer-care-actions">
+            <a href="<?= base_url('customer-care/sla-report') ?>" class="btn-secondary d-flex align-items-center gap-2">
                 <i class="fas fa-history"></i> <span>Báo cáo & Hạn chăm sóc</span>
             </a>
-            <a href="<?= base_url('customer-care/daily-checklist') ?>" class="btn btn-primary d-flex align-items-center gap-2">
+            <a href="<?= base_url('customer-care/daily-checklist') ?>" class="btn-premium d-flex align-items-center gap-2">
                 <i class="fas fa-tasks"></i> <span>Checklist Hôm Nay</span>
             </a>
-            <a href="<?= base_url('customer-care/customers') ?>" class="btn btn-secondary d-flex align-items-center gap-2">
+            <a href="<?= base_url('customer-care/customers') ?>" class="btn-secondary d-flex align-items-center gap-2">
                 <i class="fas fa-layer-group"></i> <span>Phân Nhóm Khách Hàng</span>
             </a>
         </div>

@@ -77,6 +77,15 @@
             <?php } ?>
         </select>
 
+        <select name="monitoring_status" class="filter-select ajax-filter select2-basic">
+            <option value="">T&#7845;t c&#7843; tr&#7841;ng th&#225;i gi&#225;m s&#225;t</option>
+            <?php foreach ($monitoringSettings as $s) { ?>
+                <option value="<?= esc($s['status_key']) ?>" <?= service('request')->getGet('monitoring_status') === $s['status_key'] ? 'selected' : '' ?>>
+                    <?= esc($s['status_name']) ?>
+                </option>
+            <?php } ?>
+        </select>
+
         <select name="type" class="filter-select ajax-filter">
             <option value="">T&#7845;t c&#7843; lo&#7841;i kh&#225;ch</option>
             <option value="ca_nhan" <?= service('request')->getGet('type') == 'ca_nhan' ? 'selected' : '' ?>>C&#225; nh&#226;n/H&#7897;</option>

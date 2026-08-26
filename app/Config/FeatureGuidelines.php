@@ -67,6 +67,41 @@ class FeatureGuidelines extends BaseConfig
                 'content' => "• Quản lý các khoản thu/chi, công nợ và tiến độ thanh toán của từng vụ việc.\n• Lọc Tháng/Năm (Tổng HĐ): Áp dụng thời gian thanh toán đợt 1 (nếu trống lấy ngày tạo vụ việc).\n• Lọc Tháng/Năm (Đã thu): Lấy mốc thời gian của đợt cuối cùng đã thu (nếu trống lấy ngày tạo vụ việc).\n• Lọc Tháng/Năm (Chưa thu): Lấy mốc thời gian của đợt cuối cùng chưa thu (nếu trống lấy ngày tạo vụ việc)."
             ]
         ],
+        'partners' => [
+            'launch_date' => '2026-08-17',
+            'guidance'    => [
+                'title'   => 'Quản lý đối tác',
+                'content' => "- Tạo hồ sơ đối tác và liên kết với user đăng nhập bình thường.\n- Gắn đối tác vào từng vụ việc với vai trò, % hoa hồng, số tiền cố định và cách tính theo hợp đồng hoặc thực thu.\n- Khi kế toán đánh dấu khách đã thanh toán, hệ thống tự phát sinh khoản hoa hồng theo tiến độ.\n- Admin/kế toán duyệt hoặc cập nhật trạng thái đã thanh toán cho từng khoản."
+            ]
+        ],
+        'partner-portal' => [
+            'launch_date' => '2026-08-17',
+            'guidance'    => [
+                'title'   => 'Cổng đối tác',
+                'content' => "- Đối tác đăng nhập bằng tài khoản user được cấp quyền partner.portal.\n- Chỉ xem được tên khách, tên vụ việc, %/số tiền được hưởng và các khoản đã phát sinh của chính mình.\n- Đối tác có thể gửi yêu cầu thanh toán cho các khoản đã phát sinh."
+            ]
+        ],
+        'case-expenses' => [
+            'launch_date' => '2026-07-23',
+            'guidance'    => [
+                'title'   => 'Hướng dẫn Chi phí xử lý',
+                'content' => "• Nhân sự chỉ chọn được vụ việc mình được phân công hoặc tham gia để nhập chi phí.\n• Lịch công tác có thể gắn vụ việc nhưng thông tin vụ việc chỉ hiển thị cho người có quyền.\n• Người có quyền case_expense.approve duyệt hoặc từ chối chi phí trước khi ghi nhận vào thống kê."
+            ]
+        ],
+        'office-expenses' => [
+            'launch_date' => '2026-07-24',
+            'guidance'    => [
+                'title'   => 'Hướng dẫn Chi phí vận hành',
+                'content' => "• Kế toán nhập các khoản điện, nước, internet, văn phòng phẩm và chi phí nội bộ không gắn vụ việc.\n• Admin và kế toán xem tổng chi, so sánh tháng/năm, biểu đồ 12 tháng và cơ cấu theo loại chi phí.\n• Chi phí vận hành được tách khỏi chi phí vụ việc để phân tích đúng nguồn phát sinh, nhưng vẫn có thể cộng vào báo cáo tổng chi phí công ty."
+            ]
+        ],
+        'violation-funds' => [
+            'launch_date' => '2026-08-13',
+            'guidance'    => [
+                'title'   => 'Hướng dẫn Quỹ vi phạm',
+                'content' => "• Admin hoặc nhân sự ghi nhận khoản vi phạm theo quy định nội bộ và có thể nhập số tiền thủ công khi phát sinh trường hợp đặc biệt.\n• Khi lưu, hệ thống thông báo cho người vi phạm và bộ phận hành chính để theo dõi thu.\n• Hành chính cập nhật trạng thái Đã thu hoặc Miễn/không thu theo từng khoản, báo cáo lọc theo tháng, nhân sự, nhóm lỗi và trạng thái."
+            ]
+        ],
         'customers' => [
             'launch_date' => '2026-07-03',
             'guidance'    => [
@@ -82,13 +117,20 @@ class FeatureGuidelines extends BaseConfig
             ]
         ],
         'sla-report' => [
-            'launch_date' => '2026-05-25',
+            'launch_date' => '2026-08-24',
             'guidance'    => [
                 'title'   => 'Hướng dẫn Báo cáo & Cấu hình SLA',
-                'content' => "• Xem thống kê chi tiết tỷ lệ hoàn thành đúng hạn (SLA) của từng nhân viên tư vấn.\n• Xem danh sách Cảnh báo đỏ các khách hàng quá hạn chưa xử lý.\n• Quản lý cấu hình danh mục các bước trạng thái tư vấn và thời hạn SLA động (số giờ) cho mỗi bước."
+                'content' => "• Xem thống kê chi tiết tỷ lệ hoàn thành đúng hạn (SLA) của từng nhân viên tư vấn.\n• Xem danh sách Cảnh báo đỏ các khách hàng quá hạn chưa xử lý.\n• Quản lý cấu hình danh mục các bước trạng thái tư vấn và thời hạn SLA động (số giờ) cho mỗi bước.\n• MỚI: Cấu hình trạng thái Giám sát CSKH để theo dõi các lỗi chất lượng tư vấn như miss tin, chưa gửi báo phí hoặc khách gọi phàn nàn."
             ]
         ],
 
+        'customer-relationship' => [
+            'launch_date' => '2026-08-11',
+            'guidance'    => [
+                'title'   => 'Ho so quan he khach hang',
+                'content' => "- Ho so khach hang co them tab Quan he de theo doi cap do, diem quan he, health score, ngay tuong tac ke tiep va khach gioi thieu.\n- Tab Co hoi ghi nhan nhu cau/dau hieu phat trien dich vu, gia tri du kien, xac suat va nhan su theo doi.\n- Khi ghi nhat ky tuong tac co ngay follow-up, he thong tu cap nhat ngay cham soc ke tiep va tinh lai trang thai 30/60/90 ngay."
+            ]
+        ],
         'knowledge' => [
             'launch_date' => '2026-05-13',
             'guidance'    => [
@@ -122,6 +164,13 @@ class FeatureGuidelines extends BaseConfig
             'guidance'    => [
                 'title'   => 'Hướng dẫn Trao đổi nội bộ',
                 'content' => "• Hệ thống nhận và gửi thông báo, tin nhắn nội bộ giữa các thành viên.\n• Cập nhật các yêu cầu phê duyệt, nhắc nhở lịch hẹn hoặc các thay đổi trong vụ việc.\n• Đảm bảo thông tin luôn được truyền đạt nhanh chóng và chính xác."
+            ]
+        ],
+        'annual-leave-balance' => [
+            'launch_date' => '2026-07-24',
+            'guidance'    => [
+                'title'   => 'So du phep nam',
+                'content' => "- Vai tro Truong phong hoac Nhan vien chinh thuc duoc tinh toi da 12 ngay phep/nam.\n- Moc tinh phep la ngay dau thang ke tiep sau khi role du dieu kien.\n- Admin/nguoi duyet co the tao don nghi phep ngay qua khu de ghi nhan phep da su dung truoc he thong.\n- Ho so nhan vien hien thi so ngay duoc huong, da su dung, dang cho duyet va con lai trong nam.\n- Don nghi phep nam moi khong duoc vuot qua so ngay con kha dung."
             ]
         ],
         'employees' => [

@@ -2,7 +2,7 @@
 
 <?= $this->section('styles') ?>
 <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
-<link rel="stylesheet" href="<?= base_url('css/dashboard_home.css') ?>?v=20260708">
+<link rel="stylesheet" href="<?= base_url('css/dashboard_home.css') ?>?v=2026072402">
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
@@ -364,10 +364,51 @@
                     </select>
                 </div>
 
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label><i class="fas fa-user-tag"></i> V&#7909; vi&#7879;c c&#225; nh&#226;n / Nh&#7853;n ph&#226;n c&#244;ng t&#7915;</label>
+                <div class="form-group">
+                    <label><i class="fas fa-briefcase"></i> V&#7909; vi&#7879;c li&#234;n quan</label>
+                    <select name="case_id" id="wsCaseId" class="form-control-custom select2-basic">
+                        <option value="">-- Kh&#244;ng g&#7855;n v&#7909; vi&#7879;c --</option>
+                        <?php foreach (($selectableCases ?? []) as $caseOption) : ?>
+                            <option value="<?= $caseOption['id'] ?>">
+                                <?= esc($caseOption['code'] . ' - ' . $caseOption['title']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="ws-private-hint">
+                        <i class="fas fa-lock"></i> Th&#244;ng tin v&#7909; vi&#7879;c ch&#7881; hi&#7875;n th&#7883; cho ng&#432;&#7901;i c&#243; quy&#7873;n.
+                    </div>
+                </div>
+
+                <?php if (!empty($canSubmitCaseExpense)) { ?>
+                    <div class="ws-expense-quick-panel" id="wsExpenseQuickPanel">
+                        <div class="ws-expense-quick-title">
+                            <i class="fas fa-receipt"></i> Chi ph&#237; ph&#225;t sinh
+                        </div>
+                        <div class="row-grid ws-expense-quick-grid">
+                            <div class="form-group">
+                                <label>Lo&#7841;i chi ph&#237;</label>
+                                <select name="expense_category" id="wsExpenseCategory" class="form-control-custom">
+                                    <?php foreach (($caseExpenseCategoryLabels ?? []) as $key => $label) { ?>
+                                        <option value="<?= esc($key) ?>"><?= esc($label) ?></option>
+                                    <?php } ?>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>S&#7889; ti&#7873;n</label>
+                                <input type="text" name="expense_amount" id="wsExpenseAmount" class="form-control-custom" placeholder="VD: 250000">
+                            </div>
+                        </div>
+                        <div class="form-group ws-expense-note-group">
+                            <label>Ghi ch&#250; chi ph&#237;</label>
+                            <textarea name="expense_note" id="wsExpenseNote" class="form-control-custom" placeholder="G&#7917;i xe, taxi, n&#432;&#7899;c u&#7889;ng, l&#7879; ph&#237;..."></textarea>
+                        </div>
+                    </div>
+                <?php } ?>
+
+                <div class="form-group ws-assigned-by-field">
+                    <label><i class="fas fa-user-tag"></i> Nh&#7853;n ph&#226;n c&#244;ng t&#7915;</label>
                     <select name="assigned_by_id" id="wsAssignedById" class="form-control-custom select2-basic">
-                        <option value="">-- V&#7909; vi&#7879;c c&#225; nh&#226;n --</option>
+                        <option value="">-- Kh&#244;ng ch&#7885;n --</option>
                         <?php foreach ($employees as $emp) : ?>
                             <option value="<?= $emp['id'] ?>"><?= esc($emp['full_name']) ?></option>
                         <?php endforeach; ?>
@@ -377,6 +418,9 @@
 
             <div class="modal-footer">
                 <button type="button" class="btn-secondary-custom" id="btnDeleteWs" style="display: none; background: #fee2e2; color: #dc2626;">X&#243;a</button>
+                <a href="#" class="btn-secondary-custom ws-expense-link" id="btnWsExpense">
+                    <i class="fas fa-receipt"></i> Chi ph&#237;
+                </a>
                 <button type="button" class="btn-secondary-custom" id="btnCancelModal">H&#7911;y</button>
                 <button type="submit" class="btn-primary-custom" id="btnSaveWs">L&#432;u l&#7883;ch tr&#236;nh</button>
             </div>
@@ -390,5 +434,5 @@
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
 <script src="https://unpkg.com/@popperjs/core@2"></script>
 <script src="https://unpkg.com/tippy.js@6"></script>
-<script src="<?= base_url('js/dashboard_home.js') ?>?v=2026062602"></script>
+<script src="<?= base_url('js/dashboard_home.js') ?>?v=2026072402"></script>
 <?= $this->endSection() ?>

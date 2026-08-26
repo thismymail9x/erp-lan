@@ -44,6 +44,116 @@ $(document).ready(function() {
             });
         }
     }
+
+    const uploadInput = $('#customerDmsFileInput');
+    const uploadZone = $('.customer-upload-zone');
+    const uploadLabelText = uploadInput.next('label').find('span');
+    const selectedFiles = $('#customerDmsSelectedFiles');
+    let selectedUploadFiles = [];
+
+    function fileKey(file) {
+        return [file.name, file.size, file.lastModified].join('|');
+    }
+
+    function formatBytes(bytes) {
+        if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+        if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+        if (bytes >= 1024) return Math.round(bytes / 1024) + ' KB';
+        return bytes + ' B';
+    }
+
+    function syncUploadInput() {
+        if (!uploadInput.length) return;
+
+        const transfer = new DataTransfer();
+        selectedUploadFiles.forEach(function(file) {
+            transfer.items.add(file);
+        });
+        uploadInput[0].files = transfer.files;
+    }
+
+    function renderUploadFiles() {
+        if (!selectedFiles.length) return;
+
+        selectedFiles.empty();
+
+        if (!selectedUploadFiles.length) {
+            uploadLabelText.text('Click để chọn một hoặc nhiều tệp');
+            uploadZone.removeClass('has-files');
+            return;
+        }
+
+        uploadZone.addClass('has-files');
+        uploadLabelText.empty()
+            .append(document.createTextNode('Đã chọn: '))
+            .append($('<strong></strong>').text(selectedUploadFiles.length + ' tệp'));
+
+        selectedUploadFiles.forEach(function(file, index) {
+            const item = $('<div class="dms-selected-file"></div>');
+            const name = $('<span class="dms-selected-file-name"></span>').text(file.name);
+            const size = $('<span class="dms-selected-file-size"></span>').text(formatBytes(file.size));
+            const remove = $('<button type="button" class="dms-selected-file-remove" title="Bỏ tệp này"><i class="fas fa-times"></i></button>');
+
+            remove.on('click', function() {
+                selectedUploadFiles.splice(index, 1);
+                syncUploadInput();
+                renderUploadFiles();
+            });
+
+            item.append(name).append(size).append(remove);
+            selectedFiles.append(item);
+        });
+
+        const nameInput = $('#formCustomerUploadDocument input[name="file_name"]');
+        if (selectedUploadFiles.length === 1 && !nameInput.val()) {
+            const firstFileName = selectedUploadFiles[0].name;
+            nameInput.val(firstFileName.split('.').slice(0, -1).join('.') || firstFileName);
+        }
+    }
+
+    function addUploadFiles(files) {
+        const existingKeys = new Set(selectedUploadFiles.map(fileKey));
+        Array.from(files || []).forEach(function(file) {
+            const key = fileKey(file);
+            if (!existingKeys.has(key)) {
+                selectedUploadFiles.push(file);
+                existingKeys.add(key);
+            }
+        });
+
+        syncUploadInput();
+        renderUploadFiles();
+    }
+
+    if (uploadInput.length) {
+        uploadInput.on('change', function() {
+            addUploadFiles(this.files);
+            this.value = '';
+            syncUploadInput();
+        });
+
+        uploadZone.on('dragover', function(e) {
+            e.preventDefault();
+            uploadZone.addClass('is-dragover');
+        });
+
+        uploadZone.on('dragleave drop', function(e) {
+            e.preventDefault();
+            uploadZone.removeClass('is-dragover');
+        });
+
+        uploadZone.on('drop', function(e) {
+            const files = e.originalEvent.dataTransfer ? e.originalEvent.dataTransfer.files : [];
+            addUploadFiles(files);
+        });
+
+        $('#formCustomerUploadDocument').on('submit', function(e) {
+            if (!selectedUploadFiles.length) {
+                e.preventDefault();
+                alert('Vui lòng chọn ít nhất một tệp tin để tải lên.');
+            }
+        });
+    }
 });
 
 let selectedVaultDocId = null;
@@ -150,7 +260,21 @@ function transitionCustomerStatus(customerId, statusKey) {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
+    .then(async response => {
+        const rawResponse = await response.text();
+        let result;
+        try {
+            result = JSON.parse(rawResponse);
+        } catch (parseError) {
+            throw new Error(response.ok ? 'May chu tra ve du lieu khong hop le.' : 'May chu tra loi HTTP ' + response.status + '.');
+        }
+
+        if (!response.ok) {
+            throw new Error(result.message || ('May chu tra loi HTTP ' + response.status + '.'));
+        }
+
+        return result;
+    })
     .then(result => {
         if (result.status === 'success') {
             // Hiển thị thông báo thành công và reload lại trang để đồng bộ
@@ -162,7 +286,7 @@ function transitionCustomerStatus(customerId, statusKey) {
         }
     })
     .catch(err => {
-        alert('Lỗi kết nối mạng: ' + err.message);
+        alert('Khong the cap nhat trang thai tu van: ' + err.message);
         location.reload();
     });
 }

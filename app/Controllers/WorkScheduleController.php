@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Services\WorkScheduleService;
+use App\Services\CaseExpenseService;
 use Config\AppConstants;
 
 /**
@@ -31,11 +32,13 @@ class WorkScheduleController extends BaseController
     ];
 
     protected $service;
+    protected $caseExpenseService;
 
     public function initController(\CodeIgniter\HTTP\RequestInterface $request, \CodeIgniter\HTTP\ResponseInterface $response, \Psr\Log\LoggerInterface $logger)
     {
         parent::initController($request, $response, $logger);
         $this->service = new WorkScheduleService();
+        $this->caseExpenseService = new CaseExpenseService();
     }
 
     /**
@@ -70,6 +73,9 @@ class WorkScheduleController extends BaseController
             $requiresVehicle = !empty($item['requires_vehicle']);
             $typeLabel = ($item['type'] === 'business_trip') ? 'Công tác' : 'Tại văn phòng';
             $color = ($item['type'] === 'business_trip') ? '#ff3b30' : '#007aff';
+            $casePayload = !empty($item['case_id'])
+                ? $this->caseExpenseService->getScheduleCasePayload((int)$item['case_id'])
+                : null;
 
             $startTs = strtotime($item['start_at']);
             $endTs = strtotime($item['end_at']);
@@ -99,6 +105,10 @@ class WorkScheduleController extends BaseController
                     'creator_name' => $item['creator_name'],
                     'location' => $item['location'],
                     'assigner_name' => $item['assigner_name'],
+                    'case_id' => $casePayload['id'] ?? null,
+                    'case_code' => $casePayload['code'] ?? null,
+                    'case_title' => $casePayload['title'] ?? null,
+                    'case_customer_name' => $casePayload['customer_name'] ?? null,
                     'time_display' => $timeDisplay,
                     'date_display' => $dateDisplay,
                     'is_same_day' => $isSameDay
@@ -213,12 +223,18 @@ class WorkScheduleController extends BaseController
         $data = $this->request->getPost();
         // Checkbox không gửi value khi bỏ chọn, nên backend phải chuẩn hóa về 0/1.
         $data['requires_vehicle'] = $this->request->getPost('requires_vehicle') ? 1 : 0;
+        if (!empty($data['case_id']) && !$this->caseExpenseService->canAccessCase((int)$data['case_id'])) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Bạn không có quyền gắn lịch vào vụ việc này.']);
+        }
         
         // Chuyển đổi định dạng datetime-local từ HTML sang MySQL
         $data['start_at'] = str_replace('T', ' ', $data['start_at']) . ':00';
         $data['end_at'] = str_replace('T', ' ', $data['end_at']) . ':00';
 
         $result = $this->service->create($data);
+        if ($result['status'] === 'success') {
+            $result = $this->storeInlineCaseExpense($data, (int)($result['data']['id'] ?? 0), $result);
+        }
         return $this->response->setJSON($result);
     }
 
@@ -250,6 +266,13 @@ class WorkScheduleController extends BaseController
 
         $schedule['can_edit'] = $canEdit;
         $schedule['can_delete'] = ($isAdmin || $isOwner); // Xóa thì chỉ Admin hoặc Chủ sở hữu
+        $casePayload = !empty($schedule['case_id'])
+            ? $this->caseExpenseService->getScheduleCasePayload((int)$schedule['case_id'])
+            : null;
+        if (!$casePayload) {
+            $schedule['case_id'] = null;
+            unset($schedule['case_code'], $schedule['case_title'], $schedule['case_customer_name']);
+        }
 
         return $this->response->setJSON(['status' => 'success', 'data' => $schedule]);
     }
@@ -266,6 +289,9 @@ class WorkScheduleController extends BaseController
         $data = $this->request->getPost();
         // Không tin frontend: checkbox vắng mặt phải được hiểu là không đăng ký xe.
         $data['requires_vehicle'] = $this->request->getPost('requires_vehicle') ? 1 : 0;
+        if (!empty($data['case_id']) && !$this->caseExpenseService->canAccessCase((int)$data['case_id'])) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Bạn không có quyền gắn lịch vào vụ việc này.']);
+        }
         
         $rules = [
             'type'     => 'required',
@@ -284,6 +310,9 @@ class WorkScheduleController extends BaseController
         $data['end_at'] .= ':00';
 
         $result = $this->service->update($id, $data, session()->get('employee_id'));
+        if ($result['status'] === 'success') {
+            $result = $this->storeInlineCaseExpense($data, $id, $result);
+        }
         return $this->response->setJSON($result);
     }
 
@@ -297,6 +326,49 @@ class WorkScheduleController extends BaseController
         }
 
         $result = $this->service->delete($id, session()->get('employee_id'));
+        if ($result['status'] === 'success') {
+            $this->caseExpenseService->deleteByWorkSchedule($id);
+            $result['message'] .= ' Chi phí gắn với lịch trình cũng đã được xóa.';
+        }
         return $this->response->setJSON($result);
+    }
+
+    private function storeInlineCaseExpense(array $scheduleData, int $workScheduleId, array $scheduleResult): array
+    {
+        $amount = preg_replace('/[^\d]/', '', (string)($scheduleData['expense_amount'] ?? ''));
+        if ($amount === '' || (int)$amount <= 0) {
+            return $scheduleResult;
+        }
+
+        if (empty($scheduleData['case_id'])) {
+            $scheduleResult['message'] .= ' Chưa ghi chi phí vì lịch chưa gắn vụ việc.';
+            return $scheduleResult;
+        }
+
+        $actualStartAt = $scheduleData['start_at'] ?? null;
+        $actualEndAt = $scheduleData['end_at'] ?? null;
+        if ($actualStartAt && $actualEndAt && strtotime($actualEndAt) < strtotime($actualStartAt)) {
+            [$actualStartAt, $actualEndAt] = [$actualEndAt, $actualStartAt];
+        }
+
+        $expenseResult = $this->caseExpenseService->create([
+            'case_id' => (int)$scheduleData['case_id'],
+            'work_schedule_id' => $workScheduleId,
+            'employee_id' => (int)($scheduleData['employee_id'] ?? session()->get('employee_id')),
+            'expense_date' => !empty($actualStartAt) ? date('Y-m-d', strtotime($actualStartAt)) : date('Y-m-d'),
+            'category' => $scheduleData['expense_category'] ?? 'other',
+            'amount' => $amount,
+            'actual_start_at' => $actualStartAt,
+            'actual_end_at' => $actualEndAt,
+            'note' => $scheduleData['expense_note'] ?? null,
+        ], []);
+
+        if ($expenseResult['status'] !== 'success') {
+            $scheduleResult['message'] .= ' Chi phí chưa được ghi: ' . $expenseResult['message'];
+            return $scheduleResult;
+        }
+
+        $scheduleResult['message'] .= ' Đã ghi thêm chi phí chờ duyệt.';
+        return $scheduleResult;
     }
 }

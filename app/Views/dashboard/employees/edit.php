@@ -10,6 +10,9 @@
     $deptName = session()->get('department_name');
 
     $canEditSensitive = (
+        session()->get('is_admin') ||
+        session()->get('isadmin') ||
+        (int)session()->get('role_id') === 1 ||
         $roleName === \Config\AppConstants::ROLE_ADMIN ||
         $roleName === \Config\AppConstants::ROLE_MOD ||
         $deptName === \Config\AppConstants::DEPT_NAME_HANH_CHINH
@@ -17,9 +20,21 @@
 
     $restrictedAttr = !$canEditSensitive ? 'readonly style="background: #f8f9fa; cursor: not-allowed;"' : '';
     $restrictedSelect = !$canEditSensitive ? 'disabled style="background: #f8f9fa; cursor: not-allowed;"' : '';
+    $leaveBalance = $annualLeaveBalance ?? [
+        'year' => (int)date('Y'),
+        'entitled_days' => 0,
+        'used_days' => 0,
+        'pending_days' => 0,
+        'remaining_days' => 0,
+        'annual_leave_start_date' => null,
+        'is_eligible_annual_leave' => false,
+    ];
 
     $decodeLabel = static function (string $value): string {
         return html_entity_decode($value, ENT_QUOTES, 'UTF-8');
+    };
+    $formatLeaveDay = static function ($value): string {
+        return rtrim(rtrim(number_format((float)$value, 1), '0'), '.');
     };
 ?>
 <div class="employee-edit-wrapper">
@@ -101,6 +116,48 @@
                 <div class="form-group">
                     <label for="join_date">Ng&#224;y v&#224;o l&#224;m</label>
                     <input type="date" name="join_date" id="join_date" required value="<?= $employee['join_date'] ?>" <?= $restrictedAttr ?>>
+                </div>
+
+                <div class="form-group">
+                    <label for="annual_leave_start_date">B&#7855;t &#273;&#7847;u t&#237;nh ph&#233;p n&#259;m</label>
+                    <?php if ($canEditSensitive) { ?>
+                        <input type="date" name="annual_leave_start_date" id="annual_leave_start_date" value="<?= esc($employee['annual_leave_start_date'] ?? '') ?>">
+                        <small class="annual-leave-note">Nh&#7853;p ng&#224;y &#273;&#7847;u th&#225;ng k&#7871; ti&#7871;p sau khi nh&#226;n s&#7921; thu&#7897;c vai tr&#242; Tr&#432;&#7903;ng ph&#242;ng ho&#7863;c Nh&#226;n vi&#234;n ch&#237;nh th&#7913;c.</small>
+                    <?php } else { ?>
+                        <input type="date" id="annual_leave_start_date" value="<?= esc($employee['annual_leave_start_date'] ?? '') ?>" readonly style="background: #f8f9fa; cursor: not-allowed;">
+                    <?php } ?>
+                </div>
+
+                <div class="form-group form-group-full">
+                    <div class="annual-leave-panel">
+                        <div class="annual-leave-panel-head">
+                            <h4><i class="fas fa-calendar-check m-r-8"></i> Ph&#233;p n&#259;m <?= (int)$leaveBalance['year'] ?></h4>
+                            <span class="annual-leave-status <?= $leaveBalance['is_eligible_annual_leave'] ? 'is-active' : 'is-inactive' ?>">
+                                <?= $leaveBalance['is_eligible_annual_leave'] ? '&#272;ang t&#237;nh ph&#233;p' : 'Ch&#432;a &#273;&#7911; m&#7889;c t&#237;nh ph&#233;p' ?>
+                            </span>
+                        </div>
+                        <div class="annual-leave-stats">
+                            <div class="annual-leave-stat">
+                                <span>&#272;&#432;&#7907;c h&#432;&#7903;ng</span>
+                                <strong><?= esc($formatLeaveDay($leaveBalance['entitled_days'])) ?></strong>
+                            </div>
+                            <div class="annual-leave-stat">
+                                <span>&#272;&#227; s&#7917; d&#7909;ng</span>
+                                <strong><?= esc($formatLeaveDay($leaveBalance['used_days'])) ?></strong>
+                            </div>
+                            <div class="annual-leave-stat">
+                                <span>&#272;ang ch&#7901; duy&#7879;t</span>
+                                <strong><?= esc($formatLeaveDay($leaveBalance['pending_days'])) ?></strong>
+                            </div>
+                            <div class="annual-leave-stat annual-leave-stat-primary">
+                                <span>C&#242;n l&#7841;i</span>
+                                <strong><?= esc($formatLeaveDay($leaveBalance['remaining_days'])) ?></strong>
+                            </div>
+                        </div>
+                        <p class="annual-leave-note">
+                            H&#7841;n m&#7913;c 12 ng&#224;y/n&#259;m, c&#7897;ng 1 ng&#224;y cho m&#7895;i th&#225;ng &#273;&#7911; &#273;i&#7873;u ki&#7879;n. &#272;&#417;n ngh&#7881; ph&#233;p n&#259;m &#273;&#227; duy&#7879;t s&#7869; t&#237;nh v&#224;o s&#7889; &#273;&#227; s&#7917; d&#7909;ng.
+                        </p>
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -278,12 +335,13 @@
         <hr class="m-t-30 m-b-30">
 
         <h3 class="section-header-title m-b-20"><i class="fas fa-shield-alt m-r-8 text-apple-red"></i> &#272;&#7893;i m&#7853;t kh&#7849;u t&#224;i kho&#7843;n</h3>
-        <form action="<?= base_url('employees/change-password') ?>" method="POST" class="premium-form">
+        <form action="<?= base_url('employees/change-password/' . (int)$employee['id']) ?>" method="POST" class="premium-form">
             <?= csrf_field() ?>
+            <input type="hidden" name="employee_id" value="<?= (int)$employee['id'] ?>">
             <div class="form-grid form-grid-3">
                 <div class="form-group">
                     <label>M&#7853;t kh&#7849;u hi&#7879;n t&#7841;i</label>
-                    <input type="password" name="old_password" required placeholder="Nh&#7853;p m&#7853;t kh&#7849;u &#273;ang d&#249;ng...">
+                    <input type="password" name="old_password" <?= !$canEditSensitive ? 'required' : '' ?> placeholder="<?= $canEditSensitive ? 'B&#7887; tr&#7889;ng n&#7871;u &#273;&#7893;i cho nh&#226;n vi&#234;n...' : 'Nh&#7853;p m&#7853;t kh&#7849;u &#273;ang d&#249;ng...' ?>">
                 </div>
                 <div class="form-group">
                     <label>M&#7853;t kh&#7849;u m&#7899;i</label>

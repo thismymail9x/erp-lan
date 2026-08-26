@@ -112,6 +112,60 @@ input[data-field="manual_adjust_days"] {
     width: 50%;
 }
 
+.payroll-transition-breakdown {
+    background: #f8fbff;
+    border: 1px solid #d7e7ff;
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+
+.payroll-transition-title {
+    color: var(--apple-blue);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.payroll-transition-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 7px 0;
+    border-top: 1px solid rgba(0, 113, 227, 0.12);
+}
+
+.payroll-transition-row span {
+    color: #6e6e73;
+}
+
+.payroll-transition-row strong {
+    color: #1d1d1f;
+    text-align: right;
+}
+
+.payroll-transition-total {
+    font-weight: 700;
+}
+
+.payroll-transition-note {
+    display: block;
+    color: #86868b;
+    margin-top: 6px;
+}
+
+@media (max-width: 640px) {
+    .payroll-transition-row {
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .payroll-transition-row strong {
+        text-align: left;
+    }
+}
+
 .border-bottom {
     border-bottom: 1px solid #f2f2f7;
 }

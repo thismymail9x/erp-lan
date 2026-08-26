@@ -3,10 +3,69 @@
 <?= $this->section('styles') ?>
 <link rel="stylesheet" href="<?= base_url('css/customers.css') ?>">
 <link rel="stylesheet" href="<?= base_url('css/customer_care.css') ?>">
+<link rel="stylesheet" href="<?= base_url('css/customer_relationship.css') ?>">
+<link rel="stylesheet" href="<?= base_url('css/documents.css') ?>">
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
+<?php
+    if (!function_exists('get_customer_doc_icon')) {
+        function get_customer_doc_icon($ext) {
+            $icons = [
+                'pdf' => 'fa-file-pdf',
+                'doc' => 'fa-file-word',
+                'docx' => 'fa-file-word',
+                'jpg' => 'fa-file-image',
+                'jpeg' => 'fa-file-image',
+                'png' => 'fa-file-image',
+                'gif' => 'fa-file-image',
+                'webp' => 'fa-file-image',
+                'xls' => 'fa-file-excel',
+                'xlsx' => 'fa-file-excel',
+                'zip' => 'fa-file-archive',
+                'rar' => 'fa-file-archive',
+            ];
+
+            return $icons[strtolower((string) $ext)] ?? 'fa-file-alt';
+        }
+    }
+
+    if (!function_exists('format_customer_doc_bytes')) {
+        function format_customer_doc_bytes($bytes) {
+            if (!is_numeric($bytes) || $bytes < 0) return '0 B';
+            if ($bytes >= 1073741824) return number_format($bytes / 1073741824, 2) . ' GB';
+            if ($bytes >= 1048576) return number_format($bytes / 1048576, 1) . ' MB';
+            if ($bytes >= 1024) return number_format($bytes / 1024, 0) . ' KB';
+            return $bytes . ' B';
+        }
+    }
+
+    $relationshipMetrics = $relationshipProfile['metrics'] ?? [];
+    $relationshipScore = (int) ($relationshipMetrics['relationship_score'] ?? ($customer['relationship_score'] ?? 0));
+    $relationshipStatus = $relationshipMetrics['status_key'] ?? ($customer['relationship_status'] ?? 'healthy');
+    $relationshipStatusLabel = $relationshipMetrics['status_label'] ?? 'Ổn định';
+    $opportunityStats = $relationshipProfile['opportunity_stats'] ?? ['active' => 0, 'estimated_value' => 0];
+    $relationshipLevelLabels = [
+        'lead' => 'Lead',
+        'active' => 'Đang sử dụng dịch vụ',
+        'loyal' => 'Thân thiết',
+        'strategic' => 'Chiến lược',
+    ];
+    $relationshipStatusLabels = [
+        'healthy' => 'Ổn định',
+        'watch' => 'Cần chăm sóc',
+        'risk' => 'Rủi ro nguội',
+        'critical' => 'Cần kích hoạt lại',
+    ];
+    $profileDocumentFileCount = 0;
+    if (!empty($documents) && is_array($documents)) {
+        foreach ($documents as $profileDocument) {
+            $profileDocumentFileCount += max(1, (int)($profileDocument['attachment_count'] ?? 1));
+        }
+    }
+    $canDeleteDocuments = has_permission('sys.admin');
+?>
 <div class="customer-profile-container">
     <div class="dashboard-header-wrapper">
         <div class="header-title-container">
@@ -55,6 +114,10 @@
                         <span class="prof-val-bold"><?= esc($maskedEmail) ?></span>
                     </div>
                     <div class="prof-info-row">
+                        <span class="prof-label-dim">Ng&#224;y sinh:</span>
+                        <span class="prof-val-bold"><?= !empty($customer['date_of_birth']) && strtotime($customer['date_of_birth']) ? date('d/m/Y', strtotime($customer['date_of_birth'])) : '--' ?></span>
+                    </div>
+                    <div class="prof-info-row">
                         <span class="prof-label-dim">Nhân sự chăm sóc:</span>
                         <span class="prof-val-bold" style="color: var(--apple-blue);"><?= esc($careStaffName ?: 'Chưa phân bổ') ?></span>
                     </div>
@@ -85,6 +148,31 @@
                     </div>
                 </div>
             </div>
+
+            <div class="premium-card relationship-score-card">
+                <div class="relationship-score-header">
+                    <div>
+                        <h4 class="prof-health-title">Quan hệ</h4>
+                        <span class="relationship-status-badge <?= esc($relationshipStatus) ?>">
+                            <i class="fas fa-heartbeat"></i> <?= esc($relationshipStatusLabels[$relationshipStatus] ?? $relationshipStatusLabel) ?>
+                        </span>
+                    </div>
+                    <div class="relationship-score-value"><?= esc($relationshipScore) ?></div>
+                </div>
+                <div class="relationship-progress"><span style="width: <?= min(100, max(0, $relationshipScore)) ?>%;"></span></div>
+                <div class="relationship-row">
+                    <span class="prof-label-dim">Tương tác cuối:</span>
+                    <strong><?= !empty($customer['last_contact_date']) ? date('d/m/Y', strtotime($customer['last_contact_date'])) : 'Chưa có' ?></strong>
+                </div>
+                <div class="relationship-row">
+                    <span class="prof-label-dim">Tương tác kế tiếp:</span>
+                    <strong><?= !empty($customer['next_interaction_date']) ? date('d/m/Y', strtotime($customer['next_interaction_date'])) : 'Chưa đặt' ?></strong>
+                </div>
+                <div class="relationship-row">
+                    <span class="prof-label-dim">Cơ hội mở:</span>
+                    <strong><?= esc($opportunityStats['active'] ?? 0) ?></strong>
+                </div>
+            </div>
         </div>
 
         <!-- Main Content: Tabs -->
@@ -97,7 +185,9 @@
                         <button class="tab-btn" data-tab="interactions"><i class="fas fa-comments"></i> Tương tác</button>
                         <button class="tab-btn" data-tab="chat-consultation"><i class="fas fa-comments"></i> Tư vấn Chat (<?= !empty($chatHistory) ? count($chatHistory) : 0 ?>)</button>
                         <button class="tab-btn" data-tab="finance"><i class="fas fa-wallet"></i> Tài chính</button>
-                        <button class="tab-btn" data-tab="docs"><i class="fas fa-file-alt"></i> Hồ sơ</button>
+                        <button class="tab-btn" data-tab="docs"><i class="fas fa-file-alt"></i> Hồ sơ (<?= esc($profileDocumentFileCount) ?>)</button>
+                        <button class="tab-btn" data-tab="relationship"><i class="fas fa-handshake"></i> Quan hệ</button>
+                        <button class="tab-btn" data-tab="opportunities"><i class="fas fa-chart-line"></i> Cơ hội (<?= !empty($opportunities) && is_array($opportunities) ? count($opportunities) : 0 ?>)</button>
                         <button class="tab-btn" data-tab="customer-care"><i class="fas fa-hand-holding-heart"></i> CSKH</button>
                     </div>
                 </div>
@@ -212,6 +302,11 @@
                                         <div class="prof-timeline-dot"></div>
                                         <div class="prof-timeline-meta"><?= date('d/m/Y H:i', strtotime($int['interaction_date'])) ?> • <?= esc($int['staff_email'] ?? '--') ?></div>
                                         <div class="prof-timeline-summary"><?= esc($int['summary']) ?></div>
+                                        <div class="opportunity-meta">
+                                            <?php if (!empty($int['interaction_result'])): ?><span>Kết quả: <?= esc($int['interaction_result']) ?></span><?php endif; ?>
+                                            <?php if (!empty($int['importance_level'])): ?><span>Ưu tiên: <?= esc($int['importance_level']) ?></span><?php endif; ?>
+                                            <?php if (!empty($int['next_follow_up'])): ?><span>Hẹn lại: <?= date('d/m/Y H:i', strtotime($int['next_follow_up'])) ?></span><?php endif; ?>
+                                        </div>
                                         <div class="prof-timeline-content ql-editor" style="padding: 0; min-height: auto; font-size: inherit; color: inherit;"><?= $int['detailed_content'] ?></div>
                                     </div>
                                 <?php } ?>
@@ -263,17 +358,76 @@
                         <div class="vault-grid">
                             <?php if (!empty($documents) && is_array($documents)) { ?>
                                 <?php foreach ($documents as $doc) { ?>
+                                    <?php
+                                        $attachmentCount = (int)($doc['attachment_count'] ?? 1);
+                                        $attachmentIds = !empty($doc['attachment_ids']) ? explode(',', $doc['attachment_ids']) : [];
+                                        $attachmentNames = !empty($doc['attachment_names']) ? explode("\n", $doc['attachment_names']) : [];
+                                        $docIcon = $attachmentCount > 1 ? 'fa-layer-group' : get_customer_doc_icon($doc['file_type'] ?? '');
+                                    ?>
                                     <div class="premium-card vault-card">
                                         <div class="vault-icon">
-                                            <i class="fas fa-file-pdf"></i>
+                                            <i class="fas <?= esc($docIcon) ?>"></i>
                                         </div>
                                         <div class="vault-doc-type" style="font-size: 11px; text-transform: uppercase; color: var(--apple-blue); font-weight: 600;">
                                             <?= esc($doc['document_category'] ?? 'Khác') ?>
                                         </div>
                                         <div class="vault-file-name" style="font-weight: 500; margin: 5px 0;"><?= esc($doc['file_name'] ?? 'Tài liệu') ?></div>
-                                        <div class="vault-actions">
-                                            <a href="<?= base_url('documents/view/' . ($doc['id'] ?? 0)) ?>" class="btn-secondary-sm" target="_blank">Xem / Tải về</a>
+                                        <div class="text-xs text-muted-dark">
+                                            <?= esc(format_customer_doc_bytes($doc['total_size'] ?? $doc['size'] ?? 0)) ?>
+                                            <?php if ($attachmentCount > 1) { ?>
+                                                • <?= esc($attachmentCount) ?> tệp
+                                            <?php } ?>
                                         </div>
+                                        <div class="vault-actions">
+                                            <?php if ($attachmentCount <= 1) { ?>
+                                                <a href="<?= base_url('documents/view/' . ($doc['id'] ?? 0)) ?>?preview=1" class="btn-secondary-sm" target="_blank">
+                                                    <i class="fas fa-eye"></i> Xem
+                                                </a>
+                                                <a href="<?= base_url('documents/view/' . ($doc['id'] ?? 0)) ?>" class="btn-secondary-sm">
+                                                    <i class="fas fa-download"></i> Tải
+                                                </a>
+                                                <?php if ($canDeleteDocuments) { ?>
+                                                    <form action="<?= base_url('documents/delete/' . ($doc['id'] ?? 0)) ?>" method="post" class="customer-document-delete-form" onsubmit="return confirm('Xóa vĩnh viễn tệp này khỏi hồ sơ khách hàng?');">
+                                                        <?= csrf_field() ?>
+                                                        <button type="submit" class="customer-document-delete-btn" title="Xóa tệp">
+                                                            <i class="fas fa-times"></i>
+                                                        </button>
+                                                    </form>
+                                                <?php } ?>
+                                            <?php } ?>
+                                        </div>
+                                        <?php if ($attachmentCount > 1 && !empty($attachmentNames)) { ?>
+                                            <div class="document-attachment-list customer-document-attachment-list">
+                                                <?php foreach ($attachmentNames as $fileIndex => $attachmentName) { ?>
+                                                    <?php
+                                                        $attachmentId = $attachmentIds[$fileIndex] ?? 0;
+                                                        $attachmentUrl = base_url('documents/view/' . ($doc['id'] ?? 0) . '/file/' . $attachmentId);
+                                                    ?>
+                                                    <div class="document-attachment-item">
+                                                        <span class="document-attachment-name">
+                                                            <i class="fas <?= esc(get_customer_doc_icon(pathinfo($attachmentName, PATHINFO_EXTENSION))) ?>"></i>
+                                                            <?= esc($attachmentName) ?>
+                                                        </span>
+                                                        <span class="document-attachment-actions">
+                                                            <a href="<?= $attachmentUrl ?>?preview=1" target="_blank" class="document-attachment-action" title="Xem trước">
+                                                                <i class="fas fa-eye"></i>
+                                                            </a>
+                                                            <a href="<?= $attachmentUrl ?>" class="document-attachment-action" title="Tải xuống">
+                                                                <i class="fas fa-download"></i>
+                                                            </a>
+                                                            <?php if ($canDeleteDocuments && !empty($attachmentId)) { ?>
+                                                                <form action="<?= base_url('documents/delete/' . ($doc['id'] ?? 0) . '/file/' . $attachmentId) ?>" method="post" class="customer-document-delete-form" onsubmit="return confirm('Xóa vĩnh viễn tệp này khỏi bộ hồ sơ?');">
+                                                                    <?= csrf_field() ?>
+                                                                    <button type="submit" class="document-attachment-action customer-document-delete-btn" title="Xóa tệp">
+                                                                        <i class="fas fa-times"></i>
+                                                                    </button>
+                                                                </form>
+                                                            <?php } ?>
+                                                        </span>
+                                                    </div>
+                                                <?php } ?>
+                                            </div>
+                                        <?php } ?>
                                     </div>
                                 <?php } ?>
                             <?php } else { ?>
@@ -324,6 +478,163 @@
                         <?php endif; ?>
                     </div>
 
+                    <div class="tab-pane" id="relationship">
+                        <div class="relationship-panel-grid">
+                            <div>
+                                <h4 class="prof-section-h4"><i class="fas fa-handshake prof-section-icon"></i>Hồ sơ quan hệ</h4>
+                                <form action="<?= base_url('customers/update-relationship/' . $customer['id']) ?>" method="post">
+                                    <?= csrf_field() ?>
+                                    <div class="relationship-form-grid">
+                                        <div class="form-group-premium">
+                                            <label class="label-premium">Cấp độ quan hệ</label>
+                                            <select name="relationship_level" class="form-control-premium" <?= empty($canEdit) ? 'disabled' : '' ?>>
+                                                <?php foreach ($relationshipLevelLabels as $key => $label): ?>
+                                                    <option value="<?= esc($key) ?>" <?= ($customer['relationship_level'] ?? 'lead') === $key ? 'selected' : '' ?>><?= esc($label) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="form-group-premium">
+                                            <label class="label-premium">Trạng thái quan hệ</label>
+                                            <select name="relationship_status" class="form-control-premium" <?= empty($canEdit) ? 'disabled' : '' ?>>
+                                                <?php foreach ($relationshipStatusLabels as $key => $label): ?>
+                                                    <option value="<?= esc($key) ?>" <?= ($customer['relationship_status'] ?? 'healthy') === $key ? 'selected' : '' ?>><?= esc($label) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="form-group-premium">
+                                            <label class="label-premium">Điểm quan hệ</label>
+                                            <input type="number" min="0" max="100" name="relationship_score" class="form-control-premium" value="<?= esc($relationshipScore) ?>" <?= empty($canEdit) ? 'disabled' : '' ?>>
+                                        </div>
+                                        <div class="form-group-premium">
+                                            <label class="label-premium">Health score</label>
+                                            <input type="number" min="0" max="100" name="health_score" class="form-control-premium" value="<?= esc($customer['health_score'] ?? $relationshipScore) ?>" <?= empty($canEdit) ? 'disabled' : '' ?>>
+                                        </div>
+                                        <div class="form-group-premium">
+                                            <label class="label-premium">Ngày tương tác kế tiếp</label>
+                                            <input type="date" name="next_interaction_date" class="form-control-premium" value="<?= esc($customer['next_interaction_date'] ?? '') ?>" <?= empty($canEdit) ? 'disabled' : '' ?>>
+                                        </div>
+                                        <div class="form-group-premium">
+                                            <label class="label-premium">Quản lý quan hệ</label>
+                                            <select name="relationship_manager_id" class="form-control-premium" <?= empty($canEdit) ? 'disabled' : '' ?>>
+                                                <option value="">Chưa phân công</option>
+                                                <?php foreach ($employees as $employee): ?>
+                                                    <option value="<?= esc($employee['id']) ?>" <?= ($customer['relationship_manager_id'] ?? '') == $employee['id'] ? 'selected' : '' ?>><?= esc($employee['full_name']) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="form-group-premium">
+                                            <label class="label-premium">Khách giới thiệu</label>
+                                            <select name="referred_by_customer_id" class="form-control-premium" <?= empty($canEdit) ? 'disabled' : '' ?>>
+                                                <option value="">Chưa ghi nhận</option>
+                                                <?php foreach ($referralCustomers as $refCustomer): ?>
+                                                    <option value="<?= esc($refCustomer['id']) ?>" <?= ($customer['referred_by_customer_id'] ?? '') == $refCustomer['id'] ? 'selected' : '' ?>><?= esc($refCustomer['name']) ?> - <?= esc($refCustomer['code']) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="form-group-premium">
+                                            <label class="label-premium">Điểm giới thiệu</label>
+                                            <input type="number" min="0" max="100" name="referral_score" class="form-control-premium" value="<?= esc($customer['referral_score'] ?? 0) ?>" <?= empty($canEdit) ? 'disabled' : '' ?>>
+                                        </div>
+                                        <div class="form-group-premium span-2">
+                                            <label class="label-premium">Mối quan tâm / nhu cầu</label>
+                                            <textarea name="interests" class="form-control-premium" rows="3" <?= empty($canEdit) ? 'disabled' : '' ?>><?= esc($customer['interests'] ?? '') ?></textarea>
+                                        </div>
+                                        <div class="form-group-premium span-2">
+                                            <label class="label-premium">Vấn đề đã nhận diện</label>
+                                            <textarea name="identified_issues" class="form-control-premium" rows="3" <?= empty($canEdit) ? 'disabled' : '' ?>><?= esc($customer['identified_issues'] ?? '') ?></textarea>
+                                        </div>
+                                    </div>
+                                    <?php if (!empty($canEdit)): ?>
+                                        <div class="form-actions-row m-t-20">
+                                            <button type="submit" class="btn-premium"><i class="fas fa-save"></i> Lưu hồ sơ quan hệ</button>
+                                        </div>
+                                    <?php endif; ?>
+                                </form>
+                            </div>
+                            <div>
+                                <h4 class="prof-section-h4"><i class="fas fa-lightbulb prof-section-icon"></i>Next action</h4>
+                                <ul class="relationship-action-list">
+                                    <?php foreach (($relationshipProfile['suggestions'] ?? []) as $suggestion): ?>
+                                        <li><i class="fas fa-check-circle text-success"></i><span><?= esc($suggestion) ?></span></li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane" id="opportunities">
+                        <div class="relationship-row m-b-20">
+                            <h4 class="prof-section-h4"><i class="fas fa-chart-line prof-section-icon"></i>Cơ hội phát triển dịch vụ</h4>
+                            <strong><?= number_format((float) ($opportunityStats['estimated_value'] ?? 0), 0, ',', '.') ?> VND</strong>
+                        </div>
+                        <?php if (empty($opportunities)): ?>
+                            <p class="text-xs text-muted-dark">Chưa có cơ hội phát triển dịch vụ nào.</p>
+                        <?php else: ?>
+                            <div class="relationship-action-list">
+                                <?php foreach ($opportunities as $opportunity): ?>
+                                    <div class="opportunity-card">
+                                        <div class="opportunity-row">
+                                            <strong><?= esc($opportunity['issue_title']) ?></strong>
+                                            <span class="relationship-status-badge"><?= esc($opportunity['probability']) ?>%</span>
+                                        </div>
+                                        <p class="text-sm m-t-10"><?= esc($opportunity['service_suggestion'] ?: $opportunity['issue_description']) ?></p>
+                                        <div class="opportunity-meta">
+                                            <span><i class="fas fa-money-bill-wave"></i> <?= number_format((float) $opportunity['estimated_value'], 0, ',', '.') ?> VND</span>
+                                            <span><i class="fas fa-user"></i> <?= esc($opportunity['assigned_staff_name'] ?? 'Chưa phân công') ?></span>
+                                            <span><i class="fas fa-calendar"></i> <?= !empty($opportunity['follow_up_date']) ? date('d/m/Y', strtotime($opportunity['follow_up_date'])) : 'Chưa hẹn' ?></span>
+                                            <span><?= esc($opportunity['stage']) ?> / <?= esc($opportunity['status']) ?></span>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($canEdit)): ?>
+                            <form class="opportunity-form" action="<?= base_url('customers/store-opportunity/' . $customer['id']) ?>" method="post">
+                                <?= csrf_field() ?>
+                                <h4 class="prof-section-h4">Thêm cơ hội mới</h4>
+                                <div class="relationship-form-grid">
+                                    <div class="form-group-premium">
+                                        <label class="label-premium">Vấn đề / nhu cầu</label>
+                                        <input type="text" name="issue_title" class="form-control-premium" required>
+                                    </div>
+                                    <div class="form-group-premium">
+                                        <label class="label-premium">Dịch vụ đề xuất</label>
+                                        <input type="text" name="service_suggestion" class="form-control-premium">
+                                    </div>
+                                    <div class="form-group-premium">
+                                        <label class="label-premium">Giá trị dự kiến</label>
+                                        <input type="number" min="0" name="estimated_value" class="form-control-premium">
+                                    </div>
+                                    <div class="form-group-premium">
+                                        <label class="label-premium">Xác suất (%)</label>
+                                        <input type="number" min="0" max="100" name="probability" class="form-control-premium" value="30">
+                                    </div>
+                                    <div class="form-group-premium">
+                                        <label class="label-premium">Nhân sự theo dõi</label>
+                                        <select name="assigned_staff_id" class="form-control-premium">
+                                            <option value="">Theo nhân sự chăm sóc</option>
+                                            <?php foreach ($employees as $employee): ?>
+                                                <option value="<?= esc($employee['id']) ?>"><?= esc($employee['full_name']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="form-group-premium">
+                                        <label class="label-premium">Ngày theo dõi</label>
+                                        <input type="date" name="follow_up_date" class="form-control-premium">
+                                    </div>
+                                    <div class="form-group-premium span-2">
+                                        <label class="label-premium">Mô tả chi tiết</label>
+                                        <textarea name="issue_description" class="form-control-premium" rows="3"></textarea>
+                                    </div>
+                                </div>
+                                <div class="form-actions-row m-t-20">
+                                    <button type="submit" class="btn-premium"><i class="fas fa-plus"></i> Ghi nhận cơ hội</button>
+                                </div>
+                            </form>
+                        <?php endif; ?>
+                    </div>
+
                     <!-- Tab: CSKH (Customer Care) -->
                     <div class="tab-pane" id="customer-care">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
@@ -353,10 +664,11 @@
                                             <td class="prof-table-label-td" style="padding: 10px 0; color: #86868b; font-weight: 500; font-size: 13px; border: none;">Trạng thái tư vấn hiện tại:</td>
                                             <td class="prof-table-val-td" style="padding: 10px 0; font-weight: 600; text-align: right; border: none;">
                                                 <?php 
+                                                $currentCareStatusKey = \App\Services\CustomerSlaService::normalizeStatusKey($customer['care_status'] ?? 'chua_tu_van');
                                                 $currentStatusName = 'Chưa tư vấn';
                                                 $currentStatusColor = '#8e8e93';
                                                 foreach ($slaSettings as $s) {
-                                                    if ($s['status_key'] === ($customer['care_status'] ?? 'chua_tu_van')) {
+                                                    if ($s['status_key'] === $currentCareStatusKey) {
                                                         $currentStatusName = $s['status_name'];
                                                         $currentStatusColor = $s['color'];
                                                         break;
@@ -453,7 +765,7 @@
                                     <span style="font-size: 12px; font-weight: 600; color: #86868b;">Chuyển nhanh:</span>
                                     <select id="quick-transition-status" class="form-control-premium" style="width: 200px; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 20px; height: auto;" onchange="transitionCustomerStatus(<?= $customer['id'] ?>, this.value)">
                                         <?php foreach ($slaSettings as $s): ?>
-                                            <option value="<?= esc($s['status_key']) ?>" <?= ($customer['care_status'] ?? 'chua_tu_van') === $s['status_key'] ? 'selected' : '' ?>>
+                                            <option value="<?= esc($s['status_key']) ?>" <?= $currentCareStatusKey === $s['status_key'] ? 'selected' : '' ?>>
                                                 <?= esc($s['status_name']) ?>
                                             </option>
                                         <?php endforeach; ?>
@@ -703,12 +1015,45 @@
                     <option value="facebook">Facebook</option>
                 </select>
             </div>
+            <div class="relationship-form-grid">
+                <div class="form-group-premium">
+                    <label class="label-premium">Kết quả</label>
+                    <select name="interaction_result" class="form-control-premium">
+                        <option value="positive">Tích cực</option>
+                        <option value="neutral" selected>Trung tính</option>
+                        <option value="negative">Tiêu cực</option>
+                        <option value="no_response">Chưa phản hồi</option>
+                    </select>
+                </div>
+                <div class="form-group-premium">
+                    <label class="label-premium">Mức quan trọng</label>
+                    <select name="importance_level" class="form-control-premium">
+                        <option value="low">Thấp</option>
+                        <option value="normal" selected>Bình thường</option>
+                        <option value="high">Cao</option>
+                        <option value="urgent">Khẩn cấp</option>
+                    </select>
+                </div>
+            </div>
             <div class="form-group-premium">
                 <label class="label-premium">Tóm lược (Summary)</label>
                 <input type="text" name="summary" class="form-control-premium" required placeholder="Ví dụ: Gọi điện báo phí">
             </div>
             <div class="form-group-premium">
                 <label class="label-premium">Chi tiết cuộc trao đổi</label>
+                <div class="relationship-form-grid">
+                    <div class="form-group-premium">
+                        <label class="label-premium">Cần theo dõi lại</label>
+                        <label class="gift-checkbox-option">
+                            <input type="checkbox" name="requires_follow_up" value="1">
+                            <span>Có hẹn xử lý tiếp</span>
+                        </label>
+                    </div>
+                    <div class="form-group-premium">
+                        <label class="label-premium">Ngày hẹn theo dõi</label>
+                        <input type="datetime-local" name="next_follow_up" class="form-control-premium">
+                    </div>
+                </div>
                 <div id="editor-container"></div>
                 <input type="hidden" name="detailed_content" id="detailed_content_input">
             </div>
@@ -725,15 +1070,24 @@
     <div class="premium-card modal-content-500">
         <h3 style="margin-top: 0;">Số hóa tài liệu khách hàng</h3>
         <p class="text-xs text-muted-dark m-b-20">Tài liệu sẽ được lưu trữ tập trung tại kho DMS của công ty.</p>
-        <form action="<?= base_url('customers/upload-doc/' . $customer['id']) ?>" method="post" enctype="multipart/form-data">
+        <form id="formCustomerUploadDocument" action="<?= base_url('customers/upload-doc/' . $customer['id']) ?>" method="post" enctype="multipart/form-data">
             <?= csrf_field() ?>
             <div class="form-group-premium m-b-15">
                 <label class="label-premium">Chọn tệp tin</label>
-                <input type="file" name="document" class="form-control-premium" required>
+                <div class="dms-upload-zone customer-upload-zone">
+                    <input type="file" name="document[]" id="customerDmsFileInput" multiple required>
+                    <label for="customerDmsFileInput">
+                        <i class="fas fa-file-export"></i>
+                        <span>Click để chọn một hoặc nhiều tệp</span>
+                        <small>Hỗ trợ PDF, DOCX, JPG, PNG (Max 20MB)</small>
+                    </label>
+                </div>
+                <div id="customerDmsSelectedFiles" class="dms-selected-files"></div>
             </div>
             <div class="form-group-premium m-b-15">
                 <label class="label-premium">Tên tài liệu / Ghi chú</label>
-                <input type="text" name="file_name" class="form-control-premium" required placeholder="Ví dụ: CCCD bản quét, Giấy ủy quyền...">
+                <input type="text" name="file_name" class="form-control-premium" placeholder="Ví dụ: CCCD bản quét, Giấy ủy quyền...">
+                <small class="text-muted">Để trống để hệ thống tự lấy tên tệp. Khi chọn nhiều tệp, tiêu đề này sẽ là tên tài liệu chung.</small>
             </div>
             <div class="form-group-premium m-b-15">
                 <label class="label-premium">Mô tả thêm</label>
