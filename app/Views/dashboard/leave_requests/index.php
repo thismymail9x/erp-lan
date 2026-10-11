@@ -35,6 +35,13 @@
     </div>
 
     <?php if (has_permission('leave.approve') || has_permission('sys.admin')) { ?>
+        <select name="employee_id" class="filter-select">
+            <option value="">Tất cả nhân sự</option>
+            <?php foreach (($filterEmployees ?? []) as $employee) { ?>
+                <option value="<?= $employee['id'] ?>" <?= ($filters['employee_id'] ?? '') == $employee['id'] ? 'selected' : '' ?>><?= esc($employee['full_name']) ?></option>
+            <?php } ?>
+        </select>
+
         <select name="department_id" class="filter-select">
             <option value="">Tất cả phòng ban</option>
             <?php foreach ($departments as $dept) { ?>

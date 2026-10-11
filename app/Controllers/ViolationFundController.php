@@ -84,8 +84,22 @@ class ViolationFundController extends BaseController
             return redirect()->back()->with('error', 'Bạn chưa có quyền ghi nhận vi phạm.');
         }
 
+        $employeeIds = array_values(array_unique(array_filter(array_map(
+            'intval',
+            (array)$this->request->getPost('employee_ids')
+        ))));
+
+        if (empty($employeeIds) && (int)$this->request->getPost('employee_id') > 0) {
+            $employeeIds[] = (int)$this->request->getPost('employee_id');
+        }
+
+        if (empty($employeeIds)) {
+            return redirect()->back()
+                ->withInput()
+                ->with('errors', ['employee_ids' => 'Vui lòng chọn ít nhất một nhân sự vi phạm.']);
+        }
+
         $rules = [
-            'employee_id' => 'required|is_natural_no_zero',
             'violation_date' => 'required|valid_date[Y-m-d]',
             'due_month' => 'required|regex_match[/^\d{4}-\d{2}$/]',
             'category' => 'required',
@@ -97,7 +111,10 @@ class ViolationFundController extends BaseController
             return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
         }
 
-        $result = $this->service->create($this->request->getPost());
+        $postData = $this->request->getPost();
+        $postData['employee_ids'] = $employeeIds;
+
+        $result = $this->service->createMany($postData);
         if ($result['status'] !== 'success') {
             return redirect()->back()->withInput()->with('error', $result['message']);
         }

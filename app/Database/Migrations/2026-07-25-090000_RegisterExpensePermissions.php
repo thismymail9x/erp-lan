@@ -42,7 +42,7 @@ class RegisterExpensePermissions extends Migration
         ],
         'office_expense.manage' => [
             'group' => 'Chi phí vận hành',
-            'desc' => 'Nhập và xóa chi phí vận hành',
+            'desc' => 'Nhập tiền, sửa, nhập và xóa chi phí vận hành',
             'roles' => [1, 2],
         ],
     ];

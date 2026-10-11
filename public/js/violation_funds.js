@@ -25,6 +25,25 @@
         });
     }
 
+    function bindEmployeeMultiSelect() {
+        if (typeof jQuery === 'undefined' || !jQuery.fn.select2) {
+            return;
+        }
+
+        jQuery('.violation-employee-multi').each(function() {
+            const select = jQuery(this);
+            if (select.hasClass('select2-hidden-accessible')) {
+                select.select2('destroy');
+            }
+
+            select.select2({
+                width: '100%',
+                placeholder: select.data('placeholder') || 'Chọn nhân sự',
+                allowClear: true
+            });
+        });
+    }
+
     function setupCanvas(canvas) {
         if (!canvas) {
             return null;
@@ -119,6 +138,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
+        bindEmployeeMultiSelect();
         bindMoneyInputs();
         renderCharts();
 

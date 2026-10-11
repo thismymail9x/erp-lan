@@ -124,6 +124,12 @@ $(function() {
 
     $('#caseExpenseScheduleId').on('change', fillFromScheduleOption);
 
+    $('.js-confirm-delete-expense').on('click', function(event) {
+        if (!confirm('Xoa khoan chi phi xu ly nay?')) {
+            event.preventDefault();
+        }
+    });
+
     const selectedScheduleId = $('#caseExpenseCaseId').data('selected-schedule');
     if ($('#caseExpenseCaseId').val() && selectedScheduleId) {
         fillFromScheduleOption();

@@ -25,6 +25,13 @@ function payrollFormatWorkingDays(value) {
     return Number.isInteger(number) ? String(number) : String(parseFloat(number.toFixed(2)));
 }
 
+function markPayrollConfirmationPending(id) {
+    $('#payroll-confirm-' + id)
+        .removeClass('confirmed')
+        .addClass('pending')
+        .attr('title', 'Chưa xác nhận');
+}
+
 function initPayrollAdmin() {
     if (!$('.payroll-table-wide').length) {
         return;
@@ -94,6 +101,7 @@ function initPayrollAdmin() {
                 $('#td-total-wd-' + id).attr('title', 'Ch\u1ea5m c\u00f4ng: ' + resp.actual_working_days + ' ng\u00e0y' + (resp.manual_adjust_days > 0 ? ' + B\u00f9 th\u1ee7 c\u00f4ng: ' + resp.manual_adjust_days + ' ng\u00e0y' : ''));
             }
 
+            markPayrollConfirmationPending(id);
             refreshPayrollFooterTotals();
             $('#net-' + id).css('color', '#34c759').delay(500).queue(function(next) {
                 $(this).css('color', '');
@@ -275,6 +283,7 @@ function bindPayrollNotesEditor(mode) {
             } else {
                 $('#raw-notes-' + id).val(notesJsonStr);
                 updateAdminNotesDisplay(id, notes);
+                markPayrollConfirmationPending(id);
                 $('#notes-edit-row-' + id).fadeOut(200);
             }
         }).fail(function() {

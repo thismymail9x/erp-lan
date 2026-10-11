@@ -105,6 +105,13 @@
     height: 36px !important;
 }
 
+.violation-help-text {
+    display: block;
+    margin-top: 5px;
+    color: #64748b;
+    font-size: 0.75rem;
+}
+
 .violation-form-actions {
     display: flex;
     justify-content: flex-end;

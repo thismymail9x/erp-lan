@@ -19,6 +19,8 @@
     
     // Quyền chỉnh sửa tổng thể
     $canEditCase = has_permission('sys.admin') || has_permission('case.manage') || has_permission('case.edit_all') || $isPrimaryAssignee;
+    $currentUserId = (int)session()->get('user_id');
+    $canManageDocuments = has_permission('sys.admin') || has_permission('document.manage');
 ?>
 
 <div class="case-detail-container" data-vault-url="<?= base_url('documents/vault-list') ?>?category=internal" data-import-doc-url="<?= base_url('cases/import-doc/' . $case['id']) ?>" data-csrf-name="<?= csrf_token() ?>" data-csrf-hash="<?= csrf_hash() ?>">
@@ -667,6 +669,7 @@
                                 </tr>
                             <?php } else { ?>
                                 <?php foreach ($documents as $doc) { ?>
+                                    <?php $canDeleteThisDocument = $canManageDocuments || (int)($doc['uploaded_by'] ?? 0) === $currentUserId; ?>
                                     <tr>
                                         <td>
                                             <div class="font-weight-500 text-apple-main"><?= esc($doc['file_name'] ?? 'Tài liệu') ?></div>
@@ -691,6 +694,14 @@
                                                             title="Xem nhanh ảnh">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
+                                                <?php } ?>
+                                                <?php if ($canDeleteThisDocument) { ?>
+                                                    <form action="<?= base_url('documents/delete/' . ($doc['id'] ?? 0)) ?>" method="post" class="case-document-delete-form" onsubmit="return confirm('Xóa tài liệu này khỏi hồ sơ vụ việc?');">
+                                                        <?= csrf_field() ?>
+                                                        <button type="submit" class="btn-secondary-sm text-danger" title="Xóa tài liệu">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </button>
+                                                    </form>
                                                 <?php } ?>
                                             </div>
                                         </td>
@@ -764,7 +775,27 @@
                                         <?php if (!empty($expense['approval_note'])) { ?>
                                             <div class="case-expense-note case-expense-approval-note"><?= esc($expense['approval_note']) ?></div>
                                         <?php } ?>
-                                        <?php if (empty($expense['note']) && empty($expense['approval_note'])) { ?>
+                                        <?php if (!empty($expense['attachments'])) { ?>
+                                            <div class="expense-attachment-list">
+                                                <?php foreach ($expense['attachments'] as $attachment) { ?>
+                                                    <?php $attachmentUrl = base_url('case-expenses/attachment/' . $attachment['id']); ?>
+                                                    <div class="expense-attachment-item">
+                                                        <span class="expense-attachment-name" title="<?= esc($attachment['file_name'] ?? '') ?>">
+                                                            <i class="fas fa-paperclip"></i> <?= esc($attachment['file_name'] ?? 'Chung tu') ?>
+                                                        </span>
+                                                        <span class="expense-attachment-actions">
+                                                            <a href="<?= $attachmentUrl ?>?preview=1" target="_blank" rel="noopener" title="Xem chung tu">
+                                                                <i class="fas fa-eye"></i>
+                                                            </a>
+                                                            <a href="<?= $attachmentUrl ?>/download" title="Tai chung tu">
+                                                                <i class="fas fa-download"></i>
+                                                            </a>
+                                                        </span>
+                                                    </div>
+                                                <?php } ?>
+                                            </div>
+                                        <?php } ?>
+                                        <?php if (empty($expense['note']) && empty($expense['approval_note']) && empty($expense['attachments'])) { ?>
                                             <span class="text-muted-dark">-</span>
                                         <?php } ?>
                                     </td>

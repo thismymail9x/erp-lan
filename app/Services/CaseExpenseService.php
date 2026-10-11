@@ -37,6 +37,8 @@ class CaseExpenseService extends BaseService
     protected $model;
     protected $attachmentModel;
     protected $db;
+    private array $allowedAttachmentExtensions = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
+    private int $maxAttachmentBytes = 10485760;
 
     public function __construct(
         CaseExpenseModel $model = null,
@@ -266,12 +268,21 @@ class CaseExpenseService extends BaseService
             return $this->success(['id' => (int)$duplicate['id']], 'Phiếu chi phí này đã được ghi nhận trước đó.');
         }
 
+        $attachmentValidation = $this->validateAttachments($files['attachments'] ?? []);
+        if ($attachmentValidation['status'] !== 'success') {
+            return $attachmentValidation;
+        }
+
         if (!$this->model->insert($payload)) {
             return $this->fail('Không thể lưu phiếu chi phí.');
         }
 
         $expenseId = (int)$this->model->getInsertID();
-        $this->storeAttachments($expenseId, $files, $employeeId);
+        $attachmentResult = $this->storeAttachments($expenseId, $files, $employeeId);
+        if ($attachmentResult['status'] !== 'success') {
+            $this->model->delete($expenseId);
+            return $attachmentResult;
+        }
 
         (new SystemLogService())->log('CASE_EXPENSE_CREATE', 'CaseExpense', $expenseId, [
             'case_id' => $caseId,
@@ -380,9 +391,7 @@ class CaseExpenseService extends BaseService
             return $this->fail('Không tìm thấy phiếu chi phí.');
         }
 
-        $employeeId = (int)session()->get('employee_id');
-        $canDelete = $this->canApprove() || ((int)$expense['created_by'] === $employeeId && in_array($expense['status'], ['pending', 'rejected'], true));
-        if (!$canDelete) {
+        if (!has_permission('sys.admin')) {
             return $this->fail('Bạn không có quyền xóa phiếu chi phí này.');
         }
 
@@ -636,33 +645,165 @@ class CaseExpenseService extends BaseService
             ->getRowArray() ?: null;
     }
 
-    private function storeAttachments(int $expenseId, array $files, int $employeeId): void
+    private function storeAttachments(int $expenseId, array $files, int $employeeId): array
     {
         if (empty($files['attachments'])) {
-            return;
+            return $this->success();
         }
 
         $upload = $files['attachments'];
         $items = is_array($upload) ? $upload : [$upload];
         $targetDir = WRITEPATH . 'uploads/case_expenses';
         if (!is_dir($targetDir)) {
-            mkdir($targetDir, 0775, true);
+            @mkdir($targetDir, 0775, true);
         }
 
+        if (!is_dir($targetDir) || !is_writable($targetDir)) {
+            return $this->fail('Khong the tao thu muc luu chung tu chi phi. Vui long kiem tra quyen ghi writable/uploads.');
+        }
+
+        $storedPaths = [];
         foreach ($items as $file) {
-            if (!$file || !$file->isValid() || $file->hasMoved()) {
+            if (!$this->hasUploadedFile($file)) {
                 continue;
             }
 
             $newName = $file->getRandomName();
-            $file->move($targetDir, $newName);
+            $clientName = $file->getClientName();
+            $mimeType = $file->getMimeType();
+            try {
+                $file->move($targetDir, $newName);
+            } catch (\Throwable $exception) {
+                foreach ($storedPaths as $storedPath) {
+                    $this->deleteStoredAttachment($storedPath);
+                }
+
+                $this->logError('CASE_EXPENSE_ATTACHMENT_MOVE_FAILED', [
+                    'expense_id' => $expenseId,
+                    'file_name' => $clientName,
+                    'error' => $exception->getMessage(),
+                ]);
+
+                return $this->fail('Khong the luu tep chung tu. Vui long thu lai hoac kiem tra quyen ghi thu muc uploads.');
+            }
+
+            $relativePath = 'case_expenses/' . $newName;
+            $storedPaths[] = $relativePath;
             $this->attachmentModel->insert([
                 'expense_id' => $expenseId,
-                'file_name' => $file->getClientName(),
-                'file_path' => 'case_expenses/' . $newName,
-                'file_type' => $file->getMimeType(),
+                'file_name' => $clientName,
+                'file_path' => $relativePath,
+                'file_type' => $mimeType,
                 'uploaded_by' => $employeeId,
             ]);
+        }
+
+        return $this->success();
+    }
+
+    private function validateAttachments($upload): array
+    {
+        $items = is_array($upload) ? $upload : [$upload];
+        $maxBytes = $this->effectiveUploadLimitBytes($this->maxAttachmentBytes);
+
+        foreach ($items as $file) {
+            if (!$this->hasUploadedFile($file)) {
+                continue;
+            }
+
+            if (!$file->isValid()) {
+                return $this->fail($this->uploadErrorMessage($file, $maxBytes));
+            }
+
+            $extension = strtolower((string)$file->getClientExtension());
+            if (!in_array($extension, $this->allowedAttachmentExtensions, true)) {
+                return $this->fail('Chung tu chi nhan anh JPG, PNG, WEBP hoac PDF.');
+            }
+
+            if ((int)$file->getSize() > $maxBytes) {
+                return $this->fail('Chung tu khong duoc vuot qua ' . $this->formatBytes($maxBytes) . '.');
+            }
+        }
+
+        return $this->success();
+    }
+
+    private function hasUploadedFile($file): bool
+    {
+        if (!$file) {
+            return false;
+        }
+
+        return !method_exists($file, 'getError') || $file->getError() !== UPLOAD_ERR_NO_FILE;
+    }
+
+    private function uploadErrorMessage($file, int $maxBytes): string
+    {
+        $error = method_exists($file, 'getError') ? (int)$file->getError() : UPLOAD_ERR_OK;
+
+        if (in_array($error, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+            return 'Chung tu vuot qua gioi han upload cua may chu (' . $this->formatBytes($maxBytes) . ').';
+        }
+
+        if ($error === UPLOAD_ERR_PARTIAL) {
+            return 'Chung tu moi chi tai len mot phan. Vui long tai lai.';
+        }
+
+        return 'Chung tu tai len khong hop le.';
+    }
+
+    private function effectiveUploadLimitBytes(int $appLimit): int
+    {
+        $limits = [$appLimit];
+        foreach (['upload_max_filesize', 'post_max_size'] as $key) {
+            $bytes = $this->iniBytes((string)ini_get($key));
+            if ($bytes > 0) {
+                $limits[] = $bytes;
+            }
+        }
+
+        return min($limits);
+    }
+
+    private function iniBytes(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return 0;
+        }
+
+        $unit = strtolower(substr($value, -1));
+        $number = (float)$value;
+        if ($unit === 'g') {
+            $number *= 1024;
+        }
+        if (in_array($unit, ['g', 'm'], true)) {
+            $number *= 1024;
+        }
+        if (in_array($unit, ['g', 'm', 'k'], true)) {
+            $number *= 1024;
+        }
+
+        return (int)$number;
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        if ($bytes >= 1048576) {
+            return rtrim(rtrim(number_format($bytes / 1048576, 1, '.', ''), '0'), '.') . 'MB';
+        }
+
+        return $bytes . ' bytes';
+    }
+
+    private function deleteStoredAttachment(string $relativePath): void
+    {
+        $baseDir = realpath(WRITEPATH . 'uploads/case_expenses');
+        $realPath = realpath(WRITEPATH . 'uploads/' . $relativePath);
+        $basePrefix = $baseDir ? rtrim($baseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR : false;
+
+        if ($basePrefix && $realPath && strpos($realPath, $basePrefix) === 0 && is_file($realPath)) {
+            @unlink($realPath);
         }
     }
 

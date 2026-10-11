@@ -44,7 +44,15 @@ if (!function_exists('translate_category')) {
 $currentPage = isset($pager) ? (int)$pager->getCurrentPage() : 1;
 $perPage = isset($pager) ? (int)$pager->getPerPage() : max(1, count($documents ?? []));
 $rowOffset = max(0, ($currentPage - 1) * $perPage);
-$canDeleteDocuments = has_permission('sys.admin');
+$currentUserId = (int)session()->get('user_id');
+$canManageDocuments = has_permission('sys.admin') || has_permission('document.manage');
+$canDeleteDocuments = $canManageDocuments;
+foreach (($documents ?? []) as $documentRow) {
+    if ((int)($documentRow['uploaded_by'] ?? 0) === $currentUserId) {
+        $canDeleteDocuments = true;
+        break;
+    }
+}
 ?>
 <table class="premium-table" id="documents-table">
     <thead>
@@ -73,10 +81,13 @@ $canDeleteDocuments = has_permission('sys.admin');
             </tr>
         <?php } else { ?>
             <?php foreach ($documents as $idx => $doc) { ?>
+                <?php $canDeleteThisDocument = $canManageDocuments || (int)($doc['uploaded_by'] ?? 0) === $currentUserId; ?>
                 <tr>
                     <?php if ($canDeleteDocuments) { ?>
                         <td style="text-align: center;">
-                            <input type="checkbox" name="ids[]" value="<?= $doc['id'] ?>" class="doc-checkbox apple-checkbox">
+                            <?php if ($canDeleteThisDocument) { ?>
+                                <input type="checkbox" name="ids[]" value="<?= $doc['id'] ?>" class="doc-checkbox apple-checkbox">
+                            <?php } ?>
                         </td>
                     <?php } ?>
                     <td><?= $rowOffset + $idx + 1 ?></td>
@@ -124,6 +135,11 @@ $canDeleteDocuments = has_permission('sys.admin');
                                                     <a href="<?= $attachmentUrl ?>" class="document-attachment-action" title="Tải xuống">
                                                         <i class="fas fa-download"></i>
                                                     </a>
+                                                    <?php if ($canDeleteThisDocument) { ?>
+                                                        <a href="<?= base_url('documents/delete/' . $doc['id'] . '/file/' . $attachmentId) ?>" class="document-attachment-action document-attachment-delete" onclick="return confirm('Xác nhận xóa tệp này khỏi tài liệu?')" title="Xóa tệp">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </a>
+                                                    <?php } ?>
                                                 </span>
                                             </div>
                                         <?php } ?>
@@ -185,7 +201,7 @@ $canDeleteDocuments = has_permission('sys.admin');
                             <a href="javascript:void(0)" class="btn-icon-share" onclick='openShareModal(<?= $doc['id'] ?>, <?= json_encode($doc['file_name'] ?? 'Tài liệu', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Chia sẻ tài liệu">
                                 <i class="fas fa-share-alt"></i>
                             </a>
-                            <?php if ($canDeleteDocuments) { ?>
+                            <?php if ($canDeleteThisDocument) { ?>
                                 <a href="<?= base_url('documents/delete/' . ($doc['id'] ?? 0)) ?>" class="btn-icon-delete" onclick="return confirm('Xác nhận xóa tài liệu này?')" title="Xóa">
                                     <i class="fas fa-trash-alt"></i>
                                 </a>

@@ -318,7 +318,6 @@ if (!function_exists('translate_category')) {
         <div class="premium-card" style="padding: 0; overflow: visible;" id="documents-table-results">
             <?= view('dashboard/documents/index_table') ?>
         </div><!-- FLOATING BULK ACTIONS BAR -->
-        <?php if (has_permission('sys.admin')) { ?>
         <div id="bulkActionBar" class="bulk-action-bar" style="display: none;">
             <div class="bulk-info">
                 <span class="selected-count">0</span> tài liệu đã được chọn
@@ -330,7 +329,6 @@ if (!function_exists('translate_category')) {
                 </button>
             </div>
         </div>
-        <?php } ?>
     </form>
 </div>
 <?= $this->endSection() ?>

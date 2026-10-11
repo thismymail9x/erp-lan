@@ -1,3 +1,43 @@
+<?php
+$financeFilters = $filters ?? [];
+$filterYear = (int)($financeFilters['year'] ?? 0);
+$filterMonth = ($filterYear > 0) ? (int)($financeFilters['month'] ?? 0) : 0;
+
+$matchesFinanceDate = static function (?string $dateStr) use ($filterYear, $filterMonth): bool {
+    if ($filterYear <= 0) {
+        return true;
+    }
+    if (empty($dateStr)) {
+        return false;
+    }
+
+    try {
+        $dt = new DateTime($dateStr);
+        if ((int)$dt->format('Y') !== $filterYear) {
+            return false;
+        }
+        if ($filterMonth > 0 && (int)$dt->format('n') !== $filterMonth) {
+            return false;
+        }
+        return true;
+    } catch (Exception $e) {
+        return false;
+    }
+};
+
+$filterFinancePayments = static function (array $payments, ?string $createdAt = null) use ($matchesFinanceDate): array {
+    return array_values(array_filter($payments, static function ($p) use ($matchesFinanceDate, $createdAt): bool {
+        $isPaid = (!empty($p['is_paid']) && $p['is_paid'] == 1);
+
+        $paymentDate = $isPaid
+            ? (!empty($p['paid_at']) ? $p['paid_at'] : (!empty($p['deadline']) ? $p['deadline'] : $createdAt))
+            : (!empty($p['paid_at']) ? $p['paid_at'] : (!empty($p['deadline']) ? $p['deadline'] : $createdAt));
+
+        return $matchesFinanceDate($paymentDate);
+    }));
+};
+?>
+
 <div class="table-responsive">
     <table class="premium-table">
         <thead>
@@ -22,6 +62,7 @@
                     if (json_last_error() !== JSON_ERROR_NONE || !is_array($payments)) {
                         $payments = [];
                     }
+                    $payments = $filterFinancePayments($payments, $case['created_at'] ?? null);
                     $rowCount = max(1, count($payments));
                 ?>
                 <tr>
@@ -119,6 +160,7 @@
                 if (json_last_error() !== JSON_ERROR_NONE || !is_array($payments)) {
                     $payments = [];
                 }
+                $payments = $filterFinancePayments($payments, $case['created_at'] ?? null);
             ?>
             <article class="finance-mobile-card">
                 <div class="finance-mobile-card-header">

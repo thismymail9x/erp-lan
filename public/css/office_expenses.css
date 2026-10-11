@@ -7,6 +7,8 @@
 .office-stat .is-up { color: #dc2626; }
 .office-stat .is-down { color: #16a34a; }
 .office-stat .is-flat { color: #475569; }
+.office-fund-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.office-fund-stats .office-stat { border-color: #dbeafe; }
 .office-panel { background: #fff; border: 1px solid #e5edf6; border-radius: 8px; padding: 16px; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05); }
 .office-panel-title { font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .office-expense-page .form-group-premium label,
@@ -74,6 +76,15 @@
 .office-note-field { grid-column: span 2; }
 .office-note-field textarea { min-height: 70px; resize: vertical; }
 .office-form-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+.office-fund-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+.office-fund-form-grid { display: grid; grid-template-columns: 160px 190px minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.office-fund-action { display: flex; align-items: end; height: 40px; }
+.office-fund-list { border-left: 1px solid #eef2f7; padding-left: 14px; max-height: 220px; overflow-y: auto; }
+.office-fund-item { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid #eef2f7; }
+.office-fund-item:first-child { border-top: 0; padding-top: 0; }
+.office-fund-item strong { display: block; color: #0f172a; font-size: 0.95rem; }
+.office-fund-item span,
+.office-fund-item small { display: block; color: #64748b; font-size: 0.74rem; line-height: 1.35; }
 .office-analytics-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.8fr); gap: 14px; }
 .office-chart-panel canvas { width: 100%; max-width: 100%; display: block; }
 .office-category-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
@@ -132,6 +143,8 @@
     font-weight: 700;
 }
 .office-actions-cell { text-align: center; }
+.office-actions-cell > a,
+.office-actions-cell > button { margin: 2px; }
 .office-muted-line, .office-note-line { color: #64748b; font-size: 0.76rem; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
 .office-note-cell { position: relative; }
 .office-note-line {
@@ -167,7 +180,15 @@
 .office-top-item strong { display: block; color: #0f172a; font-size: 1rem; margin: 3px 0; }
 .office-top-item small { color: #64748b; font-size: 0.74rem; }
 .office-empty-mini { color: #64748b; font-size: 0.82rem; padding: 12px 0; }
-.btn-delete-mini { display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 8px; background: #fee2e2; color: #991b1b; text-decoration: none; }
+.btn-edit-mini,
+.btn-delete-mini { display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; border: 0; border-radius: 8px; text-decoration: none; cursor: pointer; }
+.btn-edit-mini { background: #eff6ff; color: #2563eb; }
+.btn-delete-mini { background: #fee2e2; color: #991b1b; }
+.office-edit-row { display: none !important; }
+.office-edit-row.is-open { display: table-row !important; }
+.office-edit-row td { background: #f8fafc; padding: 12px !important; }
+.office-edit-form { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: 12px; }
+.office-edit-form .office-form-actions { gap: 8px; }
 .office-list-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5edf6; }
 .office-list-summary div { background: #f8fafc; border: 1px solid #e5edf6; border-radius: 8px; padding: 10px 12px; }
 .office-list-summary span { display: block; color: #64748b; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; }
@@ -175,13 +196,18 @@
 
 @media (max-width: 1180px) {
     .office-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .office-fund-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .office-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .office-fund-layout,
+    .office-fund-form-grid,
     .office-analytics-grid, .office-table-layout { grid-template-columns: 1fr; }
+    .office-fund-list { border-left: 0; border-top: 1px solid #eef2f7; padding-left: 0; padding-top: 12px; }
     .office-top-list { border-left: 0; border-top: 1px solid #eef2f7; padding-left: 0; padding-top: 12px; }
 }
 
 @media (max-width: 768px) {
-    .office-stats-grid, .office-form-grid, .office-filter { grid-template-columns: 1fr; }
+    .office-stats-grid, .office-form-grid, .office-filter, .office-fund-form-grid { grid-template-columns: 1fr; }
+    .office-fund-stats { grid-template-columns: 1fr; }
     .office-note-field { grid-column: span 1; }
     .office-table-wrap { overflow: visible; }
     .office-table { min-width: 0; border-spacing: 0 10px; }
@@ -193,5 +219,8 @@
     .office-table tbody td::before { content: attr(data-label); color: #64748b; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; }
     .office-muted-line, .office-note-line { max-width: 100%; white-space: normal; }
     .office-actions-cell { text-align: left; }
+    .office-edit-row.is-open { display: block !important; }
+    .office-edit-row.is-open td { display: block; width: 100%; }
+    .office-edit-row.is-open td::before { content: none; }
     .office-list-summary { grid-template-columns: 1fr; }
 }

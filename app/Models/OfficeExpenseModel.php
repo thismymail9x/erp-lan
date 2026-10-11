@@ -22,6 +22,7 @@ class OfficeExpenseModel extends BaseModel
         'category',
         'vendor',
         'amount',
+        'is_fund',
         'payment_method',
         'note',
         'receipt_file_name',

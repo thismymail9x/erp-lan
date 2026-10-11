@@ -318,14 +318,7 @@ class WorkflowService extends BaseService
         // THU THẬP DANH SÁCH NGƯỜI NHẬN (Recipients)
         $recipientUserIds = [];
 
-        // 1. Luôn thêm Admin vào danh sách giám sát (trừ khi chính Admin là người làm)
-        $adminRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_ADMIN)->first();
-        if ($adminRole) {
-            $adminIds = $this->userModel->where('role_id', $adminRole['id'])->where('active_status', 1)->findColumn('id') ?? [];
-            $recipientUserIds = array_merge($recipientUserIds, $adminIds);
-        }
-
-        // 2. Thêm người duyệt cụ thể của vụ việc
+        // 1. Thêm người duyệt cụ thể của vụ việc
         $approvers = model('CaseMemberModel')->where('case_id', $step['case_id'])->where('role_in_case', 'approver')->findAll();
         if (count($approvers) > 0) {
             $employeeModel = model('EmployeeModel');
@@ -341,6 +334,12 @@ class WorkflowService extends BaseService
         }
 
         // 3. Gửi thông báo tập trung (Smart Dispatch)
+        $adminRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_ADMIN)->first();
+        if ($adminRole) {
+            $adminIds = $this->userModel->where('role_id', $adminRole['id'])->where('active_status', 1)->findColumn('id') ?? [];
+            $recipientUserIds = array_diff($recipientUserIds, $adminIds);
+        }
+
         $this->notificationService->sendToMultiple($recipientUserIds, "Yêu cầu xét duyệt mới", $msg, 'approval', $link);
 
         return true;
@@ -382,7 +381,7 @@ class WorkflowService extends BaseService
         $msg = "Quản lý {$mgrName} đã chấp thuận và hoàn thành mục tiêu: [{$step['step_name']}] (Hồ sơ {$case['code']}).";
         $link = base_url('cases/show/' . $step['case_id']);
         
-        $this->broadcastWorkflowUpdate($step['case_id'], "Hoàn thành tiến độ", $msg, 'success', $link);
+        $this->broadcastWorkflowUpdate($step['case_id'], "Hoàn thành tiến độ", $msg, 'success', $link, false);
 
         return true;
     }
@@ -490,7 +489,7 @@ class WorkflowService extends BaseService
         $msg = "Thành viên {$mgrName} đã HOÀN THÀNH TRỰC TIẾP bước [{$step['step_name']}] (Hồ sơ {$case['code']}).";
         $link = base_url('cases/show/' . $step['case_id']);
         
-        $this->broadcastWorkflowUpdate($step['case_id'], "Hoàn thành tiến độ", $msg, 'success', $link);
+        $this->broadcastWorkflowUpdate($step['case_id'], "Hoàn thành tiến độ", $msg, 'success', $link, false);
 
         return true;
     }
@@ -564,13 +563,13 @@ class WorkflowService extends BaseService
      * Helper: Phối hợp thông báo cho cả thành viên vụ việc và ban quản trị (Admin).
      * Đảm bảo không trùng lặp và loại bỏ người gửi.
      */
-    private function broadcastWorkflowUpdate(int $caseId, string $title, string $msg, string $type, string $link)
+    private function broadcastWorkflowUpdate(int $caseId, string $title, string $msg, string $type, string $link, bool $includeAdmins = true)
     {
         $recipientUserIds = [];
 
         // 1. Lấy danh sách Admin (User IDs)
         $adminRole = $this->roleModel->where('name', \Config\AppConstants::ROLE_ADMIN)->first();
-        if ($adminRole) {
+        if ($includeAdmins && $adminRole) {
             $recipientUserIds = $this->userModel->where('role_id', $adminRole['id'])->where('active_status', 1)->findColumn('id') ?? [];
         }
 
@@ -593,6 +592,11 @@ class WorkflowService extends BaseService
         }
 
         // 3. CHỐT CHẶN CUỐI: Lọc trùng và loại bỏ người gửi (Sender)
+        if (!$includeAdmins && $adminRole) {
+            $adminIds = $this->userModel->where('role_id', $adminRole['id'])->where('active_status', 1)->findColumn('id') ?? [];
+            $recipientUserIds = array_diff($recipientUserIds, $adminIds);
+        }
+
         $recipientUserIds = array_unique($recipientUserIds);
         $senderId = (function_exists('session') && session()->has('user_id')) ? session()->get('user_id') : null;
 

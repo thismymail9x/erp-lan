@@ -89,10 +89,10 @@ class FeatureGuidelines extends BaseConfig
             ]
         ],
         'office-expenses' => [
-            'launch_date' => '2026-07-24',
+            'launch_date' => '2026-08-28',
             'guidance'    => [
                 'title'   => 'Hướng dẫn Chi phí vận hành',
-                'content' => "• Kế toán nhập các khoản điện, nước, internet, văn phòng phẩm và chi phí nội bộ không gắn vụ việc.\n• Admin và kế toán xem tổng chi, so sánh tháng/năm, biểu đồ 12 tháng và cơ cấu theo loại chi phí.\n• Chi phí vận hành được tách khỏi chi phí vụ việc để phân tích đúng nguồn phát sinh, nhưng vẫn có thể cộng vào báo cáo tổng chi phí công ty."
+                'content' => "• Hành chính nhập số tiền vận hành theo ngày nhận; các lần nhập thêm được tính là bổ sung.\n• Khi phát sinh khoản chi, nhập chi phí và chứng từ để hệ thống tự tính tiền đã nhận, đã chi, còn lại.\n• Dòng tiền nhận và dòng chi dùng chung bảng chi phí vận hành, được phân biệt bằng cờ nghiệp vụ để báo cáo không bị lẫn."
             ]
         ],
         'violation-funds' => [

@@ -1683,3 +1683,33 @@ INSERT IGNORE INTO `customer_monitoring_status_settings` (`status_key`, `status_
 ('chua_co_anh_cham_soc_cuoi_cung', 'Chưa có ảnh chăm sóc cuối cùng', '#5856d6', 5, NOW(), NOW()),
 ('tu_van_chua_than_thiet_nhiet_tinh', 'Tư vấn chưa thân thiện, nhiệt tình', '#ff2d55', 6, NOW(), NOW()),
 ('khach_goi_phan_nan', 'Khách gọi phàn nàn', '#d70015', 7, NOW(), NOW());
+-- ----------------------------
+-- UPDATE LOG: 28/08/2026 - Cờ tiền nhận trong chi phí vận hành
+-- ----------------------------
+ALTER TABLE `office_expenses`
+    ADD COLUMN IF NOT EXISTS `is_fund` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0 COMMENT '1 = tiền vận hành nhận vào, 0 = khoản chi vận hành' AFTER `amount`;
+-- ----------------------------
+-- UPDATE LOG: 09/09/2026 - Cho phep tai khoan khong lien ket nhan su tao quy vi pham
+-- ----------------------------
+SET @vf_created_by_fk := (
+    SELECT CONSTRAINT_NAME
+    FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'violation_funds'
+      AND COLUMN_NAME = 'created_by'
+      AND REFERENCED_TABLE_NAME IS NOT NULL
+    LIMIT 1
+);
+SET @vf_drop_created_by_fk := IF(
+    @vf_created_by_fk IS NULL,
+    'SELECT 1',
+    CONCAT('ALTER TABLE `violation_funds` DROP FOREIGN KEY `', @vf_created_by_fk, '`')
+);
+PREPARE stmt FROM @vf_drop_created_by_fk;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+ALTER TABLE `violation_funds`
+    MODIFY COLUMN `created_by` INT(11) UNSIGNED NULL COMMENT 'Nhan su tao ban ghi vi pham, co the rong neu tai khoan chua lien ket ho so nhan su',
+    MODIFY COLUMN `updated_by` INT(11) UNSIGNED NULL COMMENT 'Nhan su cap nhat gan nhat, co the rong neu tai khoan chua lien ket ho so nhan su',
+    ADD CONSTRAINT `fk_violation_funds_created_by` FOREIGN KEY (`created_by`) REFERENCES `employees` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;

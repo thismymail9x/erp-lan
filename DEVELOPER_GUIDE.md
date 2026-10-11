@@ -754,3 +754,26 @@ Theo dõi chất lượng tư vấn ngay trên danh sách khách hàng bằng m�
 ### 27.5. Cơ sở dữ liệu
 - Migration: `2026-08-24-090000_CreateCustomerMonitoringStatusSettings.php`.
 - SQL thuần đã được append cuối `mysql.sql` theo quy tắc Dual DB Update.
+---
+
+## 28. Chi phí vận hành - tiền nhận và chứng từ - cập nhật 28/08/2026
+
+### 28.1. Mục tiêu nghiệp vụ
+- Hành chính nhập số tiền vận hành nhận trong tháng và các khoản bổ sung phát sinh.
+- Khi chi thực tế, hành chính nhập khoản chi, nhà cung cấp, phương thức thanh toán, ghi chú và file hóa đơn/chứng từ.
+- Hệ thống tự thống kê tiền đã nhận, đã chi, còn lại và số tiền bổ sung theo tháng/năm đang lọc.
+
+### 28.2. Quyền sử dụng
+- `office_expense.view`: xem thống kê, danh sách khoản chi và chứng từ.
+- `office_expense.manage`: nhập tiền nhận, nhập/sửa/xóa khoản chi, bổ sung hoặc thay file chứng từ.
+
+### 28.3. Input/Output
+- Input tiền nhận: tháng nhận, số tiền nhận hoặc bổ sung, ghi chú.
+- Input khoản chi: ngày chi, loại chi phí, số tiền, phương thức thanh toán, nhà cung cấp, chứng từ và ghi chú.
+- Output màn hình `/office-expenses`: tiền đã nhận, đã chi, còn lại, nhập bổ sung, biểu đồ tháng, cơ cấu chi phí, danh sách khoản chi phân trang và danh sách khoản tiền nhận.
+
+### 28.4. Cơ sở dữ liệu
+- Dùng chung bảng `office_expenses`.
+- Cột `is_fund`: `1` là tiền vận hành nhận vào, `0` là khoản chi vận hành.
+- Migration: `2026-08-28-090000_AddFundFlagToOfficeExpenses.php`.
+- SQL thuần đã được append cuối `mysql.sql` theo quy tắc Dual DB Update.

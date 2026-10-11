@@ -133,10 +133,16 @@ $routes->group('case-expenses', function($routes) {
     $routes->get('delete/(:num)', 'CaseExpenseController::delete/$1'); // Xóa phiếu chi phí khi còn được phép
 });
 
+$routes->get('case-expenses/attachment/(:num)', 'CaseExpenseController::attachment/$1'); // Xem/Tai chung tu chi phi
+$routes->get('case-expenses/attachment/(:num)/download', 'CaseExpenseController::attachment/$1/download'); // Tai chung tu chi phi
+
 // Office Expense Routes
 $routes->group('office-expenses', function($routes) {
     $routes->get('/', 'OfficeExpenseController::index');
+    $routes->post('funds/store', 'OfficeExpenseController::storeFund');
+    $routes->get('funds/delete/(:num)', 'OfficeExpenseController::deleteFund/$1');
     $routes->post('store', 'OfficeExpenseController::store');
+    $routes->post('update/(:num)', 'OfficeExpenseController::update/$1');
     $routes->get('receipt/(:num)', 'OfficeExpenseController::receipt/$1');
     $routes->get('receipt/(:num)/download', 'OfficeExpenseController::receipt/$1/download');
     $routes->get('delete/(:num)', 'OfficeExpenseController::delete/$1');
@@ -257,7 +263,7 @@ $routes->group('documents', function($routes) {
     $routes->get('edit/(:any)', 'DocumentController::edit/$1'); // Sửa thông tin tài liệu
     $routes->post('share/(:any)', 'DocumentController::share/$1'); // Chia sẻ tài liệu
     $routes->post('update/(:num)', 'DocumentController::update/$1'); // Cập nhật tài liệu
-    $routes->post('delete/(:num)/file/(:num)', 'DocumentController::deleteFile/$1/$2'); // Xoa vinh vien mot tep trong tai lieu nhieu file
+    $routes->match(['get', 'post'], 'delete/(:num)/file/(:num)', 'DocumentController::deleteFile/$1/$2'); // Xoa vinh vien mot tep trong tai lieu nhieu file
     $routes->get('view/(:num)/file/(:num)', 'DocumentController::viewFile/$1/$2'); // Xem/Tải về từng tệp trong tài liệu nhiều file
     $routes->get('view/(:num)', 'DocumentController::view/$1'); // Xem/Tải về tài liệu
     $routes->match(['get', 'post'], 'delete/(:num)', 'DocumentController::delete/$1'); // Xóa tài liệu
@@ -396,6 +402,8 @@ $routes->group('messenger', function($routes) {
     $routes->get('load-more', 'MessengerController::loadMoreMessages'); // Tải thêm tin nhắn cũ
 });
 
+
+$routes->post('payroll/confirm/(:num)', 'PayrollController::confirm/$1');
 
 // Utility Routes
 $routes->get('db-check', 'DbCheck::index'); // Kiểm tra kết nối database

@@ -6,6 +6,7 @@ use App\Models\EmployeeModel;
 use App\Models\UserModel;
 use App\Models\ViolationFundModel;
 use Config\AppConstants;
+use Throwable;
 
 /**
  * Service xử lý nghiệp vụ quỹ vi phạm nội bộ.
@@ -124,6 +125,50 @@ class ViolationFundService extends BaseService
         ];
     }
 
+    public function createMany(array $data): array
+    {
+        $employeeIds = array_values(array_unique(array_filter(array_map(
+            'intval',
+            (array)($data['employee_ids'] ?? [])
+        ))));
+
+        if (empty($employeeIds) && (int)($data['employee_id'] ?? 0) > 0) {
+            $employeeIds[] = (int)$data['employee_id'];
+        }
+
+        if (empty($employeeIds)) {
+            return $this->fail('Vui lòng chọn ít nhất một nhân sự vi phạm.');
+        }
+
+        $createdIds = [];
+        $failedMessages = [];
+
+        foreach ($employeeIds as $employeeId) {
+            $result = $this->create(array_merge($data, [
+                'employee_id' => $employeeId,
+            ]));
+
+            if ($result['status'] === 'success') {
+                $createdIds[] = (int)($result['data']['id'] ?? 0);
+                continue;
+            }
+
+            $employeeName = $this->getEmployeeName($employeeId);
+            $failedMessages[] = $employeeName . ': ' . ($result['message'] ?? 'Không thể tạo bản ghi.');
+        }
+
+        if (empty($createdIds)) {
+            return $this->fail(implode(' ', $failedMessages) ?: 'Không thể ghi nhận vi phạm.');
+        }
+
+        $message = 'Đã ghi nhận ' . count($createdIds) . ' khoản vi phạm.';
+        if (!empty($failedMessages)) {
+            $message .= ' Một số nhân sự chưa tạo được: ' . implode(' ', $failedMessages);
+        }
+
+        return $this->success(['ids' => $createdIds], $message);
+    }
+
     public function create(array $data): array
     {
         if (!$this->canCreate()) {
@@ -174,20 +219,44 @@ class ViolationFundService extends BaseService
             'hr_note' => $data['hr_note'] ?? null,
             'admin_note' => $data['admin_note'] ?? null,
             'notified_at' => date('Y-m-d H:i:s'),
-            'created_by' => (int)session()->get('employee_id'),
-            'updated_by' => (int)session()->get('employee_id'),
+            'created_by' => $this->getCurrentEmployeeId(),
+            'updated_by' => $this->getCurrentEmployeeId(),
         ];
 
         if ($payload['explanation'] === '') {
             return $this->fail('Vui lòng nhập giải trình/bối cảnh vi phạm.');
         }
 
-        if (!$this->model->insert($payload)) {
+        try {
+            $inserted = $this->model->insert($payload);
+        } catch (Throwable $exception) {
+            $this->logError('VIOLATION_FUND_INSERT_FAILED', [
+                'employee_id' => $employeeId,
+                'due_month' => $dueMonth,
+                'category' => $category,
+                'created_by' => $payload['created_by'],
+                'error' => $exception->getMessage(),
+            ]);
+
+            return $this->fail('Không thể lưu khoản vi phạm. Vui lòng kiểm tra dữ liệu nhân sự và thử lại.');
+        }
+
+        if (!$inserted) {
+            $this->logError('VIOLATION_FUND_INSERT_REJECTED', [
+                'employee_id' => $employeeId,
+                'due_month' => $dueMonth,
+                'category' => $category,
+                'created_by' => $payload['created_by'],
+                'errors' => $this->model->errors(),
+            ]);
             return $this->fail('Không thể lưu khoản vi phạm.');
         }
 
         $id = (int)$this->model->getInsertID();
-        $this->notifyViolationCreated($id, $payload, $employee);
+        $notified = $this->notifyViolationCreated($id, $payload, $employee);
+        if (!$notified) {
+            return $this->success(['id' => $id], 'Đã ghi nhận vi phạm, nhưng chưa gửi được thông báo. Vui lòng kiểm tra lại danh sách thông báo.');
+        }
 
         return $this->success(['id' => $id], 'Đã ghi nhận vi phạm và gửi thông báo liên quan.');
     }
@@ -222,7 +291,7 @@ class ViolationFundService extends BaseService
             'collection_method' => $data['collection_method'] ?? $record['collection_method'],
             'admin_note' => $data['admin_note'] ?? $record['admin_note'],
             'collected_at' => $status === 'collected' ? date('Y-m-d H:i:s') : null,
-            'updated_by' => (int)session()->get('employee_id'),
+            'updated_by' => $this->getCurrentEmployeeId(),
         ];
 
         $this->model->update($id, $payload);
@@ -370,31 +439,43 @@ class ViolationFundService extends BaseService
             ->findAll();
     }
 
-    private function notifyViolationCreated(int $id, array $payload, array $employee): void
+    private function notifyViolationCreated(int $id, array $payload, array $employee): bool
     {
         $link = base_url('violation-funds?due_month=' . $payload['due_month']);
         $violationText = $this->getViolationText($payload);
         $message = 'Bạn được ghi nhận lỗi vi phạm nội bộ: ' . $violationText . '. Hành chính sẽ rà soát số tiền thu nếu lỗi được xác nhận.';
 
-        if (!empty($employee['user_id'])) {
-            $this->notificationService->sendToUser(
-                (int)$employee['user_id'],
-                'Thông báo vi phạm nội bộ',
-                $message,
-                'alert',
-                $link
+        $sentCount = 0;
+
+        try {
+            if (!empty($employee['user_id'])) {
+                $sentCount += $this->notificationService->sendToUser(
+                    (int)$employee['user_id'],
+                    'Thông báo vi phạm nội bộ',
+                    $message,
+                    'alert',
+                    $link
+                ) ? 1 : 0;
+            }
+
+            $hcUsers = $this->getAdministrativeUserIds();
+            $sentCount += $this->notificationService->sendToMultiple(
+                $hcUsers,
+                'Lỗi vi phạm cần rà soát',
+                ($employee['full_name'] ?? 'Nhân sự') . ' phát sinh lỗi vi phạm - ' . $violationText,
+                'approval',
+                base_url('violation-funds'),
+                session()->get('user_id')
             );
+        } catch (Throwable $exception) {
+            $this->logError('VIOLATION_FUND_NOTIFICATION_FAILED', [
+                'violation_fund_id' => $id,
+                'employee_user_id' => $employee['user_id'] ?? null,
+                'error' => $exception->getMessage(),
+            ]);
         }
 
-        $hcUsers = $this->getAdministrativeUserIds();
-        $this->notificationService->sendToMultiple(
-            $hcUsers,
-            'Lỗi vi phạm cần rà soát',
-            ($employee['full_name'] ?? 'Nhân sự') . ' phát sinh lỗi vi phạm - ' . $violationText,
-            'approval',
-            base_url('violation-funds'),
-            session()->get('user_id')
-        );
+        return $sentCount > 0;
     }
 
     private function notifyCollectionUpdated(int $id, array $record): void
@@ -406,13 +487,21 @@ class ViolationFundService extends BaseService
 
         $money = number_format((int)$record['amount'], 0, ',', '.') . 'đ';
         $violationText = $this->getViolationText($record);
-        $this->notificationService->sendToUser(
-            (int)$employee['user_id'],
-            'Đã ghi nhận thu quỹ vi phạm',
-            'Hành chính đã ghi nhận khoản quỹ vi phạm ' . $money . ' cho nội dung: ' . $violationText . '.',
-            'system',
-            base_url('violation-funds')
-        );
+        try {
+            $this->notificationService->sendToUser(
+                (int)$employee['user_id'],
+                'Đã ghi nhận thu quỹ vi phạm',
+                'Hành chính đã ghi nhận khoản quỹ vi phạm ' . $money . ' cho nội dung: ' . $violationText . '.',
+                'system',
+                base_url('violation-funds')
+            );
+        } catch (Throwable $exception) {
+            $this->logError('VIOLATION_FUND_COLLECTION_NOTIFICATION_FAILED', [
+                'violation_fund_id' => $id,
+                'employee_user_id' => $employee['user_id'],
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     private function getAdministrativeUserIds(): array
@@ -420,13 +509,71 @@ class ViolationFundService extends BaseService
         $rows = $this->userModel
             ->select('users.id')
             ->join('employees', 'employees.user_id = users.id AND employees.deleted_at IS NULL')
-            ->where('employees.department_id', AppConstants::DEPT_HANH_CHINH)
+            ->join('departments', 'departments.id = employees.department_id AND departments.deleted_at IS NULL', 'left')
+            ->groupStart()
+                ->where('employees.department_id', AppConstants::DEPT_HANH_CHINH)
+                ->orLike('departments.name', 'Hanh chinh')
+                ->orLike('departments.name', 'Hành chính')
+                ->orLike('departments.name', 'HÃ nh chÃ­nh')
+            ->groupEnd()
             ->where('users.active_status', 1)
             ->where('users.deleted_at', null)
             ->get()
             ->getResultArray();
 
-        return array_map('intval', array_column($rows, 'id'));
+        $ids = array_map('intval', array_column($rows, 'id'));
+        if (!empty($ids)) {
+            return $ids;
+        }
+
+        $adminRole = $this->db->table('roles')
+            ->select('id')
+            ->where('name', AppConstants::ROLE_ADMIN)
+            ->get()
+            ->getRowArray();
+
+        if (!$adminRole) {
+            return [];
+        }
+
+        $adminIds = $this->userModel
+            ->where('role_id', (int)$adminRole['id'])
+            ->where('active_status', 1)
+            ->where('deleted_at', null)
+            ->findColumn('id') ?? [];
+
+        return array_map('intval', $adminIds);
+    }
+
+    private function getCurrentEmployeeId(): ?int
+    {
+        $employeeId = (int)session()->get('employee_id');
+        if ($employeeId > 0) {
+            return $employeeId;
+        }
+
+        $userId = (int)session()->get('user_id');
+        if ($userId <= 0) {
+            return null;
+        }
+
+        $employee = $this->employeeModel
+            ->select('id')
+            ->where('user_id', $userId)
+            ->where('deleted_at', null)
+            ->first();
+
+        return $employee ? (int)$employee['id'] : null;
+    }
+
+    private function getEmployeeName(int $employeeId): string
+    {
+        $employee = $this->employeeModel
+            ->select('full_name')
+            ->where('deleted_at', null)
+            ->find($employeeId);
+
+        return $employee['full_name'] ?? ('Nhân sự #' . $employeeId);
     }
 
     private function calculateMonthlyRecurrence(int $employeeId, string $dueMonth, string $category): int

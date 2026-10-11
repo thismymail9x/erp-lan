@@ -3,31 +3,33 @@ $(document).ready(function() {
     
     const tableContainer = document.getElementById('finance-table-container');
     const searchInput = document.getElementById('finance-search');
+    const defaultYear = $('#year-filter').data('default-year') || '';
     let searchTimeout;
     let abortController = null;
 
-    function triggerSearch() {
-        const url = new URL(window.location.href);
-        
+    function buildFinanceUrlFromFilters(baseUrl = window.location.href) {
+        const url = new URL(baseUrl);
         const search = $('#finance-search').val();
         const month = $('#month-filter').val();
         const year = $('#year-filter').val();
-        const paymentStatus = $('#payment-status-filter').val();
+
+        ['search', 'month', 'year', 'payment_status', 'page', 'ajax'].forEach(function (key) {
+            url.searchParams.delete(key);
+        });
 
         if (search) url.searchParams.set('search', search);
-        else url.searchParams.delete('search');
 
         if (month) url.searchParams.set('month', month);
-        else url.searchParams.delete('month');
 
         if (year) url.searchParams.set('year', year);
-        else url.searchParams.delete('year');
-
-        if (paymentStatus) url.searchParams.set('payment_status', paymentStatus);
-        else url.searchParams.delete('payment_status');
 
         url.searchParams.set('page', 1);
 
+        return url;
+    }
+
+    function triggerSearch() {
+        const url = buildFinanceUrlFromFilters();
         fetchByUrl(url);
     }
 
@@ -120,8 +122,7 @@ $(document).ready(function() {
         // Cáº­p nháº­t láº¡i giÃ¡ trá»‹ cÃ¡c Ã´ input/select tá»« URL
         $('#finance-search').val(url.searchParams.get('search') || '');
         $('#month-filter').val(url.searchParams.get('month') || '');
-        $('#year-filter').val(url.searchParams.get('year') || new Date().getFullYear());
-        $('#payment-status-filter').val(url.searchParams.get('payment_status') || '');
+        $('#year-filter').val(url.searchParams.get('year') || defaultYear);
         $('#clear-finance-search').toggleClass('finance-hidden', !$('#finance-search').val());
         
         fetchByUrl(url, false);
@@ -141,13 +142,14 @@ $(document).ready(function() {
     $('#btn-reset-finance-filters').on('click', function() {
         $('#finance-search').val('');
         $('#month-filter').val('');
-        $('#year-filter').val(new Date().getFullYear());
-        $('#payment-status-filter').val('');
+        $('#year-filter').val(defaultYear);
         $('#clear-finance-search').addClass('finance-hidden');
-        triggerSearch();
+
+        const url = buildFinanceUrlFromFilters(window.location.origin + window.location.pathname);
+        fetchByUrl(url);
     });
 
-    $(document).on('change', '#month-filter, #year-filter, #payment-status-filter', function() {
+    $(document).on('change', '#month-filter, #year-filter', function() {
         triggerSearch();
     });
 

@@ -9,6 +9,19 @@ $(function() {
         }
     });
 
+    $('.js-confirm-delete-fund').on('click', function(event) {
+        if (!confirm('Xóa khoản tiền vận hành này?')) {
+            event.preventDefault();
+        }
+    });
+
+    $('.js-toggle-office-edit').on('click', function() {
+        const targetId = $(this).data('target');
+        const $target = $('#' + targetId);
+        $('.office-edit-row').not($target).removeClass('is-open');
+        $target.toggleClass('is-open');
+    });
+
     const chartDataNode = document.getElementById('officeExpenseChartData');
     const payload = chartDataNode ? JSON.parse(chartDataNode.textContent || '{}') : {};
     drawMonthlyChart(document.getElementById('officeMonthlyChart'), payload);

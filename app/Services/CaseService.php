@@ -318,6 +318,7 @@ class CaseService extends BaseService
             'waiting'    => $buildBaseQuery()->where('cases.status', 'cho_tiep_nhan')->countAllResults(),
             'paused'     => $buildBaseQuery()->where('cases.status', 'tam_dung')->countAllResults(),
             'completed'  => $buildBaseQuery()->where('cases.status', 'da_hoan_thanh')->countAllResults(),
+            'cancelled'  => $buildBaseQuery()->where('cases.status', 'huy')->countAllResults(),
             'overdue'    => $buildBaseQuery()
                                 ->whereIn('cases.status', ['cho_tiep_nhan', 'dang_xu_ly'])
                                 ->where("cases.id IN ($overdueSubquery)")
@@ -474,11 +475,11 @@ class CaseService extends BaseService
     }
     /**
      * Tính toán bộ chỉ số tài chính (Tổng HĐ, Đã thu, Còn lại) dựa trên bộ lọc.
-     * 
-     * Logic lọc thời gian (tháng/năm) theo quy tắc:
-     * - Tổng HĐ  : deadline đợt lần 1 (index 0). Nếu trống → dùng created_at của vụ việc.
-     * - Đã thu   : deadline đợt is_paid=1 đầu tiên. Nếu trống → dùng created_at.
-     * - Chưa thu : deadline đợt is_paid=0 đầu tiên. Nếu trống → dùng created_at.
+     *
+     * Mỗi chỉ số tự xét mốc thời gian của chính nó:
+     * - Danh sách vụ việc/Tổng HĐ: ngày tạo vụ việc trong kỳ lọc.
+     * - Đã thu: paid_at của từng đợt đã thu; nếu trống dùng deadline; nếu vẫn trống dùng ngày tạo vụ việc.
+     * - Chưa thu: paid_at/deadline/ngày tạo vụ việc của từng đợt chưa thu theo cùng thứ tự fallback.
      */
     public function getFinanceStats(string $search = '', int $month = 0, int $year = 0, string $paymentStatus = '')
     {
@@ -489,7 +490,8 @@ class CaseService extends BaseService
             ->join('employees', 'employees.id = cases.assigned_lawyer_id', 'left');
             
         $this->applyAccessLimit($query);
-        $this->applyFilters($query, $search, [], 0, 0, 0, $paymentStatus, false);
+        // Không áp dụng payment_status vào query tổng, vì Tổng HĐ phải giữ nguyên khi đổi trạng thái thu.
+        $this->applyFilters($query, $search, [], 0, 0, 0, '', false);
         
         $results = $query->findAll();
         
@@ -512,45 +514,6 @@ class CaseService extends BaseService
                 }
             }
 
-            $totalRepDate = null;
-            if (isset($payments[0]) && !empty($payments[0]['deadline'])) {
-                $totalRepDate = $payments[0]['deadline'];
-            } else {
-                $totalRepDate = $createdAt;
-            }
-
-            $paidRepDate = null;
-            $hasPaid = false;
-            for ($i = count($payments) - 1; $i >= 0; $i--) {
-                if (!empty($payments[$i]['is_paid']) && $payments[$i]['is_paid'] == 1) {
-                    $hasPaid = true;
-                    if ($paidRepDate === null && !empty($payments[$i]['deadline'])) {
-                        $paidRepDate = $payments[$i]['deadline'];
-                    }
-                }
-            }
-            // Không lấy fallback created_at cho paidRepDate nếu đợt thanh toán không nhập ngày
-            // Điều này tránh việc hiển thị sai ở tháng tạo vụ việc trên phần mềm
-            if ($hasPaid && $paidRepDate === null) {
-                $paidRepDate = null;
-            }
-
-            $unpaidRepDate = null;
-            $hasUnpaid = false;
-            for ($i = count($payments) - 1; $i >= 0; $i--) {
-                if (empty($payments[$i]['is_paid']) || $payments[$i]['is_paid'] == 0) {
-                    $hasUnpaid = true;
-                    if (!empty($payments[$i]['deadline'])) {
-                        $unpaidRepDate = $payments[$i]['deadline'];
-                    }
-                    break;
-                }
-            }
-            // Không lấy fallback created_at cho unpaidRepDate nếu đợt thanh toán không nhập ngày
-            if ($hasUnpaid && $unpaidRepDate === null) {
-                $unpaidRepDate = null;
-            }
-
             $matchesFilter = function(?string $dateStr) use ($filterYear, $filterMonth): bool {
                 if ($filterYear <= 0) return true;
                 if (empty($dateStr)) return false;
@@ -564,34 +527,28 @@ class CaseService extends BaseService
                 }
             };
 
-            $isMatch = false;
-            if ($filterYear <= 0) {
-                $isMatch = true;
-            } else {
-                if ($matchesFilter($totalRepDate)) {
-                    $isMatch = true;
-                } elseif ($hasPaid && $matchesFilter($paidRepDate)) {
-                    $isMatch = true;
-                } elseif ($hasUnpaid && $matchesFilter($unpaidRepDate)) {
-                    $isMatch = true;
-                }
-            }
+            $contractMatches = $matchesFilter($createdAt);
 
-            if ($isMatch) {
-                $matchingCaseIds[] = (int)$row['id'];
-                
-                $totalContract += (float)($row['contract_value'] ?? 0);
-                
-                foreach ($payments as $p) {
-                    $amtStr = $p['amount'] ?? '0';
-                    $amt    = (float)str_replace(['.', ','], '', $amtStr);
+            foreach ($payments as $p) {
+                $amtStr = $p['amount'] ?? '0';
+                $amt    = (float)str_replace(['.', ','], '', $amtStr);
 
-                    if (!empty($p['is_paid']) && $p['is_paid'] == 1) {
+                if (!empty($p['is_paid']) && $p['is_paid'] == 1) {
+                    $paymentDate = !empty($p['paid_at']) ? $p['paid_at'] : (!empty($p['deadline']) ? $p['deadline'] : $createdAt);
+                    if ($matchesFilter($paymentDate)) {
                         $totalPaid += $amt;
-                    } else {
+                    }
+                } else {
+                    $paymentDate = !empty($p['paid_at']) ? $p['paid_at'] : (!empty($p['deadline']) ? $p['deadline'] : $createdAt);
+                    if ($matchesFilter($paymentDate)) {
                         $totalUnpaid += $amt;
                     }
                 }
+            }
+
+            if ($contractMatches) {
+                $totalContract += (float)($row['contract_value'] ?? 0);
+                $matchingCaseIds[] = (int)$row['id'];
             }
         }
         

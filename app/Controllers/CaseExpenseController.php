@@ -2,6 +2,8 @@
 
 namespace App\Controllers;
 
+use App\Models\CaseExpenseAttachmentModel;
+use App\Models\CaseExpenseModel;
 use App\Services\CaseExpenseService;
 
 /**
@@ -171,5 +173,54 @@ class CaseExpenseController extends BaseController
         }
 
         return redirect()->back()->with('success', $result['message']);
+    }
+
+    public function attachment(int $id, string $mode = 'view')
+    {
+        $attachment = (new CaseExpenseAttachmentModel())->find($id);
+        if (!$attachment) {
+            return redirect()->back()->with('error', 'Khong tim thay chung tu chi phi.');
+        }
+
+        $expense = (new CaseExpenseModel())->find((int)$attachment['expense_id']);
+        if (!$expense) {
+            return redirect()->back()->with('error', 'Khong tim thay phieu chi phi cua chung tu nay.');
+        }
+
+        $employeeId = (int)session()->get('employee_id');
+        $canAccess = $this->service->canApprove()
+            || $this->service->canAccessCase((int)$expense['case_id'], $employeeId)
+            || (int)($expense['created_by'] ?? 0) === $employeeId
+            || (int)($expense['employee_id'] ?? 0) === $employeeId;
+
+        if (!$canAccess) {
+            return redirect()->back()->with('error', 'Ban khong co quyen xem chung tu chi phi nay.');
+        }
+
+        $baseDir = realpath(WRITEPATH . 'uploads/case_expenses');
+        $realPath = realpath(WRITEPATH . 'uploads/' . $attachment['file_path']);
+        $basePrefix = $baseDir ? rtrim($baseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR : false;
+        if (!$basePrefix || !$realPath || strpos($realPath, $basePrefix) !== 0 || !is_file($realPath)) {
+            return redirect()->back()->with('error', 'Khong tim thay tep chung tu tren he thong luu tru.');
+        }
+
+        $downloadName = $attachment['file_name'] ?: basename($realPath);
+        $extension = pathinfo($realPath, PATHINFO_EXTENSION);
+        if ($extension !== '' && !str_ends_with(strtolower($downloadName), '.' . strtolower($extension))) {
+            $downloadName .= '.' . $extension;
+        }
+
+        if ($mode === 'download' || $this->request->getGet('preview') != 1) {
+            return $this->response->download($realPath, null)->setFileName($downloadName);
+        }
+
+        $mimeType = $attachment['file_type']
+            ?: (function_exists('mime_content_type') ? mime_content_type($realPath) : 'application/octet-stream');
+
+        return $this->response
+            ->setHeader('Content-Type', $mimeType)
+            ->setHeader('Content-Disposition', 'inline; filename="' . str_replace('"', '', $downloadName) . '"')
+            ->setHeader('X-Content-Type-Options', 'nosniff')
+            ->setBody(file_get_contents($realPath));
     }
 }

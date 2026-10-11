@@ -51,6 +51,27 @@ function escapeHtml(value) {
         .replace(/'/g, '&#039;');
 }
 
+function toDateInputValue(value) {
+    if (!value) {
+        return '';
+    }
+
+    return String(value).slice(0, 10);
+}
+
+function toDateTimeLocalInputValue(value) {
+    if (!value) {
+        return '';
+    }
+
+    const normalized = String(value).replace(' ', 'T');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+        return `${normalized}T00:00`;
+    }
+
+    return normalized.slice(0, 16);
+}
+
 function initPaymentRepeater() {
     const page = document.querySelector('.case-form-container, .case-edit-container, .case-create-container');
     const container = document.getElementById('payment-progress-container');
@@ -80,8 +101,8 @@ function initPaymentRepeater() {
 
         const title = data ? data.title : `Lần ${rowCount}`;
         const amount = data ? formatVND(data.amount) : '';
-        const deadline = data ? data.deadline : '';
-        const paidAt = data && data.paid_at ? data.paid_at : '';
+        const deadline = data ? toDateInputValue(data.deadline) : '';
+        const paidAt = data && data.paid_at ? toDateTimeLocalInputValue(data.paid_at) : '';
         const note = data && data.note ? data.note : '';
         const isPaidHtml = data && data.is_paid == '1' ? 'checked' : '';
         const isVatHtml = data && data.is_vat == '1' ? 'checked' : '';
@@ -93,7 +114,7 @@ function initPaymentRepeater() {
             <input type="text" name="payments[${rowCount}][amount]" class="form-control-premium text-sm font-weight-600 text-apple-blue js-vnd-input" value="${escapeHtml(amount)}" placeholder="Số tiền">
             <input type="date" name="payments[${rowCount}][deadline]" class="form-control-premium text-sm" value="${escapeHtml(deadline)}" title="Thời hạn (Không bắt buộc)">
             <input type="text" name="payments[${rowCount}][note]" class="form-control-premium text-sm" value="${escapeHtml(note)}" placeholder="Ghi chú đợt thanh toán (nếu có)">
-            <input type="date" name="payments[${rowCount}][paid_at]" class="form-control-premium text-sm" value="${escapeHtml(paidAt)}" title="Ngày thực thu">
+            <input type="datetime-local" name="payments[${rowCount}][paid_at]" class="form-control-premium text-sm" value="${escapeHtml(paidAt)}" title="Ngày thực thu">
             <div class="case-payment-check">
                 <input type="checkbox" name="payments[${rowCount}][is_paid]" value="1" id="paid_${rowCount}" class="case-payment-checkbox" ${isPaidHtml}>
                 <label for="paid_${rowCount}" class="text-apple-main case-payment-check-label">Đã thu</label>

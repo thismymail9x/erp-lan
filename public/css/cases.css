@@ -580,6 +580,11 @@
     justify-content: center;
 }
 
+.case-document-delete-form {
+    display: inline-flex;
+    margin: 0;
+}
+
 .case-status-card {
     background: rgba(0,0,0,0.02);
     border-radius: 12px;
@@ -1301,36 +1306,70 @@
 }
 
 .case-stats-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
 }
 
 .case-stats-grid .stat-card-premium {
     min-width: 0;
-    padding: 10px;
-    gap: 10px;
+    padding: 7px;
+    gap: 6px;
+    border-radius: 10px;
 }
 
 .case-stats-grid .stat-icon-wrapper {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    font-size: 17px;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    font-size: 15px;
+    border-radius: 8px;
 }
 
 .case-stats-grid .stat-label {
-    font-size: 0.72rem;
-    line-height: 1.25;
+    font-size: 0.68rem;
+    line-height: 1.15;
+    white-space: normal;
 }
 
 .case-stats-grid .stat-value {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     line-height: 1.1;
 }
 
-@media (max-width: 1199px) {
+.case-stats-grid .stat-card-premium > div:not(.stat-icon-wrapper) {
+    min-width: 0;
+}
+
+@media (max-width: 1279px) {
     .case-stats-grid {
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 5px;
+    }
+
+    .case-stats-grid .stat-card-premium {
+        padding: 6px;
+        gap: 5px;
+    }
+
+    .case-stats-grid .stat-icon-wrapper {
+        width: 26px;
+        height: 26px;
+        min-width: 26px;
+        font-size: 12px;
+    }
+
+    .case-stats-grid .stat-label {
+        font-size: 0.58rem;
+    }
+
+    .case-stats-grid .stat-value {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 767px) {
+    .case-stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -1347,6 +1386,11 @@
 .stat-icon-overdue {
     color: var(--apple-red);
     background: rgba(255, 59, 48, 0.1);
+}
+
+.stat-icon-cancelled {
+    color: #991b1b;
+    background: rgba(153, 27, 27, 0.1);
 }
 
 .case-overdue-label {
@@ -1457,4 +1501,59 @@
 .case-expense-approval-note {
     margin-top: 4px;
     color: #166534;
+}
+
+.expense-attachment-list {
+    display: grid;
+    gap: 5px;
+    max-width: 280px;
+    margin-top: 7px;
+}
+
+.expense-attachment-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 7px;
+    border: 1px solid #dbeafe;
+    border-radius: 7px;
+    background: #f8fbff;
+}
+
+.expense-attachment-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #1e293b;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.expense-attachment-name i {
+    color: #64748b;
+    margin-right: 4px;
+}
+
+.expense-attachment-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.expense-attachment-actions a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    color: #2563eb;
+    text-decoration: none;
+}
+
+.expense-attachment-actions a:hover {
+    background: #dbeafe;
+    color: #1d4ed8;
 }

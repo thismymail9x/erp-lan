@@ -279,9 +279,10 @@ class CaseController extends BaseController
                     $cleanAmount = isset($p['amount']) ? str_replace(['.', ','], '', $p['amount']) : '';
                     if (!empty($cleanAmount)) {
                         $p['amount'] = $cleanAmount;
-                        $p['is_paid'] = isset($p['is_paid']) ? 1 : 0;
+                        $hasPaidAt = !empty($p['paid_at']);
+                        $p['is_paid'] = (isset($p['is_paid']) || $hasPaidAt) ? 1 : 0;
                         $p['paid_at'] = $p['is_paid']
-                            ? (!empty($p['paid_at']) ? date('Y-m-d', strtotime($p['paid_at'])) : date('Y-m-d'))
+                            ? ($hasPaidAt ? date('Y-m-d H:i:s', strtotime($p['paid_at'])) : null)
                             : null;
                         $p['is_vat'] = isset($p['is_vat']) ? 1 : 0;
                         $paymentsInfo[] = $p;
@@ -703,9 +704,10 @@ class CaseController extends BaseController
                     $cleanAmount = isset($p['amount']) ? str_replace(['.', ','], '', $p['amount']) : '';
                     if (!empty($cleanAmount)) {
                         $p['amount'] = $cleanAmount;
-                        $p['is_paid'] = isset($p['is_paid']) ? 1 : 0;
+                        $hasPaidAt = !empty($p['paid_at']);
+                        $p['is_paid'] = (isset($p['is_paid']) || $hasPaidAt) ? 1 : 0;
                         $p['paid_at'] = $p['is_paid']
-                            ? (!empty($p['paid_at']) ? date('Y-m-d', strtotime($p['paid_at'])) : date('Y-m-d'))
+                            ? ($hasPaidAt ? date('Y-m-d H:i:s', strtotime($p['paid_at'])) : null)
                             : null;
                         $p['is_vat'] = isset($p['is_vat']) ? 1 : 0;
                         $paymentsInfo[] = $p;
@@ -1107,11 +1109,14 @@ class CaseController extends BaseController
         if (!empty($case['assigned_lawyer_id'])) $memberEmpIds[] = $case['assigned_lawyer_id'];
         if (!empty($case['assigned_staff_id'])) $memberEmpIds[] = $case['assigned_staff_id'];
         
-        $recipientUserIds = $adminIds;
+        $recipientUserIds = [];
         if (!empty($memberEmpIds)) {
             $memberUserIds = model('EmployeeModel')->whereIn('id', array_unique($memberEmpIds))->findColumn('user_id') ?? [];
             $recipientUserIds = array_merge($recipientUserIds, $memberUserIds);
         }
+
+        // Routine case notes should not create notifications for Admin-role accounts.
+        $recipientUserIds = array_diff($recipientUserIds, $adminIds);
 
         $notifService = new \App\Services\NotificationService();
         $notifService->sendToMultiple($recipientUserIds, "Ghi chú vụ việc mới", $msg, 'task', $link);

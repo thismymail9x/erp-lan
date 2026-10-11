@@ -25,7 +25,7 @@
         </div>
     <?php } else { ?>
         <?php 
-            $notes = json_decode($payroll['notes_json'] ?? '[]', true);
+            $notes = $visibleNotes ?? [];
             if (!is_array($notes)) {
                 $notes = [];
             }
@@ -81,7 +81,14 @@
             <div class="premium-card">
                 <div class="d-flex justify-content-between m-b-20 border-bottom p-b-10">
                     <h3 class="m-0">Phiếu lương chi tiết</h3>
-                    <span class="badge badge-info-minimal"><?= $payroll['status'] ?></span>
+                    <div class="d-flex align-items-center gap-10">
+                        <?php if (!empty($payrollConfirmation)) { ?>
+                            <span class="badge badge-info-minimal text-green">
+                                <i class="fas fa-check-circle"></i> Đã xác nhận <?= esc($payrollConfirmation['date'] ?? '') ?>
+                            </span>
+                        <?php } ?>
+                        <span class="badge badge-info-minimal"><?= $payroll['status'] ?></span>
+                    </div>
                 </div>
 
                 <div class="payroll-details">
@@ -164,7 +171,7 @@
                         <div class="col-6 text-right text-green">+ <span id="petrol-display"><?= number_format($payroll['petrol_allowance'] ?? 0) ?></span> đ</div>
                     </div>
                     <div class="row m-b-15">
-                        <div class="col-6"><strong>Lương trách nhiệm:</strong></div>
+                        <div class="col-6"><strong>Phụ cấp trách nhiệm:</strong></div>
                         <div class="col-6 text-right text-green">+ <?= number_format($payroll['salary_kpi'] ?? 0) ?> đ</div>
                     </div>
                     <?php if (($payroll['salary_bonus'] ?? 0) > 0) { ?>
@@ -204,17 +211,29 @@
                         <div class="col-6 text-right"><strong><span id="net-salary-display"><?= number_format($payroll['net_salary'] ?? 0) ?></span> đ</strong></div>
                     </div>
 
+                    <?php if (!empty($canConfirmPayroll)) { ?>
+                    <form action="<?= base_url('payroll/confirm/' . $payroll['id']) ?>" method="post" class="payroll-confirm-box m-t-20" onsubmit="return confirm('Xác nhận bạn đã đọc và thống nhất với bảng lương tháng <?= esc($month) ?>?');">
+                        <strong class="" style="font-size: 1.5rem; color: var(--apple-blue);">
+                            <span>Xác nhận chốt lương</span><br>
+                            <i class="text-muted-dark" style="font-size: 12px">Nút xác nhận chỉ hiển thị đến hết ngày 08 hàng tháng</i>
+                        </strong>
+                        <button type="submit" class="btn-premium">
+                            <i class="fas fa-check-circle"></i> Tôi đã đọc và kiểm tra
+                        </button>
+                    </form>
+                    <?php } ?>
+
                     <div class="m-t-20 p-15" style="background: #f9f9fb; border-radius: 8px; border: 1px dashed #d2d2d7;">
                         <strong class="text-muted-dark d-flex justify-content-between align-items-center m-b-10">
                             <span><i class="far fa-sticky-note mr-2"></i> Chi phí phát sinh (Xăng xe, vé xe...):</span>
-                            <?php if (!$config['is_closed']) { ?>
+                            <?php if (!$config['is_closed'] && empty($payrollConfirmation)) { ?>
                                 <button type="button" class="btn btn-sm btn-light btn-toggle-notes" style="font-weight: normal;"><i class="fas fa-edit text-blue"></i> Thêm / Sửa chi phí</button>
                             <?php } ?>
                         </strong>
                         
                         <div id="notes-display-<?= $payroll['id'] ?>" class="notes-display-area" style="padding-left: 20px;">
                             <?php 
-                                $notes = json_decode($payroll['notes_json'] ?? '[]', true);
+                                $notes = $visibleNotes ?? [];
                                 if (!empty($notes)) {
                                     echo '<ul class="m-0 pl-0 text-sm" style="list-style-type: disc;">';
                                     foreach ($notes as $n) {
@@ -234,7 +253,7 @@
                                 <label style="min-width: 150px; font-weight: 600;">Phụ cấp xăng xe (đ):</label>
                                 <input type="text" class="form-control form-control-sm format-vnd petrol-allowance-input" 
                                        value="<?= number_format($payroll['petrol_allowance']) ?>" 
-                                       style="max-width: 200px;" <?= $config['is_closed'] ? 'disabled' : '' ?>>
+                                       style="max-width: 200px;" <?= ($config['is_closed'] || !empty($payrollConfirmation)) ? 'disabled' : '' ?>>
                                 <small class="text-muted italic">* Nhập số tiền xăng xe phát sinh trong tháng</small>
                             </div>
                             
@@ -246,8 +265,8 @@
                                         <div class="d-flex align-items-center gap-10 mb-2 note-input-item">
                                             <?php $noteDate = $n['date'] ?? ''; ?>
                                             <span class="text-muted" style="font-size: 11px; min-width: 120px; text-align: right; <?= $noteDate === '' ? 'display: none;' : '' ?>"><?= $noteDate !== '' ? '[' . esc($noteDate) . ']' : '' ?></span> 
-                                            <input type="text" class="form-control form-control-sm note-text-input" value="<?= esc($n['text'] ?? '') ?>" style="flex-grow: 1; max-width: 500px;" <?= $config['is_closed'] ? 'disabled' : '' ?>>
-                                            <?php if (!$config['is_closed']) { ?>
+                                            <input type="text" class="form-control form-control-sm note-text-input" value="<?= esc($n['text'] ?? '') ?>" style="flex-grow: 1; max-width: 500px;" <?= ($config['is_closed'] || !empty($payrollConfirmation)) ? 'disabled' : '' ?>>
+                                            <?php if (!$config['is_closed'] && empty($payrollConfirmation)) { ?>
                                                 <button type="button" class="btn btn-sm btn-light btn-remove-note-input" title="Xóa" style="color: #ff3b30;"><i class="fas fa-trash"></i></button>
                                             <?php } ?>
                                         </div>
@@ -257,14 +276,14 @@
                                 ?>
                                         <div class="d-flex align-items-center gap-10 mb-2 note-input-item">
                                             <span class="text-muted date-placeholder" style="font-size: 11px; min-width: 120px; text-align: right; display: none;"></span> 
-                                            <input type="text" class="form-control form-control-sm note-text-input" placeholder="Nhập nội dung chi phí..." style="flex-grow: 1; max-width: 500px;" <?= $config['is_closed'] ? 'disabled' : '' ?>>
-                                            <?php if (!$config['is_closed']) { ?>
+                                            <input type="text" class="form-control form-control-sm note-text-input" placeholder="Nhập nội dung chi phí..." style="flex-grow: 1; max-width: 500px;" <?= ($config['is_closed'] || !empty($payrollConfirmation)) ? 'disabled' : '' ?>>
+                                            <?php if (!$config['is_closed'] && empty($payrollConfirmation)) { ?>
                                                 <button type="button" class="btn btn-sm btn-light btn-remove-note-input" title="Xóa" style="display:none; color: #ff3b30;"><i class="fas fa-trash"></i></button>
                                             <?php } ?>
                                         </div>
                                 <?php } ?>
                             </div>
-                            <?php if (!$config['is_closed']) { ?>
+                            <?php if (!$config['is_closed'] && empty($payrollConfirmation)) { ?>
                                 <div class="mt-2 d-flex gap-10" style="padding-left: 130px;">
                                     <button type="button" class="btn btn-sm btn-primary btn-save-notes"><i class="fas fa-save"></i> Lưu chi phí</button>
                                     <button type="button" class="btn btn-sm btn-light btn-add-note-input"><i class="fas fa-plus"></i> Thêm dòng mới</button>

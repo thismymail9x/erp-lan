@@ -28,10 +28,8 @@ class FinanceController extends BaseController
             $year = (int)$yearGet;
         }
 
-        $paymentStatus = $this->request->getGet('payment_status') ?? '';
-
         // Tính tổng quan tài chính và danh sách ID vụ việc hợp lệ (Toàn bộ dữ liệu theo bộ lọc, không chỉ trang hiện tại)
-        $financeStats = $caseService->getFinanceStats($search, $month, $year, $paymentStatus);
+        $financeStats = $caseService->getFinanceStats($search, $month, $year, '');
 
         $cases = $caseService->getCases(
             'updated_at', 
@@ -43,7 +41,7 @@ class FinanceController extends BaseController
             0, 
             $month, 
             $year, 
-            $paymentStatus,
+            '',
             true,
             $financeStats['case_ids']
         );
@@ -58,8 +56,7 @@ class FinanceController extends BaseController
             'filters' => [
                 'search' => $search,
                 'month' => $month,
-                'year' => $year,
-                'payment_status' => $paymentStatus
+                'year' => $year
             ]
         ];
 

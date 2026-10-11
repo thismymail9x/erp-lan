@@ -96,12 +96,18 @@
                     <label style="display: block; margin-bottom: 8px; font-weight: 600;">L&#297;nh v&#7921;c chuy&#234;n m&#244;n ph&#225;p l&#253; (Specialties)</label>
                     <div style="display: flex; flex-wrap: wrap; gap: 15px; background: #f8f9fa; padding: 12px 15px; border-radius: 8px; border: 1px solid #d2d2d7;">
                         <?php
-                            $availableSpecs = ['Đất đai', 'Ly hôn', 'Doanh nghiệp', 'Hình sự', 'Dân sự'];
+                            $availableSpecs = [
+                                ['value' => html_entity_decode('&#272;&#7845;t &#273;ai', ENT_QUOTES, 'UTF-8'), 'label' => '&#272;&#7845;t &#273;ai'],
+                                ['value' => html_entity_decode('Ly h&#244;n', ENT_QUOTES, 'UTF-8'), 'label' => 'Ly h&#244;n'],
+                                ['value' => html_entity_decode('Doanh nghi&#7879;p', ENT_QUOTES, 'UTF-8'), 'label' => 'Doanh nghi&#7879;p'],
+                                ['value' => html_entity_decode('H&#236;nh s&#7921;', ENT_QUOTES, 'UTF-8'), 'label' => 'H&#236;nh s&#7921;'],
+                                ['value' => html_entity_decode('D&#226;n s&#7921;', ENT_QUOTES, 'UTF-8'), 'label' => 'D&#226;n s&#7921;'],
+                            ];
                             foreach ($availableSpecs as $spec) {
                         ?>
                             <label style="display: inline-flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; margin-bottom: 0;">
-                                <input type="checkbox" name="specialties[]" value="<?= esc($spec) ?>" style="width: auto; margin-right: 4px;">
-                                <?= esc($spec) ?>
+                                <input type="checkbox" name="specialties[]" value="<?= esc($spec['value']) ?>" style="width: auto; margin-right: 4px;">
+                                <?= $spec['label'] ?>
                             </label>
                         <?php } ?>
                     </div>

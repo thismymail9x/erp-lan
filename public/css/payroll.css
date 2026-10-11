@@ -98,6 +98,33 @@
     font-weight: 600;
 }
 
+.payroll-confirm-icon {
+    display: inline-flex;
+    align-items: center;
+    font-size: 13px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.payroll-confirm-icon.confirmed {
+    color: #34c759;
+}
+
+.payroll-confirm-icon.pending {
+    color: #c7c7cc;
+}
+
+.payroll-confirm-box {
+    align-items: center;
+    background: #f5fbf7;
+    border: 1px solid #bfe8cb;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px;
+}
+
 input[data-field="manual_adjust_days"] {
     width: 52px;
     text-align: center;

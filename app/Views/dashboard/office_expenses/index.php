@@ -9,6 +9,9 @@
 $money = static fn($value) => number_format((int)$value, 0, ',', '.') . 'đ';
 $changeClass = static fn($value) => $value > 0 ? 'is-up' : ($value < 0 ? 'is-down' : 'is-flat');
 $changeText = static fn($value) => ($value > 0 ? '+' : '') . number_format((float)$value, 1, ',', '.') . '%';
+$selectedFundDate = !empty($filters['month'])
+    ? sprintf('%04d-%02d-01', (int)($filters['year'] ?? date('Y')), (int)$filters['month'])
+    : date('Y-m-d');
 $chartPayload = [
     'labels' => array_map(static fn($m) => 'T' . $m, range(1, 12)),
     'current' => array_map('intval', $monthly ?? []),
@@ -54,7 +57,78 @@ $chartPayload = [
         </div>
     </div>
 
+    <div class="office-stats-grid office-fund-stats">
+        <div class="office-stat">
+            <span>Tiền đã nhận</span>
+            <strong><?= $money($fundSummary['received'] ?? 0) ?></strong>
+            <small><?= esc($fundSummary['period_label'] ?? '') ?></small>
+        </div>
+        <div class="office-stat">
+            <span>Chi vận hành</span>
+            <strong><?= $money($fundSummary['office_spent'] ?? 0) ?></strong>
+            <small><?= number_format((int)($fundSummary['office_count'] ?? 0), 0, ',', '.') ?> khoản đã ghi</small>
+        </div>
+        <div class="office-stat">
+            <span>Chi vụ việc đã duyệt</span>
+            <strong><?= $money($fundSummary['case_spent'] ?? 0) ?></strong>
+            <small><?= number_format((int)($fundSummary['case_count'] ?? 0), 0, ',', '.') ?> khoản đã duyệt</small>
+        </div>
+        <div class="office-stat">
+            <span>Còn thực giữ</span>
+            <strong class="<?= (($fundSummary['remaining'] ?? 0) < 0) ? 'is-up' : 'is-down' ?>"><?= $money($fundSummary['remaining'] ?? 0) ?></strong>
+            <small>Đã trừ cả chi vận hành và chi vụ việc</small>
+        </div>
+        <div class="office-stat">
+            <span>Dự kiến sau chờ duyệt</span>
+            <strong class="<?= (($fundSummary['remaining_after_pending'] ?? 0) < 0) ? 'is-up' : 'is-flat' ?>"><?= $money($fundSummary['remaining_after_pending'] ?? 0) ?></strong>
+            <small>Chờ duyệt: <?= $money($fundSummary['case_pending'] ?? 0) ?></small>
+        </div>
+    </div>
+
     <?php if ($canManage) { ?>
+        <div class="office-panel">
+            <div class="office-panel-title"><i class="fas fa-wallet"></i> Tiền vận hành nhận theo ngày</div>
+            <div class="office-fund-layout">
+                <form action="<?= base_url('office-expenses/funds/store') ?>" method="POST" class="office-form office-fund-form">
+                    <?= csrf_field() ?>
+                    <div class="office-fund-form-grid">
+                        <div class="form-group-premium">
+                            <label>Ngày nhận</label>
+                            <input type="date" name="fund_date" class="form-control-premium" value="<?= esc($selectedFundDate) ?>" required>
+                        </div>
+                        <div class="form-group-premium">
+                            <label>Số tiền nhận/bổ sung</label>
+                            <input type="text" name="fund_amount" class="form-control-premium js-money-input" inputmode="numeric" autocomplete="off" placeholder="VD: 5000000" required>
+                        </div>
+                        <div class="form-group-premium office-fund-note-field">
+                            <label>Ghi chú</label>
+                            <input type="text" name="fund_note" class="form-control-premium" placeholder="Tiền tạm ứng đầu tháng, bổ sung phát sinh...">
+                        </div>
+                        <div class="office-fund-action">
+                            <button type="submit" class="btn-premium-sm"><i class="fas fa-plus"></i> Nhập tiền</button>
+                        </div>
+                    </div>
+                </form>
+                <div class="office-fund-list">
+                    <?php if (empty($fundEntries)) { ?>
+                        <div class="office-empty-mini">Chưa có khoản tiền nhận trong kỳ này.</div>
+                    <?php } ?>
+                    <?php foreach (($fundEntries ?? []) as $fund) { ?>
+                        <div class="office-fund-item">
+                            <div>
+                                <strong><?= $money($fund['amount']) ?></strong>
+                                <span>Ngày <?= date('d/m/Y', strtotime($fund['expense_date'])) ?><?= !empty($fund['creator_name']) ? ' · ' . esc($fund['creator_name']) : '' ?></span>
+                                <?php if (!empty($fund['note'])) { ?><small><?= esc($fund['note']) ?></small><?php } ?>
+                            </div>
+                            <a href="<?= base_url('office-expenses/funds/delete/' . $fund['id']) ?>" class="btn-delete-mini js-confirm-delete-fund" title="Xóa khoản tiền">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </div>
+                    <?php } ?>
+                </div>
+            </div>
+        </div>
+
         <div class="office-panel">
             <div class="office-panel-title"><i class="fas fa-plus-circle"></i> Nhập chi phí vận hành</div>
             <form action="<?= base_url('office-expenses/store') ?>" method="POST" enctype="multipart/form-data" class="office-form">
@@ -200,12 +274,66 @@ $chartPayload = [
                                 <td data-label="Ghi chu" class="office-note-cell" data-full-note="<?= esc($expense['note'] ?? '') ?>"><div class="office-note-line"><?= esc($expense['note'] ?? '') ?></div></td>
                                 <td data-label="Thao tac" class="office-actions-cell">
                                     <?php if ($canManage) { ?>
+                                        <button type="button" class="btn-edit-mini js-toggle-office-edit" data-target="office-edit-<?= (int)$expense['id'] ?>" title="Sửa">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
                                         <a href="<?= base_url('office-expenses/delete/' . $expense['id']) ?>" class="btn-delete-mini js-confirm-delete" title="Xóa">
                                             <i class="fas fa-trash"></i>
                                         </a>
                                     <?php } ?>
                                 </td>
                             </tr>
+                            <?php if ($canManage) { ?>
+                                <tr id="office-edit-<?= (int)$expense['id'] ?>" class="office-edit-row">
+                                    <td colspan="8">
+                                        <form action="<?= base_url('office-expenses/update/' . $expense['id']) ?>" method="POST" enctype="multipart/form-data" class="office-form office-edit-form">
+                                            <?= csrf_field() ?>
+                                            <div class="office-form-grid">
+                                                <div class="form-group-premium">
+                                                    <label>Ngày chi</label>
+                                                    <input type="date" name="expense_date" class="form-control-premium" value="<?= esc($expense['expense_date']) ?>" required>
+                                                </div>
+                                                <div class="form-group-premium">
+                                                    <label>Loại chi phí</label>
+                                                    <select name="category" class="form-control-premium" required>
+                                                        <?php foreach ($categoryLabels as $key => $label) { ?>
+                                                            <option value="<?= esc($key) ?>" <?= $expense['category'] === $key ? 'selected' : '' ?>><?= esc($label) ?></option>
+                                                        <?php } ?>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group-premium">
+                                                    <label>Số tiền</label>
+                                                    <input type="text" name="amount" class="form-control-premium js-money-input" inputmode="numeric" autocomplete="off" value="<?= number_format((int)$expense['amount'], 0, ',', '.') ?>" required>
+                                                </div>
+                                                <div class="form-group-premium">
+                                                    <label>Thanh toán</label>
+                                                    <select name="payment_method" class="form-control-premium">
+                                                        <?php foreach ($paymentMethodLabels as $key => $label) { ?>
+                                                            <option value="<?= esc($key) ?>" <?= ($expense['payment_method'] ?? '') === $key ? 'selected' : '' ?>><?= esc($label) ?></option>
+                                                        <?php } ?>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group-premium">
+                                                    <label>Nhà cung cấp</label>
+                                                    <input type="text" name="vendor" class="form-control-premium" value="<?= esc($expense['vendor'] ?? '') ?>">
+                                                </div>
+                                                <div class="form-group-premium">
+                                                    <label>Bổ sung/thay chứng từ</label>
+                                                    <input type="file" name="receipt" class="form-control-premium" accept="image/*,.pdf">
+                                                </div>
+                                                <div class="form-group-premium office-note-field">
+                                                    <label>Ghi chú</label>
+                                                    <textarea name="note" class="form-control-premium"><?= esc($expense['note'] ?? '') ?></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="office-form-actions">
+                                                <button type="button" class="btn-secondary-sm js-toggle-office-edit" data-target="office-edit-<?= (int)$expense['id'] ?>">Hủy</button>
+                                                <button type="submit" class="btn-premium-sm"><i class="fas fa-save"></i> Cập nhật</button>
+                                            </div>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php } ?>
                         <?php } ?>
                     </tbody>
                 </table>

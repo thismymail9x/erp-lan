@@ -64,7 +64,8 @@
             $profileDocumentFileCount += max(1, (int)($profileDocument['attachment_count'] ?? 1));
         }
     }
-    $canDeleteDocuments = has_permission('sys.admin');
+    $currentUserId = (int)session()->get('user_id');
+    $canManageDocuments = has_permission('sys.admin') || has_permission('document.manage');
 ?>
 <div class="customer-profile-container">
     <div class="dashboard-header-wrapper">
@@ -363,6 +364,7 @@
                                         $attachmentIds = !empty($doc['attachment_ids']) ? explode(',', $doc['attachment_ids']) : [];
                                         $attachmentNames = !empty($doc['attachment_names']) ? explode("\n", $doc['attachment_names']) : [];
                                         $docIcon = $attachmentCount > 1 ? 'fa-layer-group' : get_customer_doc_icon($doc['file_type'] ?? '');
+                                        $canDeleteThisDocument = $canManageDocuments || (int)($doc['uploaded_by'] ?? 0) === $currentUserId;
                                     ?>
                                     <div class="premium-card vault-card">
                                         <div class="vault-icon">
@@ -386,7 +388,7 @@
                                                 <a href="<?= base_url('documents/view/' . ($doc['id'] ?? 0)) ?>" class="btn-secondary-sm">
                                                     <i class="fas fa-download"></i> Tải
                                                 </a>
-                                                <?php if ($canDeleteDocuments) { ?>
+                                                <?php if ($canDeleteThisDocument) { ?>
                                                     <form action="<?= base_url('documents/delete/' . ($doc['id'] ?? 0)) ?>" method="post" class="customer-document-delete-form" onsubmit="return confirm('Xóa vĩnh viễn tệp này khỏi hồ sơ khách hàng?');">
                                                         <?= csrf_field() ?>
                                                         <button type="submit" class="customer-document-delete-btn" title="Xóa tệp">
@@ -415,7 +417,7 @@
                                                             <a href="<?= $attachmentUrl ?>" class="document-attachment-action" title="Tải xuống">
                                                                 <i class="fas fa-download"></i>
                                                             </a>
-                                                            <?php if ($canDeleteDocuments && !empty($attachmentId)) { ?>
+                                                            <?php if ($canDeleteThisDocument && !empty($attachmentId)) { ?>
                                                                 <form action="<?= base_url('documents/delete/' . ($doc['id'] ?? 0) . '/file/' . $attachmentId) ?>" method="post" class="customer-document-delete-form" onsubmit="return confirm('Xóa vĩnh viễn tệp này khỏi bộ hồ sơ?');">
                                                                     <?= csrf_field() ?>
                                                                     <button type="submit" class="document-attachment-action customer-document-delete-btn" title="Xóa tệp">

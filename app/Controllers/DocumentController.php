@@ -262,42 +262,18 @@ class DocumentController extends BaseController
      */
     public function delete($id)
     {
-        if (!has_permission('sys.admin')) {
-             return redirect()->back()->with('error', 'Chỉ Quản trị viên mới được phép xóa vĩnh viễn tài liệu khỏi DMS.');
-        }
-
         $doc = $this->docModel->find($id);
         if (!$doc) {
             return redirect()->back()->with('error', 'Tài liệu không tồn tại.');
         }
 
-        $paths = [];
-        if (!empty($doc['file_path'])) {
-            $paths[] = $doc['file_path'];
+        if (!$this->canDeleteDocument($doc)) {
+             return redirect()->back()->with('error', 'Bạn chỉ được xóa tài liệu do chính mình tải lên.');
         }
 
-        $fileModel = new \App\Models\DocumentFileModel();
-        $this->docModel->db->transStart();
-
-        if ($fileModel->db->tableExists('document_files')) {
-            $files = $fileModel->where('document_id', $id)->findAll();
-            foreach ($files as $file) {
-                if (!empty($file['file_path'])) {
-                    $paths[] = $file['file_path'];
-                }
-                $fileModel->delete($file['id']);
-            }
-        }
-
-        $this->docService->logAccess($id, 'delete');
-        $this->docModel->delete($id);
-
-        $this->docModel->db->transComplete();
-        if ($this->docModel->db->transStatus() === false) {
+        if (!$this->deleteDocumentAndFiles($doc, 'delete')) {
             return redirect()->back()->with('error', 'Có lỗi xảy ra khi xóa tài liệu.');
         }
-
-        $this->unlinkStoredFiles($paths);
 
         return redirect()->back()->with('success', 'Tài liệu đã được xóa khỏi DMS.');
     }
@@ -307,13 +283,13 @@ class DocumentController extends BaseController
      */
     public function deleteFile($documentId, $fileId)
     {
-        if (!has_permission('sys.admin')) {
-            return redirect()->back()->with('error', 'Chỉ Quản trị viên mới được phép xóa tệp tài liệu.');
-        }
-
         $doc = $this->docModel->find($documentId);
         if (!$doc) {
             return redirect()->back()->with('error', 'Tài liệu không tồn tại.');
+        }
+
+        if (!$this->canDeleteDocument($doc)) {
+            return redirect()->back()->with('error', 'Bạn chỉ được xóa tệp thuộc tài liệu do chính mình tải lên.');
         }
 
         $fileModel = new \App\Models\DocumentFileModel();
@@ -335,7 +311,10 @@ class DocumentController extends BaseController
         }
 
         $this->docModel->db->transStart();
-        $fileModel->delete($fileId);
+        if (!$fileModel->delete($fileId)) {
+            $this->docModel->db->transRollback();
+            return redirect()->back()->with('error', 'Không thể xóa tệp tài liệu.');
+        }
 
         $remainingFiles = $fileModel->where('document_id', $documentId)
             ->orderBy('sort_order', 'ASC')
@@ -347,12 +326,15 @@ class DocumentController extends BaseController
                 return (int)($row['size'] ?? 0);
             }, $remainingFiles));
 
-            $this->docModel->update($documentId, [
+            if (!$this->docModel->update($documentId, [
                 'file_path' => $firstFile['file_path'],
                 'file_type' => $firstFile['file_type'],
                 'mime_type' => $firstFile['mime_type'],
                 'size'      => $totalSize,
-            ]);
+            ])) {
+                $this->docModel->db->transRollback();
+                return redirect()->back()->with('error', 'Không thể cập nhật tài liệu sau khi xóa tệp.');
+            }
         }
 
         $this->docService->logAccess($documentId, 'delete_file');
@@ -367,11 +349,20 @@ class DocumentController extends BaseController
         return redirect()->back()->with('success', 'Đã xóa tệp khỏi hồ sơ.');
     }
 
+    private function canDeleteDocument(array $doc): bool
+    {
+        return has_permission('sys.admin')
+            || has_permission('document.manage')
+            || (int)($doc['uploaded_by'] ?? 0) === (int)session()->get('user_id');
+    }
+
     private function unlinkStoredFiles(array $paths): void
     {
         foreach (array_unique(array_filter($paths)) as $path) {
-            $realPath = WRITEPATH . $path;
-            if (is_file($realPath)) {
+            $baseDir = realpath(WRITEPATH . 'uploads/dms');
+            $basePrefix = $baseDir ? rtrim($baseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR : false;
+            $realPath = realpath(WRITEPATH . $path);
+            if ($basePrefix && $realPath && strpos($realPath, $basePrefix) === 0 && is_file($realPath)) {
                 @unlink($realPath);
             }
         }
@@ -463,24 +454,79 @@ class DocumentController extends BaseController
      */
     public function bulkDelete()
     {
-        if (!has_permission('sys.admin')) {
-            return redirect()->back()->with('error', 'Chỉ Quản trị viên mới được thực hiện Xóa chọn.');
-        }
-
         $ids = $this->request->getPost('ids');
         if (empty($ids) || !is_array($ids)) {
             return redirect()->back()->with('error', 'Cảnh báo: Bạn chưa chọn tài liệu nào để xử lý.');
         }
 
         $successCount = 0;
+        $skippedCount = 0;
         foreach ($ids as $id) {
-            if ($this->docModel->delete($id)) {
-                $this->docService->logAccess($id, 'bulk_delete');
+            $doc = $this->docModel->find((int)$id);
+            if (!$doc || !$this->canDeleteDocument($doc)) {
+                $skippedCount++;
+                continue;
+            }
+
+            if ($this->deleteDocumentAndFiles($doc, 'bulk_delete')) {
                 $successCount++;
             }
         }
 
-        return redirect()->back()->with('success', "Đã dọn dẹp thành công {$successCount} tài liệu khỏi danh sách.");
+        if ($successCount <= 0) {
+            return redirect()->back()->with('error', 'Không có tài liệu nào trong danh sách chọn thuộc quyền xóa của bạn.');
+        }
+
+        $message = "Đã dọn dẹp thành công {$successCount} tài liệu khỏi danh sách.";
+        if ($skippedCount > 0) {
+            $message .= " Bỏ qua {$skippedCount} tài liệu không thuộc quyền xóa.";
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    private function deleteDocumentAndFiles(array $doc, string $logAction): bool
+    {
+        $documentId = (int)($doc['id'] ?? 0);
+        if ($documentId <= 0) {
+            return false;
+        }
+
+        $paths = [];
+        if (!empty($doc['file_path'])) {
+            $paths[] = $doc['file_path'];
+        }
+
+        $fileModel = new \App\Models\DocumentFileModel();
+        $this->docModel->db->transStart();
+
+        if ($fileModel->db->tableExists('document_files')) {
+            $files = $fileModel->where('document_id', $documentId)->findAll();
+            foreach ($files as $file) {
+                if (!empty($file['file_path'])) {
+                    $paths[] = $file['file_path'];
+                }
+                if (!$fileModel->delete((int)$file['id'])) {
+                    $this->docModel->db->transRollback();
+                    return false;
+                }
+            }
+        }
+
+        $this->docService->logAccess($documentId, $logAction);
+        if (!$this->docModel->delete($documentId)) {
+            $this->docModel->db->transRollback();
+            return false;
+        }
+
+        $this->docModel->db->transComplete();
+        if ($this->docModel->db->transStatus() === false) {
+            return false;
+        }
+
+        $this->unlinkStoredFiles($paths);
+
+        return true;
     }
 
     /**

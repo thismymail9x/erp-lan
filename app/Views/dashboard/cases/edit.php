@@ -163,8 +163,7 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-<script src="<?= base_url('js/cases_edit.js') ?>"></script>
+<script src="<?= base_url('js/cases_edit.js') ?>?v=<?= time() ?>"></script>
 <?= $this->endSection() ?>
-
 
 

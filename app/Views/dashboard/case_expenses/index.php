@@ -202,6 +202,26 @@
                                         <span><?= esc($expense['approval_note']) ?></span>
                                     </div>
                                 <?php } ?>
+                                <?php if (!empty($expense['attachments'])) { ?>
+                                    <div class="expense-attachment-list">
+                                        <?php foreach ($expense['attachments'] as $attachment) { ?>
+                                            <?php $attachmentUrl = base_url('case-expenses/attachment/' . $attachment['id']); ?>
+                                            <div class="expense-attachment-item">
+                                                <span class="expense-attachment-name" title="<?= esc($attachment['file_name'] ?? '') ?>">
+                                                    <i class="fas fa-paperclip"></i> <?= esc($attachment['file_name'] ?? 'Chung tu') ?>
+                                                </span>
+                                                <span class="expense-attachment-actions">
+                                                    <a href="<?= $attachmentUrl ?>?preview=1" target="_blank" rel="noopener" title="Xem chung tu">
+                                                        <i class="fas fa-eye"></i>
+                                                    </a>
+                                                    <a href="<?= $attachmentUrl ?>/download" title="Tai chung tu">
+                                                        <i class="fas fa-download"></i>
+                                                    </a>
+                                                </span>
+                                            </div>
+                                        <?php } ?>
+                                    </div>
+                                <?php } ?>
                             </td>
                             <td data-label="Nhan su" class="expense-person-cell"><?= esc($expense['employee_name']) ?></td>
                             <td data-label="Loai" class="expense-category-cell"><?= esc($categoryLabels[$expense['category']] ?? $expense['category']) ?></td>
@@ -224,6 +244,12 @@
                                         <i class="fas fa-pen"></i>
                                         <span>Sửa</span>
                                     </button>
+                                    <?php if (has_permission('sys.admin')) { ?>
+                                        <a href="<?= base_url('case-expenses/delete/' . $expense['id']) ?>" class="expense-delete-action js-confirm-delete-expense" title="Xoa chi phi">
+                                            <i class="fas fa-trash"></i>
+                                            <span>Xoa</span>
+                                        </a>
+                                    <?php } ?>
                                 <?php } else { ?>
                                     <span class="text-xs text-muted-dark"><?= esc($expense['approver_name'] ?? '') ?></span>
                                 <?php } ?>

@@ -7,7 +7,6 @@ use App\Models\EmployeeModel;
 use App\Models\PayrollModel;
 use App\Models\PayrollConfigModel;
 use Config\AppConstants;
-use CodeIgniter\I18n\Time;
 
 /**
  * PayrollController
@@ -85,6 +84,12 @@ class PayrollController extends BaseController
                 ->get()
                 ->getResultArray();
 
+            $payrolls = $query->paginate(20);
+            $payrollConfirmations = [];
+            foreach ($payrolls as $payrollRow) {
+                $payrollConfirmations[$payrollRow['id']] = $this->payrollService->getEmployeeConfirmation($payrollRow);
+            }
+
             $data = [
                 'title'    => 'Quản lý Bảng lương - Tháng ' . $month,
                 'month'    => $month,
@@ -93,7 +98,8 @@ class PayrollController extends BaseController
                 'departments' => $departments,
                 'employees' => $employees,
                 'config'   => $config,
-                'payrolls' => $query->paginate(20),
+                'payrolls' => $payrolls,
+                'payrollConfirmations' => $payrollConfirmations,
                 'pager'    => $this->payrollModel->pager,
                 'isAdmin'  => true
             ];
@@ -110,10 +116,23 @@ class PayrollController extends BaseController
                 'month'   => $month,
                 'payroll' => $payroll,
                 'config'  => $config,
-                'isAdmin' => false
+                'isAdmin' => false,
+                'canConfirmPayroll' => $this->payrollService->canEmployeeConfirmPayroll($payroll, $month, $config),
+                'payrollConfirmation' => $this->payrollService->getEmployeeConfirmation($payroll),
+                'visibleNotes' => $this->payrollService->getVisibleNotes($payroll['notes_json'] ?? '[]')
             ];
             return view('dashboard/payroll/personal_view', $data);
         }
+    }
+
+    public function confirm($id)
+    {
+        $result = $this->payrollService->confirmEmployeePayroll((int)$id, (int)session()->get('employee_id'));
+        if ($result['status'] !== 'success') {
+            return redirect()->back()->with('error', $result['message']);
+        }
+
+        return redirect()->to('/payroll?month=' . $result['month'])->with('success', $result['message']);
     }
 
     /**
@@ -244,7 +263,7 @@ class PayrollController extends BaseController
                     <th colspan="2">Lương theo ngày công làm việc</th>
                     <th rowspan="2">Phụ cấp CC</th>
                     <th rowspan="2">Phụ cấp Xăng</th>
-                    <th rowspan="2">Lương trách nhiệm</th>
+                    <th rowspan="2">Phụ cấp trách nhiệm</th>
                     <th rowspan="2">Khác</th>
                     <th rowspan="2">Tổng lương</th>
                     <th colspan="5">Các khoản giảm trừ</th>
@@ -363,7 +382,8 @@ class PayrollController extends BaseController
             'salary_bonus'     => $bonus,
             'salary_kpi'       => $kpi,
             'salary_deduction' => 0.0,
-            'pit_tax'          => $pitTax
+            'pit_tax'          => $pitTax,
+            'notes_json'       => $this->payrollService->clearEmployeeConfirmationFromJson($payroll['notes_json'] ?? '[]')
         ];
 
         if ($petrol !== null)    { $data['petrol_allowance']    = (float)$petrol; }
@@ -432,6 +452,10 @@ class PayrollController extends BaseController
 
         if (!has_permission('payroll.manage') && $payroll['employee_id'] != session()->get('employee_id')) {
             return $this->response->setJSON(['code' => 1, 'msg' => 'Không có quyền truy cập bảng lương này']);
+        }
+
+        if (!has_permission('payroll.manage') && $this->payrollService->getEmployeeConfirmation($payroll) !== null) {
+            return $this->response->setJSON(['code' => 1, 'msg' => 'Bảng lương đã được xác nhận, không thể chỉnh sửa chi phí.']);
         }
 
         $notesJson = $this->request->getPost('notes_json');

@@ -21,6 +21,9 @@ class DocumentService extends BaseService
     protected $fileModel;
     protected $versionModel;
     protected $accessLogModel;
+    private array $allowedCategories = ['client_intake', 'case_file', 'correspondence', 'financial', 'template', 'internal'];
+    private array $allowedExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'txt', 'csv', 'zip', 'rar', '7z'];
+    private int $maxUploadBytes = 20971520;
 
     public function __construct()
     {
@@ -44,32 +47,54 @@ class DocumentService extends BaseService
             return $this->fail('File không hợp lệ hoặc đã được di chuyển.');
         }
 
+        $validation = $this->validateUploadedFile($file);
+        if ($validation['status'] !== 'success') {
+            return $validation;
+        }
+
+        $oldDoc = null;
+        if ($existingDocId) {
+            $oldDoc = $this->docModel->find($existingDocId);
+            if (!$oldDoc) {
+                return $this->fail('Không tìm thấy tài liệu gốc để nâng cấp phiên bản.');
+            }
+        }
+
         // 2. Chế độ lưu trữ an toàn (Safe Storage)
         $newName = $file->getRandomName();
-        $subDir = $data['document_category'] ?? 'internal';
+        $subDir = $this->safeCategory($data['document_category'] ?? 'internal');
         $uploadPath = WRITEPATH . 'uploads/dms/' . $subDir;
         
-        if (!is_dir($uploadPath)) {
-            mkdir($uploadPath, 0777, true);
+        if (!$this->ensureDirectory($uploadPath)) {
+            return $this->fail('Không thể tạo thư mục lưu tài liệu. Vui lòng kiểm tra quyền ghi writable/uploads.');
         }
 
         // Collect metadata BEFORE moving the file to prevent temp file access errors (finfo/stream)
         $clientName = $file->getClientName();
-        $extension  = $file->getExtension();
+        $extension  = strtolower((string)$file->getClientExtension());
         $mimeType   = $file->getClientMimeType();
         $fileSize   = $file->getSize();
+        $documentTitle = !empty(trim((string)($data['file_name'] ?? '')))
+            ? trim((string)$data['file_name'])
+            : $clientName;
 
-        $file->move($uploadPath, $newName);
+        try {
+            $file->move($uploadPath, $newName);
+        } catch (\Throwable $exception) {
+            log_message('error', 'DMS Move Error: ' . $exception->getMessage());
+            return $this->fail('Không thể lưu tệp tài liệu. Vui lòng thử lại.');
+        }
+
         $filePath = 'uploads/dms/' . $subDir . '/' . $newName;
 
         $dbData = [
-            'file_name'         => $data['file_name'] ?? $clientName,
+            'file_name'         => $documentTitle,
             'file_path'         => $filePath,
             'file_type'         => $extension,
             'mime_type'         => $mimeType,
             'size'              => $fileSize,
             'uploaded_by'       => session()->get('user_id'),
-            'document_category' => $data['document_category'] ?? 'case_file',
+            'document_category' => $subDir,
             'customer_id'       => !empty($data['customer_id']) ? $data['customer_id'] : null,
             'case_id'           => !empty($data['case_id']) ? $data['case_id'] : null,
             'step_id'           => !empty($data['step_id']) ? $data['step_id'] : null,
@@ -81,24 +106,38 @@ class DocumentService extends BaseService
 
         if ($existingDocId) {
             // XỬ LÝ VERSIONING
-            $oldDoc = $this->docModel->find($existingDocId);
-            if (!$oldDoc) return $this->fail('Không tìm thấy tài liệu gốc để nâng cấp phiên bản.');
-
             // Lưu phiên bản cũ vào bảng versions
-            $this->versionModel->insert([
-                'document_id'    => $oldDoc['id'],
-                'version_number' => $oldDoc['version_number'],
-                'file_name'      => $oldDoc['file_name'],
-                'file_path'      => $oldDoc['file_path'],
-                'uploaded_by'    => $oldDoc['uploaded_by'],
-                'uploaded_at'    => $oldDoc['updated_at'] ?? $oldDoc['created_at'],
-                'change_log'     => $data['change_log'] ?? 'Cập nhật phiên bản mới'
-            ]);
+            $this->docModel->db->transStart();
+            try {
+                if (!$this->versionModel->insert([
+                    'document_id'    => $oldDoc['id'],
+                    'version_number' => $oldDoc['version_number'],
+                    'file_name'      => $oldDoc['file_name'],
+                    'file_path'      => $oldDoc['file_path'],
+                    'uploaded_by'    => $oldDoc['uploaded_by'],
+                    'uploaded_at'    => $oldDoc['updated_at'] ?? $oldDoc['created_at'],
+                    'change_log'     => $data['change_log'] ?? 'Cập nhật phiên bản mới'
+                ])) {
+                    throw new \Exception('Không thể lưu lịch sử phiên bản tài liệu.');
+                }
 
-            // Cập nhật tài liệu chính lên phiên bản mới
-            $dbData['version_number'] = $oldDoc['version_number'] + 1;
-            $this->docModel->update($existingDocId, $dbData);
-            $docId = $existingDocId;
+                // Cập nhật tài liệu chính lên phiên bản mới
+                $dbData['version_number'] = $oldDoc['version_number'] + 1;
+                if (!$this->docModel->update($existingDocId, $dbData)) {
+                    throw new \Exception('Không thể cập nhật phiên bản mới của tài liệu.');
+                }
+                $docId = $existingDocId;
+
+                $this->docModel->db->transComplete();
+                if ($this->docModel->db->transStatus() === false) {
+                    throw new \Exception('Transaction failed. Có lỗi ràng buộc dữ liệu.');
+                }
+            } catch (\Exception $e) {
+                $this->docModel->db->transRollback();
+                $this->unlinkStoredFiles([$filePath]);
+                log_message('error', 'DMS Version Upload Error: ' . $e->getMessage());
+                return $this->fail('Lỗi hệ thống: ' . $e->getMessage());
+            }
 
             // ĐỒNG BỘ NHÃN DÁN (Smart Tagging System)
             if (isset($data['tags']) && is_array($data['tags'])) {
@@ -120,7 +159,7 @@ class DocumentService extends BaseService
                 }
 
                 if ($this->docModel->db->tableExists('document_files')) {
-                    $this->fileModel->insert([
+                    if (!$this->fileModel->insert([
                         'document_id'   => $docId,
                         'original_name' => $clientName,
                         'file_path'     => $filePath,
@@ -128,7 +167,9 @@ class DocumentService extends BaseService
                         'mime_type'     => $mimeType,
                         'size'          => $fileSize,
                         'sort_order'    => 1,
-                    ]);
+                    ])) {
+                        throw new \Exception('Không thể lưu metadata tệp tài liệu.');
+                    }
                 }
 
                 // ĐỒNG BỘ NHÃN DÁN (Smart Tagging System)
@@ -152,6 +193,7 @@ class DocumentService extends BaseService
                 }
             } catch (\Exception $e) {
                 $this->docModel->db->transRollback();
+                $this->unlinkStoredFiles([$filePath]);
                 log_message('error', 'DMS Insert Error: ' . $e->getMessage());
                 return $this->fail('Lỗi hệ thống: ' . $e->getMessage() . '. Vui lòng kiểm tra liên kết Vụ việc/Khách hàng.');
             }
@@ -185,13 +227,18 @@ class DocumentService extends BaseService
             if (!$file->isValid() || $file->hasMoved()) {
                 return $this->fail($file->getClientName() . ': File không hợp lệ hoặc đã được di chuyển.');
             }
+
+            $validation = $this->validateUploadedFile($file);
+            if ($validation['status'] !== 'success') {
+                return $validation;
+            }
         }
 
-        $subDir = $data['document_category'] ?? 'internal';
+        $subDir = $this->safeCategory($data['document_category'] ?? 'internal');
         $uploadPath = WRITEPATH . 'uploads/dms/' . $subDir;
 
-        if (!is_dir($uploadPath)) {
-            mkdir($uploadPath, 0777, true);
+        if (!$this->ensureDirectory($uploadPath)) {
+            return $this->fail('Không thể tạo thư mục lưu tài liệu. Vui lòng kiểm tra quyền ghi writable/uploads.');
         }
 
         $storedFiles = [];
@@ -200,11 +247,18 @@ class DocumentService extends BaseService
         foreach ($files as $index => $file) {
             $newName = $file->getRandomName();
             $clientName = $file->getClientName();
-            $extension = $file->getExtension();
+            $extension = strtolower((string)$file->getClientExtension());
             $mimeType = $file->getClientMimeType();
             $fileSize = $file->getSize();
 
-            $file->move($uploadPath, $newName);
+            try {
+                $file->move($uploadPath, $newName);
+            } catch (\Throwable $exception) {
+                $this->unlinkStoredFiles(array_column($storedFiles, 'file_path'));
+                log_message('error', 'DMS Multi Move Error: ' . $exception->getMessage());
+                return $this->fail($clientName . ': Không thể lưu tệp tài liệu. Vui lòng thử lại.');
+            }
+
             $filePath = 'uploads/dms/' . $subDir . '/' . $newName;
             $totalSize += $fileSize;
 
@@ -219,7 +273,9 @@ class DocumentService extends BaseService
         }
 
         $firstFile = $storedFiles[0];
-        $documentTitle = !empty($data['file_name']) ? trim($data['file_name']) : pathinfo($firstFile['original_name'], PATHINFO_FILENAME);
+        $documentTitle = !empty(trim((string)($data['file_name'] ?? '')))
+            ? trim((string)$data['file_name'])
+            : pathinfo($firstFile['original_name'], PATHINFO_FILENAME);
 
         $dbData = [
             'file_name'         => $documentTitle,
@@ -228,7 +284,7 @@ class DocumentService extends BaseService
             'mime_type'         => $firstFile['mime_type'],
             'size'              => $totalSize,
             'uploaded_by'       => session()->get('user_id'),
-            'document_category' => $data['document_category'] ?? 'case_file',
+            'document_category' => $subDir,
             'customer_id'       => !empty($data['customer_id']) ? $data['customer_id'] : null,
             'case_id'           => !empty($data['case_id']) ? $data['case_id'] : null,
             'step_id'           => !empty($data['step_id']) ? $data['step_id'] : null,
@@ -251,7 +307,9 @@ class DocumentService extends BaseService
 
             foreach ($storedFiles as $storedFile) {
                 $storedFile['document_id'] = $docId;
-                $this->fileModel->insert($storedFile);
+                if (!$this->fileModel->insert($storedFile)) {
+                    throw new \Exception('Không thể lưu metadata tệp tài liệu.');
+                }
             }
 
             if (isset($data['tags']) && is_array($data['tags'])) {
@@ -271,11 +329,98 @@ class DocumentService extends BaseService
             }
         } catch (\Exception $e) {
             $this->docModel->db->transRollback();
+            $this->unlinkStoredFiles(array_column($storedFiles, 'file_path'));
             log_message('error', 'DMS Multi Upload Error: ' . $e->getMessage());
             return $this->fail('Lỗi hệ thống: ' . $e->getMessage());
         }
 
         return $this->success(['id' => $docId, 'file_count' => count($storedFiles)], 'Đã tải lên tài liệu kèm ' . count($storedFiles) . ' tệp.');
+    }
+
+    private function validateUploadedFile($file): array
+    {
+        $extension = strtolower((string)$file->getClientExtension());
+        if (!in_array($extension, $this->allowedExtensions, true)) {
+            return $this->fail($file->getClientName() . ': Định dạng tệp không được hỗ trợ.');
+        }
+
+        $maxBytes = $this->effectiveUploadLimitBytes($this->maxUploadBytes);
+        if ((int)$file->getSize() > $maxBytes) {
+            return $this->fail($file->getClientName() . ': Tệp không được vượt quá ' . $this->formatBytes($maxBytes) . '.');
+        }
+
+        return $this->success();
+    }
+
+    private function safeCategory(string $category): string
+    {
+        return in_array($category, $this->allowedCategories, true) ? $category : 'internal';
+    }
+
+    private function ensureDirectory(string $path): bool
+    {
+        if (!is_dir($path)) {
+            @mkdir($path, 0775, true);
+        }
+
+        return is_dir($path) && is_writable($path);
+    }
+
+    private function unlinkStoredFiles(array $paths): void
+    {
+        $baseDir = realpath(WRITEPATH . 'uploads/dms');
+        $basePrefix = $baseDir ? rtrim($baseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR : false;
+
+        foreach (array_unique(array_filter($paths)) as $path) {
+            $realPath = realpath(WRITEPATH . $path);
+            if ($basePrefix && $realPath && strpos($realPath, $basePrefix) === 0 && is_file($realPath)) {
+                @unlink($realPath);
+            }
+        }
+    }
+
+    private function effectiveUploadLimitBytes(int $appLimit): int
+    {
+        $limits = [$appLimit];
+        foreach (['upload_max_filesize', 'post_max_size'] as $key) {
+            $bytes = $this->iniBytes((string)ini_get($key));
+            if ($bytes > 0) {
+                $limits[] = $bytes;
+            }
+        }
+
+        return min($limits);
+    }
+
+    private function iniBytes(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return 0;
+        }
+
+        $unit = strtolower(substr($value, -1));
+        $number = (float)$value;
+        if ($unit === 'g') {
+            $number *= 1024;
+        }
+        if (in_array($unit, ['g', 'm'], true)) {
+            $number *= 1024;
+        }
+        if (in_array($unit, ['g', 'm', 'k'], true)) {
+            $number *= 1024;
+        }
+
+        return (int)$number;
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        if ($bytes >= 1048576) {
+            return rtrim(rtrim(number_format($bytes / 1048576, 1, '.', ''), '0'), '.') . 'MB';
+        }
+
+        return $bytes . ' bytes';
     }
 
     /**
@@ -329,6 +474,8 @@ class DocumentService extends BaseService
     public function logAccess($docId, $action)
     {
         $request = \Config\Services::request();
+        $action = $this->normalizeAccessAction((string)$action);
+
         $this->accessLogModel->insert([
             'document_id' => $docId,
             'user_id'     => session()->get('user_id'),
@@ -337,5 +484,20 @@ class DocumentService extends BaseService
             'user_agent'  => $request->getUserAgent()->getAgentString(),
             'created_at'  => date('Y-m-d H:i:s')
         ]);
+    }
+
+    private function normalizeAccessAction(string $action): string
+    {
+        $map = [
+            'update' => 'edit',
+            'delete_file' => 'delete',
+            'bulk_delete' => 'delete',
+        ];
+
+        $action = $map[$action] ?? $action;
+
+        return in_array($action, ['view', 'download', 'edit', 'delete', 'upload'], true)
+            ? $action
+            : 'view';
     }
 }

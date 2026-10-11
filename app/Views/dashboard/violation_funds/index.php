@@ -61,12 +61,12 @@ $chartPayload = [
                 <div class="violation-form-grid">
                     <div class="form-group-premium">
                         <label>Nhân sự vi phạm</label>
-                        <select name="employee_id" class="form-control-premium" required>
-                            <option value="">Chọn nhân sự</option>
+                        <select name="employee_ids[]" class="form-control-premium select2-multi violation-employee-multi" multiple="multiple" required data-search="true" data-placeholder="Chọn một hoặc nhiều nhân sự">
                             <?php foreach ($employees as $employee) { ?>
-                                <option value="<?= (int)$employee['id'] ?>"><?= esc($employee['full_name']) ?><?= $employee['position'] ? ' - ' . esc($employee['position']) : '' ?></option>
+                                <option value="<?= (int)$employee['id'] ?>" <?= in_array((string)$employee['id'], array_map('strval', (array)old('employee_ids')), true) ? 'selected' : '' ?>><?= esc($employee['full_name']) ?><?= $employee['position'] ? ' - ' . esc($employee['position']) : '' ?></option>
                             <?php } ?>
                         </select>
+                        <small class="violation-help-text">Có thể chọn nhiều nhân sự cho cùng một lỗi.</small>
                     </div>
                     <div class="form-group-premium">
                         <label>Ngày vi phạm</label>

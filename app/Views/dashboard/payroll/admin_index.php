@@ -106,7 +106,7 @@
                         <th colspan="3">Lương theo ngày công làm việc</th>
                         <th rowspan="2" class="col-allowance-diligence">Phụ cấp chuyên cần</th>
                         <th rowspan="2" class="col-allowance-petrol">Phụ cấp xăng xe</th>
-                        <th rowspan="2" class="col-salary-kpi">Lương trách nhiệm</th>
+                        <th rowspan="2" class="col-salary-kpi">Phụ cấp trách nhiệm</th>
                         <th rowspan="2" class="col-salary-other">Khác</th>
                         <th rowspan="2">Tổng lương</th>
                         <th colspan="5">Các khoản giảm trừ</th>
@@ -131,6 +131,10 @@
                             <tr>
                                 <td class="text-center"><input type="checkbox" class="emp-checkbox" value="<?= $p['employee_id'] ?>"></td>
                                 <td class="employee-cell" data-id="<?= $p['id'] ?>" style="cursor: pointer;" title="Click để xem/sửa ghi chú">
+                                     <?php $confirmation = $payrollConfirmations[$p['id']] ?? null; ?>
+                                     <span id="payroll-confirm-<?= $p['id'] ?>" class="payroll-confirm-icon <?= !empty($confirmation) ? 'confirmed' : 'pending' ?>" title="<?= !empty($confirmation) ? 'Đã xác nhận' : 'Chưa xác nhận' ?>">
+                                         <i class="fas fa-check-circle"></i>
+                                     </span>
                                      <strong><a href="javascript:void(0)" style="color: inherit; text-decoration: none; border-bottom: 1px dashed #ccc;"><?= esc($p['full_name']) ?></a></strong>
                                      <?php
                                          $snapshot = (float)($p['probation_rate_snapshot'] ?? 100);
@@ -143,6 +147,9 @@
                                      <div class="notes-display-wrapper mt-1" id="notes-display-<?= $p['id'] ?>">
                                          <?php 
                                              $notes = json_decode($p['notes_json'] ?? '[]', true);
+                                             $notes = array_values(array_filter(is_array($notes) ? $notes : [], function ($n) {
+                                                 return ($n['type'] ?? '') !== 'employee_payroll_confirmation';
+                                             }));
                                              if (!empty($notes)) {
                                                  foreach ($notes as $n) {
                                                      echo '<div class="text-xs text-muted" style="font-style: italic; margin-top: 2px;"><i class="fas fa-level-up-alt fa-rotate-90 text-blue" style="margin-right: 4px;"></i>' . esc($n['text']) . '</div>';
@@ -150,7 +157,7 @@
                                              }
                                          ?>
                                      </div>
-                                     <textarea class="raw-notes-data" id="raw-notes-<?= $p['id'] ?>" style="display:none;"><?= esc($p['notes_json'] ?? '[]') ?></textarea>
+                                     <textarea class="raw-notes-data" id="raw-notes-<?= $p['id'] ?>" style="display:none;"><?= esc(json_encode($notes, JSON_UNESCAPED_UNICODE)) ?></textarea>
                                 </td>
                                 <td class="text-right"><?= number_format($p['insurance_salary'] ?? 0) ?></td>
                                 <td class="text-right"><?= number_format($p['salary_base'] ?? 0) ?></td>

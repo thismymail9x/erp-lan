@@ -21,6 +21,8 @@ use Config\AppConstants;
  */
 class PayrollService extends BaseService
 {
+    private const EMPLOYEE_CONFIRMATION_TYPE = 'employee_payroll_confirmation';
+
     protected $payrollModel;
     protected $configModel;
     protected $empModel;
@@ -35,6 +37,119 @@ class PayrollService extends BaseService
         $this->empModel          = new EmployeeModel();
         $this->attModel          = new AttendanceModel();
         $this->leaveRequestModel = new LeaveRequestModel();
+    }
+
+    public function getEmployeeConfirmation(?array $payroll): ?array
+    {
+        if (!$payroll) {
+            return null;
+        }
+
+        foreach ($this->decodeNotes($payroll['notes_json'] ?? '[]') as $note) {
+            if (($note['type'] ?? '') === self::EMPLOYEE_CONFIRMATION_TYPE) {
+                return $note;
+            }
+        }
+
+        return null;
+    }
+
+    public function getVisibleNotes($notesJson): array
+    {
+        return array_values(array_filter($this->decodeNotes($notesJson), function ($note) {
+            return ($note['type'] ?? '') !== self::EMPLOYEE_CONFIRMATION_TYPE;
+        }));
+    }
+
+    public function canEmployeeConfirmPayroll(?array $payroll, string $month, array $config): bool
+    {
+        if (!$payroll || $this->getEmployeeConfirmation($payroll) !== null || !empty($config['is_closed'])) {
+            return false;
+        }
+
+        $deadline = \CodeIgniter\I18n\Time::parse(date('Y-m-20 23:59:59', strtotime($month . '-01 +1 month')));
+        $now = \CodeIgniter\I18n\Time::now();
+
+        return $now->getTimestamp() <= $deadline->getTimestamp();
+    }
+
+    public function confirmEmployeePayroll(int $payrollId, int $employeeId): array
+    {
+        $payroll = $this->payrollModel->find($payrollId);
+        if (!$payroll || (int)$payroll['employee_id'] !== $employeeId) {
+            return ['status' => 'error', 'message' => 'Không có quyền xác nhận bảng lương này.'];
+        }
+
+        $config = $this->getOrCreateConfig($payroll['month']);
+        if (!$this->canEmployeeConfirmPayroll($payroll, $payroll['month'], $config)) {
+            return ['status' => 'error', 'message' => 'Đã hết hạn hoặc bảng lương không thể xác nhận.'];
+        }
+
+        $notes = $this->removeEmployeeConfirmationFromNotes($this->decodeNotes($payroll['notes_json'] ?? '[]'));
+        $now = date('d/m/Y H:i');
+        $notes[] = [
+            'type' => self::EMPLOYEE_CONFIRMATION_TYPE,
+            'text' => '[Xác nhận lương] Nhân viên đã đọc và thống nhất bảng lương.',
+            'date' => $now,
+            'auto' => true,
+        ];
+
+        $this->payrollModel->update($payrollId, [
+            'notes_json' => json_encode($notes, JSON_UNESCAPED_UNICODE),
+        ]);
+
+        return ['status' => 'success', 'message' => 'Đã xác nhận chốt lương.', 'month' => $payroll['month']];
+    }
+
+    public function clearEmployeeConfirmationFromJson($notesJson): string
+    {
+        return json_encode(
+            $this->removeEmployeeConfirmationFromNotes($this->decodeNotes($notesJson)),
+            JSON_UNESCAPED_UNICODE
+        );
+    }
+
+    private function decodeNotes($notesJson): array
+    {
+        $notes = json_decode($notesJson ?: '[]', true);
+        return is_array($notes) ? $notes : [];
+    }
+
+    private function removeEmployeeConfirmationFromNotes(array $notes): array
+    {
+        return array_values(array_filter($notes, function ($note) {
+            return ($note['type'] ?? '') !== self::EMPLOYEE_CONFIRMATION_TYPE;
+        }));
+    }
+
+    private function payrollDataChanged(array $existing, array $next): bool
+    {
+        $fields = [
+            'salary_base', 'insurance_salary', 'salary_kpi', 'diligence_allowance',
+            'petrol_allowance', 'salary_bonus', 'salary_other',
+            'total_standard_days', 'salary_per_day', 'actual_working_days',
+            'manual_adjust_days', 'probation_rate_snapshot', 'taxable_income',
+            'si_employee', 'dependent_deduction', 'pit_tax', 'total_deductions',
+            'net_salary',
+        ];
+
+        foreach ($fields as $field) {
+            $old = $existing[$field] ?? null;
+            $new = $next[$field] ?? null;
+
+            if (is_numeric($old) || is_numeric($new)) {
+                if (abs((float)$old - (float)$new) >= 0.01) {
+                    return true;
+                }
+                continue;
+            }
+
+            if ((string)$old !== (string)$new) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -571,10 +686,6 @@ class PayrollService extends BaseService
                             $violations++;
                         }
                     }
-                } elseif (isset($holidays[$date])) {
-                    // Ngày lễ/nghỉ có lương
-                    $actualDays += 1.0;
-                    $attendedDates[$date] = 1.0;
                 }
             }
 
@@ -717,6 +828,9 @@ class PayrollService extends BaseService
             ];
 
             if ($existing) {
+                if ($this->getEmployeeConfirmation($existing) !== null && $this->payrollDataChanged($existing, $payrollData)) {
+                    $payrollData['notes_json'] = $this->clearEmployeeConfirmationFromJson($payrollData['notes_json']);
+                }
                 $this->payrollModel->update($existing['id'], $payrollData);
             } else {
                 $this->payrollModel->insert($payrollData);

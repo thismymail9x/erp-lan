@@ -75,6 +75,15 @@
                 <div class="stat-value"><?= $stats['completed'] ?? 0 ?></div>
             </div>
         </div>
+        <div class="stat-card-premium pointer case-stat-filter" data-status="huy" title="Số lượng vụ việc đã hủy">
+            <div class="stat-icon-wrapper stat-icon-cancelled">
+                <i class="fas fa-ban"></i>
+            </div>
+            <div>
+                <div class="stat-label">Hủy</div>
+                <div class="stat-value"><?= $stats['cancelled'] ?? 0 ?></div>
+            </div>
+        </div>
         <!-- Vụ việc có bước bị quá hạn -->
         <div class="stat-card-premium pointer case-stat-filter" data-status="overdue" title="Cảnh báo: Các vụ việc có bước công việc đã quá hạn chót">
             <div class="stat-icon-wrapper stat-icon-purple stat-icon-overdue">

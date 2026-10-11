@@ -52,6 +52,7 @@ class LeaveRequestController extends BaseController
         $filters = [
             'status'        => $this->request->getGet('status'),
             'department_id' => $this->request->getGet('department_id'),
+            'employee_id'   => $this->request->getGet('employee_id'),
             'month'         => $this->request->getGet('month'),
             'search'        => $this->request->getGet('search')
         ];
@@ -72,11 +73,31 @@ class LeaveRequestController extends BaseController
                   ->groupEnd();
         }
 
+        $filterEmployees = [];
+        if (has_permission('sys.admin')) {
+            $filterEmployees = get_available_employees();
+        } elseif (has_permission('leave.approve')) {
+            $filterEmployees = (new EmployeeModel())
+                ->select('employees.*, roles.name as role_name')
+                ->join('users', 'users.id = employees.user_id', 'inner')
+                ->join('roles', 'roles.id = users.role_id', 'inner')
+                ->where('employees.deleted_at', null)
+                ->where('users.active_status', 1)
+                ->where('users.deleted_at', null)
+                ->groupStart()
+                    ->where('employees.id', $myEmpId)
+                    ->orWhere('employees.manager_id', $myEmpId)
+                ->groupEnd()
+                ->orderBy('employees.full_name', 'ASC')
+                ->findAll();
+        }
+
         $data = [
             'title'       => 'Quản lý Nghỉ phép | L.A.N ERP',
             'requests'    => $query->paginate(20),
             'pager'       => $this->model->pager,
             'departments' => get_departments(), // Core Function
+            'filterEmployees' => $filterEmployees,
             'filters'     => $filters,
             'statusLabels' => [
                 'pending'   => 'Đang chờ duyệt',

@@ -209,19 +209,19 @@
                         <?php
                             $specs = json_decode($employee['specialties'] ?? '[]', true) ?: [];
                             $availableSpecs = [
-                                $decodeLabel('&#272;&#7845;t &#273;ai'),
-                                $decodeLabel('Ly h&#244;n'),
-                                $decodeLabel('Doanh nghi&#7879;p'),
-                                $decodeLabel('H&#236;nh s&#7921;'),
-                                $decodeLabel('D&#226;n s&#7921;'),
-                                $decodeLabel('Th&#7911; t&#7909;c'),
+                                ['value' => $decodeLabel('&#272;&#7845;t &#273;ai'), 'label' => '&#272;&#7845;t &#273;ai'],
+                                ['value' => $decodeLabel('Ly h&#244;n'), 'label' => 'Ly h&#244;n'],
+                                ['value' => $decodeLabel('Doanh nghi&#7879;p'), 'label' => 'Doanh nghi&#7879;p'],
+                                ['value' => $decodeLabel('H&#236;nh s&#7921;'), 'label' => 'H&#236;nh s&#7921;'],
+                                ['value' => $decodeLabel('D&#226;n s&#7921;'), 'label' => 'D&#226;n s&#7921;'],
+                                ['value' => $decodeLabel('Th&#7911; t&#7909;c'), 'label' => 'Th&#7911; t&#7909;c'],
                             ];
                             foreach ($availableSpecs as $spec) {
-                                $checked = in_array($spec, $specs) ? 'checked' : '';
+                                $checked = in_array($spec['value'], $specs) ? 'checked' : '';
                         ?>
                             <label style="display: inline-flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; margin-bottom: 0;">
-                                <input type="checkbox" name="specialties[]" value="<?= esc($spec) ?>" <?= $checked ?> <?= !$canEditSensitive ? 'disabled' : '' ?> style="width: auto; margin-right: 4px;">
-                                <?= esc($spec) ?>
+                                <input type="checkbox" name="specialties[]" value="<?= esc($spec['value']) ?>" <?= $checked ?> <?= !$canEditSensitive ? 'disabled' : '' ?> style="width: auto; margin-right: 4px;">
+                                <?= $spec['label'] ?>
                             </label>
                         <?php } ?>
                     </div>

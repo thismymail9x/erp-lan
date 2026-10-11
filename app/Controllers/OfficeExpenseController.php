@@ -21,7 +21,7 @@ class OfficeExpenseController extends BaseController
                 'roles' => [1, 2],
             ],
             'office_expense.manage' => [
-                'desc' => 'Nhập và xóa chi phí vận hành',
+                'desc' => 'Nhập tiền, sửa, nhập và xóa chi phí vận hành',
                 'roles' => [1, 2],
             ],
         ],
@@ -61,10 +61,42 @@ class OfficeExpenseController extends BaseController
             'previousMonthly' => $dashboard['previous_monthly'],
             'categoryBreakdown' => $dashboard['categories'],
             'topExpenses' => $dashboard['top_expenses'],
+            'fundSummary' => $dashboard['fund_summary'],
+            'fundEntries' => $dashboard['fund_entries'],
             'categoryLabels' => OfficeExpenseService::CATEGORY_LABELS,
             'paymentMethodLabels' => OfficeExpenseService::PAYMENT_METHOD_LABELS,
             'canManage' => $this->service->canManage(),
         ]);
+    }
+
+    /**
+     * Nhận request nhập tiền vận hành trong tháng.
+     *
+     * Controller chỉ validate dữ liệu đầu vào rồi chuyển nghiệp vụ lưu dòng
+     * `is_fund = 1` sang service để giữ đúng nguyên tắc thin controller.
+     */
+    public function storeFund()
+    {
+        if (!$this->service->canManage()) {
+            return redirect()->back()->with('error', 'Bạn chưa có quyền nhập tiền vận hành.');
+        }
+
+        $rules = [
+            'fund_date' => 'required|valid_date[Y-m-d]',
+            'fund_amount' => 'required',
+        ];
+
+        if (!$this->validate($rules)) {
+            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+        }
+
+        $result = $this->service->addFund($this->request->getPost());
+
+        if ($result['status'] !== 'success') {
+            return redirect()->back()->withInput()->with('error', $result['message']);
+        }
+
+        return redirect()->back()->with('success', $result['message']);
     }
 
     public function store()
@@ -93,9 +125,57 @@ class OfficeExpenseController extends BaseController
         return redirect()->back()->with('success', $result['message']);
     }
 
+    /**
+     * Cập nhật khoản chi vận hành và bổ sung/thay chứng từ nếu có.
+     *
+     * Service sẽ kiểm tra quyền và chặn cập nhật nhầm các dòng tiền nhận
+     * `is_fund = 1`, nên controller không chứa logic truy vấn dữ liệu.
+     */
+    public function update(int $id)
+    {
+        if (!$this->service->canManage()) {
+            return redirect()->back()->with('error', 'Bạn chưa có quyền sửa chi phí vận hành.');
+        }
+
+        $rules = [
+            'expense_date' => 'required|valid_date[Y-m-d]',
+            'category' => 'required',
+            'amount' => 'required',
+        ];
+
+        if (!$this->validate($rules)) {
+            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+        }
+
+        $files = ['receipt' => $this->request->getFile('receipt')];
+        $result = $this->service->update($id, $this->request->getPost(), $files);
+
+        if ($result['status'] !== 'success') {
+            return redirect()->back()->withInput()->with('error', $result['message']);
+        }
+
+        return redirect()->back()->with('success', $result['message']);
+    }
+
     public function delete(int $id)
     {
         $result = $this->service->delete($id);
+        if ($result['status'] !== 'success') {
+            return redirect()->back()->with('error', $result['message']);
+        }
+
+        return redirect()->back()->with('success', $result['message']);
+    }
+
+    /**
+     * Xóa mềm khoản tiền vận hành đã nhập.
+     *
+     * Phần kiểm tra bản ghi có thật sự là tiền nhận được đặt trong service
+     * để tránh tin vào ID truyền từ URL.
+     */
+    public function deleteFund(int $id)
+    {
+        $result = $this->service->deleteFund($id);
         if ($result['status'] !== 'success') {
             return redirect()->back()->with('error', $result['message']);
         }

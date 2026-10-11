@@ -221,6 +221,15 @@
     color: white;
 }
 
+.document-attachment-delete {
+    color: #dc2626;
+}
+
+.document-attachment-delete:hover {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
 .document-attachment-name i {
     color: var(--apple-blue);
     margin-right: 4px;

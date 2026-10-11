@@ -45,19 +45,13 @@
                     <?php endfor; ?>
                 </select>
 
-                <select id="year-filter" class="input-premium">
+                <select id="year-filter" class="input-premium" data-default-year="<?= (int)date('Y') ?>">
                     <option value="">Năm</option>
                     <?php 
                     $currentYear = (int)date('Y');
                     for ($y = $currentYear - 2; $y <= $currentYear + 1; $y++): ?>
                         <option value="<?= $y ?>" <?= (($filters['year'] ?? 0) == $y || (!($filters['year'] ?? 0) && $y == $currentYear)) ? 'selected' : '' ?>><?= $y ?></option>
                     <?php endfor; ?>
-                </select>
-
-                <select id="payment-status-filter" class="input-premium">
-                    <option value="">Trạng thái Thu (Tất cả)</option>
-                    <option value="paid" <?= ($filters['payment_status'] ?? '') == 'paid' ? 'selected' : '' ?>>Đã thu đủ</option>
-                    <option value="unpaid" <?= ($filters['payment_status'] ?? '') == 'unpaid' ? 'selected' : '' ?>>Chưa thu / Còn thiếu</option>
                 </select>
 
                 <button type="button" id="btn-reset-finance-filters" class="btn-secondary-sm finance-reset-button" title="Đặt lại bộ lọc">
@@ -68,7 +62,7 @@
     </div>
 
     <div class="premium-card premium-card-full" id="finance-table-container">
-        <?= view('dashboard/finance/index_table', ['cases' => $cases, 'pager' => $pager]) ?>
+        <?= view('dashboard/finance/index_table', ['cases' => $cases, 'pager' => $pager, 'filters' => $filters ?? []]) ?>
     </div>
 </div>
 <?= $this->endSection() ?>
