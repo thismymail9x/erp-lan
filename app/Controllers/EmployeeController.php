@@ -39,6 +39,15 @@ class EmployeeController extends BaseController
 
     protected $employeeService;
 
+    private function canEditSensitiveEmployeeFields(): bool
+    {
+        return (bool) (session()->get('is_admin') || session()->get('isadmin')
+            || (int) session()->get('role_id') === 1
+            || in_array(session()->get('role_name'), [\Config\AppConstants::ROLE_ADMIN, \Config\AppConstants::ROLE_MOD], true)
+            || session()->get('department_name') === \Config\AppConstants::DEPT_NAME_HANH_CHINH
+            || has_permission('sys.admin') || has_permission('user.manage'));
+    }
+
     public function __construct()
     {
         // Khởi tạo Service xử lý nghiệp vụ nhân sự
@@ -165,11 +174,7 @@ class EmployeeController extends BaseController
 
         // --- KIỂM TRA QUYỀN CHỈNH SỬA ---
         // Bạn chỉ được vào trang này nếu: 1. Là Admin/Hành chính/Có quyền user.manage, 2. Là CHÍNH CHỦ của hồ sơ đó.
-        if (!has_permission('sys.admin') && 
-            !has_permission('user.manage') && 
-            $roleName !== \Config\AppConstants::ROLE_ADMIN && 
-            $deptName !== \Config\AppConstants::DEPT_NAME_HANH_CHINH && 
-            $id !== $myEmployeeId) {
+        if (!$this->canEditSensitiveEmployeeFields() && $id !== $myEmployeeId) {
             return redirect()->to('/employees')->with('error', 'Hành động bị từ chối: Bạn không có quyền xem hoặc sửa đổi thông tin của đồng nghiệp.');
         }
 
@@ -196,6 +201,7 @@ class EmployeeController extends BaseController
         $data = [
             'title'         => 'Chỉnh sửa nhân viên | L.A.N ERP',
             'employee'      => $result['data'],
+            'canEditSensitive' => $this->canEditSensitiveEmployeeFields(),
             'annualLeaveBalance' => (new LeaveRequestService())->getAnnualLeaveBalance($id, (int)date('Y')),
             'departments'   => get_departments(), // Core Function
             'managers'      => get_available_employees(), // Core Function
@@ -215,10 +221,7 @@ class EmployeeController extends BaseController
         $myEmployeeId = (int)session()->get('employee_id');
 
         // 1. Xác thực thẩm quyền
-        if (session()->get('role_name') !== \Config\AppConstants::ROLE_ADMIN && 
-            session()->get('role_name') !== \Config\AppConstants::ROLE_MOD && 
-            $deptName !== \Config\AppConstants::DEPT_NAME_HANH_CHINH && 
-            $id !== $myEmployeeId) {
+        if (!$this->canEditSensitiveEmployeeFields() && $id !== $myEmployeeId) {
             return redirect()->to('/employees')->with('error', 'Lỗi bảo mật: Bạn không có quyền thực hiện thao tác này.');
         }
 
@@ -226,9 +229,7 @@ class EmployeeController extends BaseController
 
         // 2. BỘ LỌC DỮ LIỆU (DATA FILTERING):
         // Nếu không phải là Cấp quản lý/Hành chính (Tức là nhân viên đang tự sửa hồ sơ của mình)
-        if (session()->get('role_name') !== \Config\AppConstants::ROLE_ADMIN && 
-            session()->get('role_name') !== \Config\AppConstants::ROLE_MOD && 
-            $deptName !== \Config\AppConstants::DEPT_NAME_HANH_CHINH) {
+        if (!$this->canEditSensitiveEmployeeFields()) {
             
             // CHỈ CHO PHÉP cập nhật các trường mang tính chất thông tin liên hệ/cá nhân.
             // TUYỆT ĐỐI KHÔNG cho phép tự sửa: Lương (salary_base), Phòng ban (department_id), Ngày gia nhập (join_date).

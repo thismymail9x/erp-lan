@@ -1,7 +1,7 @@
 <?= $this->extend('layouts/dashboard') ?>
 
 <?= $this->section('styles') ?>
-<link rel="stylesheet" href="<?= base_url('css/cases.css') ?>?v=20260708">
+<link rel="stylesheet" href="<?= base_url('css/cases.css') ?>?v=20261030-2">
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
@@ -145,7 +145,18 @@
         </div>
 
 
-        <?php if (has_permission('sys.admin') || strpos(strtolower(session()->get('role_name')), 'trưởng phòng') !== false) { ?>
+        <?php if (!empty($managerChoices)) { ?>
+            <div class="filter-select-container case-filter-manager">
+                <select id="case-manager-filter" class="form-control-premium" aria-label="Lọc người quản lý">
+                    <option value="0">Người quản lý: Tất cả</option>
+                    <option value="-1" <?= ($currentCaseManagerId ?? 0) === -1 ? 'selected' : '' ?>>Chưa giao quản lý</option>
+                    <?php foreach ($managerChoices as $manager) { ?>
+                        <option value="<?= (int) $manager['id'] ?>" <?= (int) ($currentCaseManagerId ?? 0) === (int) $manager['id'] ? 'selected' : '' ?>><?= esc($manager['full_name']) ?></option>
+                    <?php } ?>
+                </select>
+            </div>
+        <?php } ?>
+        <?php if (!empty($canCoordinateCases) || has_permission('case.view_all') || strpos(strtolower(session()->get('role_name')), 'trưởng phòng') !== false) { ?>
         <div class="filter-select-container case-filter-lawyer">
             <select id="lawyer-filter" name="lawyer_id[]" class="form-control-premium" multiple="multiple">
                 <?php foreach ($availableLawyers as $lawyer) { ?>
@@ -168,7 +179,9 @@
             'pager'         => $pager,
             'currentSort'   => $currentSort,
             'currentOrder'  => $currentOrder,
-            'statusLabels'  => $statusLabels
+            'statusLabels'  => $statusLabels,
+            'canAssignManager' => $canAssignManager ?? false,
+            'managerChoices' => $managerChoices ?? [],
         ]) ?>
     </div>
     <div id="quickTagModal" class="modal-overlay quick-tag-modal">
@@ -203,4 +216,5 @@
 
 <?= $this->section('scripts') ?>
 <script src="<?= base_url('js/cases_index.js') ?>"></script>
+<script src="<?= base_url('js/case_manager.js') ?>?v=20261030-2"></script>
 <?= $this->endSection() ?>

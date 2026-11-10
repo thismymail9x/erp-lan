@@ -71,7 +71,8 @@ function initPayrollAdmin() {
 
         $.post(baseUrl + 'payroll/update-item/' + id, {
             salary_kpi: fieldValue('salary_kpi'),
-            salary_bonus: fieldValue('salary_bonus'),
+            // Cột Khác hiển thị tổng thưởng và điều chỉnh; giữ riêng phần tự động khi lưu.
+            salary_bonus: Number(fieldValue('salary_bonus')) - Number(fieldValue('salary_other')),
             salary_other: fieldValue('salary_other'),
             pit_tax: fieldValue('pit_tax'),
             petrol_allowance: fieldValue('petrol_allowance'),

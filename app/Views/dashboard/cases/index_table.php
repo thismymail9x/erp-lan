@@ -1,9 +1,33 @@
 <?php $tagService = new \App\Services\TagService(); ?>
+<?php if (has_permission('sys.admin') || !empty($canAssignManager)) { ?>
+    <!-- Thanh thao tác gắn với bảng, chỉ xuất hiện sau khi người dùng chọn vụ việc. -->
+    <div class="case-selection-bar" hidden>
+        <span class="case-selection-summary" role="status" aria-live="polite"><strong data-case-selected-count>0</strong> đã chọn</span>
+        <div class="case-selection-actions">
+            <?php if (!empty($canAssignManager)) { ?>
+                <form method="post" action="<?= base_url('cases/assign-managers') ?>" id="case-manager-bulk-form" class="case-manager-bulk-form">
+                    <?= csrf_field() ?>
+                    <select name="case_manager_id" id="case-manager-bulk" class="case-manager-bulk-select" aria-label="Người quản lý cho các vụ đã chọn" required>
+                        <option value="" selected disabled>Chọn trưởng team</option>
+                        <?php foreach ($managerChoices ?? [] as $manager) { ?>
+                            <option value="<?= (int) $manager['id'] ?>"><?= esc($manager['full_name']) ?></option>
+                        <?php } ?>
+                    </select>
+                    <button type="submit" class="case-selection-assign" title="Giao người quản lý cho các vụ đã chọn"><i class="fas fa-user-tie" aria-hidden="true"></i> Giao</button>
+                </form>
+            <?php } ?>
+            <?php if (has_permission('sys.admin')) { ?>
+                <button type="button" class="case-selection-delete js-case-bulk-delete" title="Xóa vĩnh viễn các vụ đã chọn"><i class="fas fa-trash-alt" aria-hidden="true"></i> Xóa</button>
+            <?php } ?>
+            <button type="button" class="case-selection-clear" aria-label="Bỏ chọn tất cả vụ việc" title="Bỏ chọn"><i class="fas fa-times" aria-hidden="true"></i></button>
+        </div>
+    </div>
+<?php } ?>
 <div class="table-responsive">
     <table class="premium-table">
         <thead>
         <tr>
-            <?php if (has_permission('sys.admin')) { ?>
+            <?php if (has_permission('sys.admin') || !empty($canAssignManager)) { ?>
             <th class="table-cell-center" style="width: 40px;">
                 <input type="checkbox" id="check-all" style="width: 16px; height: 16px; cursor: pointer;" title="Chọn tất cả">
             </th>
@@ -96,16 +120,6 @@
             </th>
             <th style="width: 12%" class="table-cell-center">Thao tác</th>
         </tr>
-        <?php if (has_permission('sys.admin')) { ?>
-        <!-- Floating Bulk Actions Bar -->
-        <div class="bulk-actions-bar">
-            <span id="selected-count">0 mục đã chọn</span>
-            <button type="button" class="bulk-btn-delete js-case-bulk-delete" title="Xóa hàng loạt">
-                <i class="fas fa-trash-alt"></i> Xóa vĩnh viễn
-            </button>
-        </div>
-        <?php } ?>
-        </tr>
         </thead>
         <tbody>
         <?php $stt = isset($pager) ? ($pager->getCurrentPage() - 1) * $pager->getPerPage() : 0; ?>
@@ -120,7 +134,7 @@
         <?php } else { ?>
         <?php foreach ($cases as $case) { $stt++; ?>
         <tr>
-            <?php if (has_permission('sys.admin')) { ?>
+            <?php if (has_permission('sys.admin') || !empty($canAssignManager)) { ?>
             <td class="table-cell-center">
                 <input type="checkbox" class="record-check case-record-check" value="<?= $case['id'] ?>">
             </td>
@@ -136,6 +150,9 @@
                     <a href="<?= base_url('cases/show/' . $case['id']) ?>"
                        class="text-decoration-none"><?= esc($case['title']) ?></a>
                 </div>
+                <?php if (!empty($case['case_manager_name'])) { ?>
+                    <div class="text-xs text-muted-dark m-t-4">Trưởng team: <?= esc($case['case_manager_name']) ?></div>
+                <?php } ?>
                 <div class="tags-container-minimal m-t-4 flex-wrap" id="tags-row-<?= $case['id'] ?>">
                     <?php
                     $cTags = $tagService->getTagsByEntity($case['id'], 'cases');

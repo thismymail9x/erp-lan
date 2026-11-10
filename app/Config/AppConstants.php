@@ -93,10 +93,18 @@ class AppConstants
     public const PROBATION_RATE_DEFAULT = [
         'Thử việc'             => 85.0,  // 85% lương CB (thử việc 2 tháng)
         'Thực tập sinh'        => 40.0,  // 40% lương CB (thực tập 3 tháng)
-        'Học việc'             => 60.0,  // 60% lương CB
+        'Học việc'             => 60.0,  // 60% lương CB (học việc 2 tháng)
         'Nhân viên chính thức' => 100.0, // 100% lương CB
         'Trưởng phòng'         => 100.0,
         'Admin'                => 100.0,
         'Mod'                  => 100.0,
+    ];
+
+    // Lộ trình theo vai trò lúc vào làm và ngày đang đối chiếu:
+    // Thực tập 3 tháng -> Học việc 2 tháng -> Thử việc 2 tháng -> Chính thức.
+    public const PROBATION_STAGE_POLICY = [
+        ['rate' => 40.0, 'duration_months' => 3, 'next_rate' => 60.0],
+        ['rate' => 60.0, 'duration_months' => 2, 'next_rate' => 85.0],
+        ['rate' => 85.0, 'duration_months' => 2, 'next_rate' => 100.0],
     ];
 }

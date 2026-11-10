@@ -40,6 +40,7 @@
                 </div>
             <?php } ?>
             <div class="form-grid case-edit-form-grid">
+                <?= $this->include('dashboard/cases/manager_selector') ?>
                 <div class="form-group-premium">
                     <label for="title">Tên vụ việc / Tiêu đề hồ sơ <span class="text-apple-red">*</span></label>
                     <input type="text" name="title" id="title" required class="form-control-premium" placeholder="Nhập tên vụ việc..." title="Tóm tắt ngắn gọn nội dung vụ việc">
@@ -75,7 +76,7 @@
 
                 <div class="case-edit-span-2 case-edit-staff-grid">
                     <div class="form-group-premium">
-                        <label for="approvers">Người phê duyệt (Quản lý)</label>
+                        <label for="approvers">Người phê duyệt</label>
                         <select name="approvers[]" id="approvers" class="form-control-premium select2-multi" multiple="multiple" title="Cấp trên phê duyệt các bước quan trọng">
                             <?php foreach ($staffs as $s) { ?>
                                 <option value="<?= $s['id'] ?>"><?= esc($s['full_name']) ?> (<?= esc($s['position']) ?>)</option>
@@ -84,7 +85,7 @@
                     </div>
 
                     <div class="form-group-premium">
-                        <label for="assignees">Phụ trách (Chuyên môn)</label>
+                        <label for="assignees">Phụ trách chính</label>
                         <select name="assignees[]" id="assignees" class="form-control-premium select2-multi" multiple="multiple" title="Luật sư hoặc chuyên viên xử lý hồ sơ">
                             <?php foreach ($staffs as $s) { ?>
                                 <option value="<?= $s['id'] ?>"><?= esc($s['full_name']) ?> (<?= esc($s['position']) ?>)</option>
@@ -128,14 +129,18 @@
                 </div>
 
                 <?php 
-                $isHanhChinhOrAdmin = (session()->get('role_name') === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
-                if ($isHanhChinhOrAdmin) { 
+                $canManageAccounting = has_permission('sys.admin')
+                    || session()->get('role_name') === \Config\AppConstants::ROLE_ADMIN
+                    || (int) session()->get('department_id') === \Config\AppConstants::DEPT_HANH_CHINH
+                    || ((int) session()->get('user_id') > 0 && has_permission('case.accounting_own'));
+                if ($canManageAccounting) {
                 ?>
                     <div class="form-group-premium case-edit-span-2 case-edit-section-heading">
                         <h4 class="text-apple-main font-weight-600 m-b-15"><i class="fas fa-file-invoice-dollar m-r-8 text-apple-blue"></i> Chuyên mục Hành chính - Kế toán</h4>
                     </div>
                     <div class="form-group-premium case-edit-span-2">
-                        <label for="contract_value">Giá trị hợp đồng (VNĐ)</label>
+                        <input type="hidden" name="accounting_section" value="1">
+                    <label for="contract_value">Giá trị hợp đồng (VNĐ)</label>
                         <input type="text" name="contract_value" id="contract_value" class="form-control-premium case-money-input js-vnd-input" placeholder="Ví dụ: 50.000.000">
                     </div>
                     
@@ -164,5 +169,6 @@
 
 <?= $this->section('scripts') ?>
 <script src="<?= base_url('js/cases_edit.js') ?>?v=<?= time() ?>"></script>
+<script src="<?= base_url('js/case_manager.js') ?>"></script>
 <?= $this->endSection() ?>
 

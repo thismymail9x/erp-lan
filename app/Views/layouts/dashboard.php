@@ -65,7 +65,8 @@
                     $currentPath = trim($currentUri->getPath(), '/');
                     $menuPath = $menuUrl ? trim(explode('?', $item['url'])[0], '/') : ''; // Bỏ query string nếu có
                     
-                    if ($isActive && $currentPath == $menuPath && isset($item['guidance'])) {
+                    if ((session()->get('role_name') === \Config\AppConstants::ROLE_ADMIN || has_permission('sys.admin'))
+                        && $isActive && $currentPath == $menuPath && isset($item['guidance'])) {
                         $activeGuidance = $item['guidance'];
                     }
 

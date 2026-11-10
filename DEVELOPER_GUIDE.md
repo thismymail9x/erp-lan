@@ -754,7 +754,6 @@ Theo dõi chất lượng tư vấn ngay trên danh sách khách hàng bằng m�
 ### 27.5. Cơ sở dữ liệu
 - Migration: `2026-08-24-090000_CreateCustomerMonitoringStatusSettings.php`.
 - SQL thuần đã được append cuối `mysql.sql` theo quy tắc Dual DB Update.
----
 
 ## 28. Chi phí vận hành - tiền nhận và chứng từ - cập nhật 28/08/2026
 
@@ -777,3 +776,56 @@ Theo dõi chất lượng tư vấn ngay trên danh sách khách hàng bằng m�
 - Cột `is_fund`: `1` là tiền vận hành nhận vào, `0` là khoản chi vận hành.
 - Migration: `2026-08-28-090000_AddFundFlagToOfficeExpenses.php`.
 - SQL thuần đã được append cuối `mysql.sql` theo quy tắc Dual DB Update.
+
+## 29. Người quản lý vụ việc (30/10/2026)
+
+### 29.1. Mô hình
+
+- Chỉ thêm một cột `cases.case_manager_id` trỏ đến nhân sự trong `employees` hiện có. Không tạo bảng team, bảng thành viên hoặc module tổ chức mới.
+- Người tạo chọn đầu mối quản lý vụ việc. Trường `employees.specialties` hiện có được dùng để gợi ý theo tên vụ việc và quy trình; người tạo quyết định lựa chọn cuối cùng.
+- Người quản lý tiếp nhận bằng trạng thái vụ việc hiện có, sau đó dùng **Phân công** tại chi tiết hoặc biểu mẫu sửa để giao người thực hiện, hỗ trợ và duyệt. Danh sách vẫn lưu trong `case_members` hiện có.
+- Một nhân sự có thể tham gia vụ của nhiều người quản lý khác nhau mà không phải thay đổi `manager_id` hành chính hay vai trò tài khoản.
+
+### 29.2. Quyền sử dụng
+
+| Đối tượng | Quyền sử dụng |
+| --- | --- |
+| Người có `sys.admin` hoặc `case.edit_all` | Giao/chuyển đầu mối quản lý cho từng vụ hoặc hàng loạt tại danh sách |
+| Nhân sự được chọn trong `case_manager_id` | Xem toàn bộ các vụ mình quản lý, sửa thông tin và phân người tham gia, kể cả chưa có chức danh quản lý |
+| Nhân viên | Chỉ xem vụ được phân trực tiếp hoặc là thành viên, không được xem mọi vụ của đồng nghiệp |
+| Giám đốc chuyên môn | Dùng quyền `case.view_all` sẵn có để xem toàn bộ, không tự cấp quyền sửa hoặc phân công |
+
+- Quyền duyệt nghiệp vụ và quyền tài chính/kế toán giữ theo cơ chế đang có, không tự phát sinh từ việc là người quản lý vụ việc.
+- Hồ sơ cũ chưa có đầu mối tiếp tục dùng phân quyền hiện hữu cho đến khi được giao quản lý. Vụ đã có đầu mối dùng phạm vi quản lý và thành viên trực tiếp, kể cả khi mở URL chi tiết hoặc URL bước công việc.
+- Người quản lý có thể thêm nhân sự hiện có chưa liên kết tài khoản hoặc chưa có vai trò vào vụ việc. Nhân sự cần tài khoản hoạt động để tự đăng nhập xử lý.
+
+### 29.3. Input / Output và cách dùng
+
+1. Khi tạo vụ, chọn **Người quản lý vụ việc** từ danh sách nhân sự pháp lý. Gợi ý chỉ hiện khi có một người phù hợp nhất theo chuyên môn.
+2. Quản trị có thể vào sửa từng vụ để chọn đầu mối, hoặc chọn các checkbox tại danh sách. Thanh thao tác gọn ở đầu bảng chỉ xuất hiện khi có vụ được chọn: số đã chọn, ô **Chọn quản lý**, nút **Giao**, **Xóa** (nếu có quyền) và nút bỏ chọn. Thanh tự ẩn khi bỏ chọn hết và hoạt động cả sau khi lọc hoặc phân trang bằng AJAX.
+3. Người được giao quản lý mở vụ việc, dùng **Phân công** để thêm người thực hiện, hỗ trợ hoặc người duyệt. Không cần tạo team hay thêm thành viên team trước.
+4. Lọc theo **Người quản lý**, **Chưa giao quản lý**, người phụ trách và các trạng thái hiện có để theo dõi vụ thuộc phần việc của mình. Danh sách vẫn phân trang 20 dòng.
+
+- Input: mã nhân sự quản lý, mã vụ việc hoặc danh sách mã vụ việc, danh sách người thực hiện/hỗ trợ/duyệt.
+- Output: đầu mối hiển thị ngay trên danh sách và chi tiết, danh sách/thống kê theo đúng phạm vi, lịch sử đổi quản lý tại `case_history`.
+- Đổi người quản lý chỉ cập nhật một cột, giữ nguyên người đang thực hiện, các thành viên, trạng thái và tiến độ. Người quản lý cũ chỉ còn xem được nếu vẫn được phân công hoặc còn tham gia vụ.
+- Lô tối đa 100 vụ; lỗi bất kỳ vụ nào thì hoàn tác toàn bộ. Phân công nhân sự đồng bộ người phụ trách chính và bước chưa hoàn thành, giữ nguyên bước đã hoàn thành hoặc đã xóa mềm.
+
+### 29.4. Database và kiểm tra
+
+- Migration: `app/Database/Migrations/2026-10-30-090000_AddCaseManager.php`.
+- SQL nâng cấp: `app/Database/Migrations/20261030_case_manager.sql`, đồng thời đã nối cuối `mysql.sql`. Áp dụng migration hoặc chạy SQL nâng cấp một lần trên đúng DB cần triển khai; không nhập lại toàn bộ `mysql.sql` vào DB đang có dữ liệu.
+- Không tạo quyền RBAC mới. Sử dụng các quyền vụ việc hiện có; không cần đồng bộ thêm quyền team.
+- Phương án bảng team đã được gỡ khỏi mã và SQL trước khi áp dụng lên DB vận hành.
+- Chạy kiểm thử: `php -d extension=sqlite3 vendor/phpunit/phpunit/phpunit --no-coverage tests/unit`. Các kiểm thử phân quyền dùng SQLite trong bộ nhớ.
+
+## 30. KPI tư vấn trong bảng lương — 04/11/2026
+
+- Áp dụng từ kỳ lương 10/2026 (01/10/2026), dùng thực thu của chính tháng tính lương. Nhân sự đủ điều kiện theo danh sách cấp trực tiếp quyền `kpi.consulting`, tài khoản đang hoạt động như báo cáo KPI tư vấn.
+- Khi bấm Tính toán lương: cộng 40% KPI chuẩn và thưởng vượt mốc hiện hành vào Khác; thêm ghi chú `[KPI tư vấn]`. Phần 60% không cộng vào lương tháng.
+- Lưu riêng doanh thu, 40%, 60%, vượt mốc trong `payrolls` để không phụ thuộc thay đổi dữ liệu hồ sơ về sau. Tính lại kỳ chưa chốt sẽ cập nhật snapshot và thay phần tự động, không cộng trùng; giữ khoản Khác nhập tay. Phiếu đã duyệt/tháng đã chốt không bị tính lại.
+- Quản trị lương xem mục mở rộng “KPI tư vấn [năm]” tại trang Bảng lương: tổng quỹ 60% và chi tiết nhân sự/tháng/doanh thu/40%/vượt mốc/60%/trạng thái phiếu. Áp dụng bộ lọc phòng ban, nhân sự và năm của tháng đang chọn; tổng hợp toàn bộ phiếu đã tính trong năm, không chỉ trang hiện tại.
+- Quỹ 60% là nghĩa vụ tích lũy cần chi, chưa phải xác nhận đã chi. Số liệu chỉ xuất hiện sau khi tính lương; kỳ 10/2026 chưa chốt cần bấm tính lại để bổ sung KPI. Không tự thay đổi kỳ đã chốt.
+- Triển khai: chạy migration `2026-11-04-120000_AddConsultingPayrollSnapshots.php` hoặc khối ALTER TABLE tương ứng cuối `mysql.sql` trước khi dùng phiên bản này.
+
+- Tuân thủ DEVELOPMENT_RULES: khai báo hướng dẫn/Badge New tại FeatureGuidelines (04/11/2026); chi tiết quỹ phân trang riêng 20 dòng, tổng quỹ tính toàn bộ bộ lọc; CSS riêng trong payroll.css với breakpoint 1024/768px và thao tác chạm 44px; bộ lọc được Validator kiểm tra, tháng hiển thị m/Y; truy vấn loại dữ liệu đã xóa mềm.

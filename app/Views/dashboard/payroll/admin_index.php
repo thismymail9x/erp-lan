@@ -46,6 +46,31 @@
             </div>
         </div>
     </div>
+    <details class="premium-card m-b-20 consulting-payroll-ledger" <?= service('request')->getGet('page_consulting') ? 'open' : '' ?>>
+        <summary>KPI tư vấn <?= esc(substr($month, 0, 4)) ?> · Quỹ cuối năm 60%: <strong><?= number_format($consultingLedger['total']) ?> đ</strong></summary>
+        <p class="text-muted text-sm">Số liệu từ các phiếu lương đã tính, áp dụng từ 01/10/2026. Đây là khoản tích lũy cần chi cuối năm, chưa phải xác nhận đã thanh toán.</p>
+        <div class="consulting-payroll-scroll">
+            <table class="consulting-payroll-table">
+                <thead><tr><th>Nhân sự</th><th>Tháng</th><th>Thực thu</th><th>Trả tháng 40%</th><th>Vượt mốc</th><th>Tích lũy 60%</th><th>Phiếu lương</th></tr></thead>
+                <tbody>
+                    <?php foreach ($consultingLedger['rows'] as $entry) { ?>
+                        <tr>
+                            <td><?= esc($entry['full_name']) ?></td><td><?= esc(date('m/Y', strtotime($entry['month'] . '-01'))) ?></td>
+                            <td><?= number_format($entry['consulting_revenue']) ?></td>
+                            <td><?= number_format($entry['consulting_monthly']) ?></td>
+                            <td><?= number_format($entry['consulting_milestone']) ?></td>
+                            <td><?= number_format($entry['consulting_annual']) ?></td>
+                            <td><?= $entry['status'] === 'approved' ? 'Đã duyệt' : 'Chưa duyệt' ?></td>
+                        </tr>
+                    <?php } ?>
+                    <?php if (empty($consultingLedger['rows'])) { ?><tr><td colspan="7">Chưa có KPI tư vấn được ghi nhận trong bảng lương năm này.</td></tr><?php } ?>
+                </tbody>
+            </table>
+        </div>
+        <?php if ($consultingLedger['pager']) { ?>
+            <?= $consultingLedger['pager']->links('consulting') ?>
+        <?php } ?>
+    </details>
     <div class="header-controls filter-bar" style="justify-content: flex-end">
             <form action="<?= base_url('payroll') ?>" method="get" class="d-flex gap-10 align-items-center">
                 <select name="department_id" class="form-control-premium" onchange="this.form.submit()" style="max-width: 200px;">
@@ -72,6 +97,9 @@
             </form>
             <a href="<?= base_url('payroll/export/' . $month) ?>" class="btn-secondary">
                 <i class="fas fa-file-export"></i> Xuất file
+            </a>
+            <a href="<?= base_url('payroll/export-quick/' . $month) ?>" class="btn-secondary">
+                <i class="fas fa-file-excel"></i> Xuất file nhanh
             </a>
         </div>
     <?php 
@@ -100,7 +128,7 @@
                         <th rowspan="2"><input type="checkbox" id="checkAll"></th>
                         <th rowspan="2" class="col-name">Họ và tên</th>
                         <th rowspan="2">Lương đóng BH</th>
-                        <th rowspan="2">Lương tháng</th>
+                        <th rowspan="2">Lương tháng<br><small>Hệ số lương (%)</small></th>
                         <th rowspan="2">Ngày công chuẩn</th>
                         <th rowspan="2">Lương 1 ngày công</th>
                         <th colspan="3">Lương theo ngày công làm việc</th>
@@ -136,12 +164,7 @@
                                          <i class="fas fa-check-circle"></i>
                                      </span>
                                      <strong><a href="javascript:void(0)" style="color: inherit; text-decoration: none; border-bottom: 1px dashed #ccc;"><?= esc($p['full_name']) ?></a></strong>
-                                     <?php
-                                         $snapshot = (float)($p['probation_rate_snapshot'] ?? 100);
-                                         if ($snapshot < 100) {
-                                             echo '<span class="probation-badge" title="Hệ số lương thử việc/thực tập">' . $snapshot . '%</span>';
-                                         }
-                                     ?><br>
+                                     <br>
                                      <small class="text-muted"><?= esc($p['dept_name']) ?></small>
                                      
                                      <div class="notes-display-wrapper mt-1" id="notes-display-<?= $p['id'] ?>">
@@ -160,7 +183,14 @@
                                      <textarea class="raw-notes-data" id="raw-notes-<?= $p['id'] ?>" style="display:none;"><?= esc(json_encode($notes, JSON_UNESCAPED_UNICODE)) ?></textarea>
                                 </td>
                                 <td class="text-right"><?= number_format($p['insurance_salary'] ?? 0) ?></td>
-                                <td class="text-right"><?= number_format($p['salary_base'] ?? 0) ?></td>
+                                <td class="text-right">
+                                    <?= number_format($p['salary_base'] ?? 0) ?><br>
+                                    <?php if (isset($p['probation_rate_snapshot'])) { ?>
+                                        <span class="probation-badge" title="Hệ số đã lưu của tháng lương; nếu chuyển giai đoạn giữa tháng, xem chi tiết theo ngày trong ghi chú."><?= (float)$p['probation_rate_snapshot'] ?>%</span>
+                                    <?php } else { ?>
+                                        <span class="text-muted">Chưa lưu</span>
+                                    <?php } ?>
+                                </td>
                                 <td class="text-center"><?= $p['total_standard_days'] ?? 26 ?></td>
                                 <td class="text-right"><?= number_format($p['salary_per_day'] ?? 0, 0) ?></td>
                                 <?php
@@ -223,7 +253,7 @@
                                     <?php } else { ?>
                                         <?= number_format(($p['salary_bonus'] ?? 0) + ($p['salary_other'] ?? 0)) ?>
                                     <?php } ?>
-                                    <input type="hidden" data-field="salary_other" value="0">
+                                    <input type="hidden" data-field="salary_other" value="<?= esc($p['salary_other'] ?? 0) ?>">
                                 </td>
                                 <td class="text-right"><strong><span id="total-gross-<?= $p['id'] ?>"><?= number_format(($p['taxable_income'] ?? 0) + ($p['diligence_allowance'] ?? 0) + ($p['petrol_allowance'] ?? 0) + ($p['salary_kpi'] ?? 0) + ($p['salary_bonus'] ?? 0) + ($p['salary_other'] ?? 0)) ?></span></strong></td>
                                 

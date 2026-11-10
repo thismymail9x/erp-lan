@@ -9,14 +9,14 @@
     $roleName = session()->get('role_name');
     $deptName = session()->get('department_name');
 
-    $canEditSensitive = (
-        session()->get('is_admin') ||
-        session()->get('isadmin') ||
-        (int)session()->get('role_id') === 1 ||
-        $roleName === \Config\AppConstants::ROLE_ADMIN ||
-        $roleName === \Config\AppConstants::ROLE_MOD ||
-        $deptName === \Config\AppConstants::DEPT_NAME_HANH_CHINH
+    $canEditSensitive = $canEditSensitive ?? (bool) (
+        session()->get('is_admin') || session()->get('isadmin')
+        || (int) session()->get('role_id') === 1
+        || in_array($roleName, [\Config\AppConstants::ROLE_ADMIN, \Config\AppConstants::ROLE_MOD], true)
+        || $deptName === \Config\AppConstants::DEPT_NAME_HANH_CHINH
+        || has_permission('sys.admin') || has_permission('user.manage')
     );
+    $selectedInitialPosition = old('initial_position', $employee['initial_position'] ?? '');
 
     $restrictedAttr = !$canEditSensitive ? 'readonly style="background: #f8f9fa; cursor: not-allowed;"' : '';
     $restrictedSelect = !$canEditSensitive ? 'disabled style="background: #f8f9fa; cursor: not-allowed;"' : '';
@@ -40,17 +40,17 @@
 <div class="employee-edit-wrapper">
     <div class="dashboard-header-wrapper">
         <div class="header-title-container">
-            <h2 class="content-title">H&#7891; s&#417;</h2>
-            <p class="content-subtitle hide-mobile">C&#7853;p nh&#7853;t h&#7891; s&#417;: <strong><?= esc($employee['full_name']) ?></strong></p>
+            <h2 class="content-title">Hồ sơ</h2>
+            <p class="content-subtitle hide-mobile">Cập nhật hồ sơ: <strong><?= esc($employee['full_name']) ?></strong></p>
         </div>
         <div class="header-controls">
             <?php if ($canEditSensitive) { ?>
                 <a href="<?= base_url('employees') ?>" class="btn-secondary-sm">
-                    <i class="fas fa-chevron-left"></i> Quay l&#7841;i
+                    <i class="fas fa-chevron-left"></i> Quay lại
                 </a>
             <?php } else { ?>
                 <a href="<?= base_url('dashboard') ?>" class="btn-secondary-sm">
-                    <i class="fas fa-home"></i> Trang ch&#7911;
+                    <i class="fas fa-home"></i> Trang chủ
                 </a>
             <?php } ?>
         </div>
@@ -62,39 +62,50 @@
 
             <div class="form-grid">
                 <div class="form-group form-group-full">
-                    <h4 class="m-b-10 text-apple-main"><i class="fas fa-id-card m-r-8"></i> Th&#244;ng tin c&#417; b&#7843;n</h4>
+                    <h4 class="m-b-10 text-apple-main"><i class="fas fa-id-card m-r-8"></i> Thông tin cơ bản</h4>
                 </div>
 
                 <div class="form-group">
-                    <label for="full_name">H&#7885; v&#224; t&#234;n</label>
-                    <input type="text" name="full_name" id="full_name" required value="<?= esc($employee['full_name']) ?>" placeholder="Nh&#7853;p h&#7885; v&#224; t&#234;n...">
+                    <label for="full_name">Họ và tên</label>
+                    <input type="text" name="full_name" id="full_name" required value="<?= esc($employee['full_name']) ?>" placeholder="Nhập họ và tên...">
                 </div>
 
                 <div class="form-group">
-                    <label for="position">Ch&#7913;c v&#7909; / V&#7883; tr&#237;</label>
-                    <input type="text" name="position" id="position" required value="<?= esc($employee['position']) ?>" placeholder="V&#237; d&#7909;: Lu&#7853;t s&#432; ch&#237;nh, Th&#432; k&#253;..." <?= $restrictedAttr ?>>
+                    <label for="initial_position">Vai trò lúc vào làm</label>
+                    <select name="initial_position" id="initial_position" class="form-control-premium no-select2" <?= !$canEditSensitive ? 'disabled' : '' ?>>
+                        <option value="">Đối chiếu lịch sử / vai trò hiện có</option>
+                        <?php foreach (array_keys(\Config\AppConstants::PROBATION_RATE_DEFAULT) as $entryRole): ?>
+                            <option value="<?= esc($entryRole) ?>" <?= $selectedInitialPosition === $entryRole ? 'selected' : '' ?>><?= esc($entryRole) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small>Mốc gốc để đối chiếu với ngày vào làm; không đổi khi tự động chuyển chức danh.</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="department_id">Ph&#242;ng ban c&#244;ng t&#225;c</label>
+                    <label for="position">Chức vụ / Vị trí</label>
+                    <input type="text" name="position" id="position" required value="<?= esc($employee['position']) ?>" placeholder="Ví dụ: Luật sư chính, Thư ký..." <?= $restrictedAttr ?>>
+                </div>
+
+                <div class="form-group">
+                    <label for="department_id">Phòng ban công tác</label>
                     <?php if ($canEditSensitive) { ?>
                         <select name="department_id" id="department_id" required>
-                            <option value="" disabled>-- Ch&#7885;n ph&#242;ng ban --</option>
+                            <option value="" disabled>-- Chọn phòng ban --</option>
                             <?php foreach ($departments as $d) { ?>
                                 <option value="<?= $d['id'] ?>" <?= ($employee['department_id'] == $d['id']) ? 'selected' : '' ?>><?= esc($d['name']) ?></option>
                             <?php } ?>
                         </select>
                     <?php } else { ?>
-                        <input type="text" class="form-control-premium" value="<?= esc($employee['department_name'] ?? $decodeLabel('V&#259;n ph&#242;ng')) ?>" readonly style="background: #f8f9fa;">
+                        <input type="text" class="form-control-premium" value="<?= esc($employee['department_name'] ?? $decodeLabel('Văn phòng')) ?>" readonly style="background: #f8f9fa;">
                         <input type="hidden" name="department_id" value="<?= $employee['department_id'] ?>">
                     <?php } ?>
                 </div>
 
                 <div class="form-group">
-                    <label for="manager_id">Ng&#432;&#7901;i qu&#7843;n l&#253; (S&#7871;p)</label>
+                    <label for="manager_id">Người quản lý (Sếp)</label>
                     <?php if ($canEditSensitive) { ?>
                         <select name="manager_id" id="manager_id">
-                            <option value="">-- Kh&#244;ng c&#243; s&#7871;p --</option>
+                            <option value="">-- Không có sếp --</option>
                             <?php foreach ($managers as $m) { ?>
                                 <?php if ($m['id'] == $employee['id']) continue; ?>
                                 <option value="<?= $m['id'] ?>" <?= ($employee['manager_id'] == $m['id']) ? 'selected' : '' ?>>
@@ -104,7 +115,7 @@
                         </select>
                     <?php } else { ?>
                         <?php
-                            $myManager = $decodeLabel('Ch&#432;a thi&#7871;t l&#7853;p');
+                            $myManager = $decodeLabel('Chưa thiết lập');
                             foreach ($managers as $m) {
                                 if ($employee['manager_id'] == $m['id']) { $myManager = $m['full_name']; break; }
                             }
@@ -114,15 +125,15 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="join_date">Ng&#224;y v&#224;o l&#224;m</label>
+                    <label for="join_date">Ngày vào làm</label>
                     <input type="date" name="join_date" id="join_date" required value="<?= $employee['join_date'] ?>" <?= $restrictedAttr ?>>
                 </div>
 
                 <div class="form-group">
-                    <label for="annual_leave_start_date">B&#7855;t &#273;&#7847;u t&#237;nh ph&#233;p n&#259;m</label>
+                    <label for="annual_leave_start_date">Bắt đầu tính phép năm</label>
                     <?php if ($canEditSensitive) { ?>
                         <input type="date" name="annual_leave_start_date" id="annual_leave_start_date" value="<?= esc($employee['annual_leave_start_date'] ?? '') ?>">
-                        <small class="annual-leave-note">Nh&#7853;p ng&#224;y &#273;&#7847;u th&#225;ng k&#7871; ti&#7871;p sau khi nh&#226;n s&#7921; thu&#7897;c vai tr&#242; Tr&#432;&#7903;ng ph&#242;ng ho&#7863;c Nh&#226;n vi&#234;n ch&#237;nh th&#7913;c.</small>
+                        <small class="annual-leave-note">Nhập ngày đầu tháng kế tiếp sau khi nhân sự thuộc vai trò Trưởng phòng hoặc Nhân viên chính thức.</small>
                     <?php } else { ?>
                         <input type="date" id="annual_leave_start_date" value="<?= esc($employee['annual_leave_start_date'] ?? '') ?>" readonly style="background: #f8f9fa; cursor: not-allowed;">
                     <?php } ?>
@@ -131,60 +142,60 @@
                 <div class="form-group form-group-full">
                     <div class="annual-leave-panel">
                         <div class="annual-leave-panel-head">
-                            <h4><i class="fas fa-calendar-check m-r-8"></i> Ph&#233;p n&#259;m <?= (int)$leaveBalance['year'] ?></h4>
+                            <h4><i class="fas fa-calendar-check m-r-8"></i> Phép năm <?= (int)$leaveBalance['year'] ?></h4>
                             <span class="annual-leave-status <?= $leaveBalance['is_eligible_annual_leave'] ? 'is-active' : 'is-inactive' ?>">
-                                <?= $leaveBalance['is_eligible_annual_leave'] ? '&#272;ang t&#237;nh ph&#233;p' : 'Ch&#432;a &#273;&#7911; m&#7889;c t&#237;nh ph&#233;p' ?>
+                                <?= $leaveBalance['is_eligible_annual_leave'] ? 'Đang tính phép' : 'Chưa đủ mốc tính phép' ?>
                             </span>
                         </div>
                         <div class="annual-leave-stats">
                             <div class="annual-leave-stat">
-                                <span>&#272;&#432;&#7907;c h&#432;&#7903;ng</span>
+                                <span>Được hưởng</span>
                                 <strong><?= esc($formatLeaveDay($leaveBalance['entitled_days'])) ?></strong>
                             </div>
                             <div class="annual-leave-stat">
-                                <span>&#272;&#227; s&#7917; d&#7909;ng</span>
+                                <span>Đã sử dụng</span>
                                 <strong><?= esc($formatLeaveDay($leaveBalance['used_days'])) ?></strong>
                             </div>
                             <div class="annual-leave-stat">
-                                <span>&#272;ang ch&#7901; duy&#7879;t</span>
+                                <span>Đang chờ duyệt</span>
                                 <strong><?= esc($formatLeaveDay($leaveBalance['pending_days'])) ?></strong>
                             </div>
                             <div class="annual-leave-stat annual-leave-stat-primary">
-                                <span>C&#242;n l&#7841;i</span>
+                                <span>Còn lại</span>
                                 <strong><?= esc($formatLeaveDay($leaveBalance['remaining_days'])) ?></strong>
                             </div>
                         </div>
                         <p class="annual-leave-note">
-                            H&#7841;n m&#7913;c 12 ng&#224;y/n&#259;m, c&#7897;ng 1 ng&#224;y cho m&#7895;i th&#225;ng &#273;&#7911; &#273;i&#7873;u ki&#7879;n. &#272;&#417;n ngh&#7881; ph&#233;p n&#259;m &#273;&#227; duy&#7879;t s&#7869; t&#237;nh v&#224;o s&#7889; &#273;&#227; s&#7917; d&#7909;ng.
+                            Hạn mức 12 ngày/năm, cộng 1 ngày cho mỗi tháng đủ điều kiện. Đơn nghỉ phép năm đã duyệt sẽ tính vào số đã sử dụng.
                         </p>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="dob">Ng&#224;y sinh</label>
+                    <label for="dob">Ngày sinh</label>
                     <input type="date" name="dob" id="dob" value="<?= $employee['dob'] ?>">
                 </div>
 
                 <div class="form-group">
-                    <label for="identity_card">S&#7889; CMND/CCCD</label>
-                    <input type="text" name="identity_card" id="identity_card" value="<?= esc($employee['identity_card'] ?? '') ?>" placeholder="Nh&#7853;p s&#7889; &#273;&#7883;nh danh...">
+                    <label for="identity_card">Số CMND/CCCD</label>
+                    <input type="text" name="identity_card" id="identity_card" value="<?= esc($employee['identity_card'] ?? '') ?>" placeholder="Nhập số định danh...">
                 </div>
 
                 <div class="form-group">
-                    <label for="phone_number">S&#7889; &#273;i&#7879;n tho&#7841;i</label>
+                    <label for="phone_number">Số điện thoại</label>
                     <input type="text" name="phone_number" id="phone_number" value="<?= esc($employee['phone_number'] ?? '') ?>" placeholder="090x.xxx.xxx">
                 </div>
 
                 <div class="form-group">
-                    <label for="personal_email">Email c&#225; nh&#226;n</label>
+                    <label for="personal_email">Email cá nhân</label>
                     <input type="email" name="personal_email" id="personal_email" value="<?= esc($employee['personal_email'] ?? '') ?>" placeholder="name@gmail.com">
                 </div>
 
                 <div class="form-group">
-                    <label for="user_id">Li&#234;n k&#7871;t t&#224;i kho&#7843;n h&#7879; th&#7889;ng</label>
+                    <label for="user_id">Liên kết tài khoản hệ thống</label>
                     <?php if ($canEditSensitive) { ?>
                         <select name="user_id" id="user_id">
-                            <option value="">-- Kh&#244;ng li&#234;n k&#7871;t --</option>
+                            <option value="">-- Không liên kết --</option>
                             <?php foreach ($unlinkedUsers as $u) { ?>
                                 <option value="<?= $u['id'] ?>" <?= ($employee['user_id'] == $u['id']) ? 'selected' : '' ?>><?= esc($u['email']) ?></option>
                             <?php } ?>
@@ -195,26 +206,26 @@
                 </div>
 
                 <div class="form-group form-group-full">
-                    <label for="address">&#272;&#7883;a ch&#7881; th&#432;&#7901;ng tr&#250;</label>
-                    <input type="text" name="address" id="address" value="<?= esc($employee['address']) ?>" placeholder="&#272;&#7883;a ch&#7881; li&#234;n l&#7841;c &#273;&#7847;y &#273;&#7911;...">
+                    <label for="address">Địa chỉ thường trú</label>
+                    <input type="text" name="address" id="address" value="<?= esc($employee['address']) ?>" placeholder="Địa chỉ liên lạc đầy đủ...">
                 </div>
 
                 <div class="form-group form-group-full">
-                    <h4 class="m-b-10 text-apple-main"><i class="fas fa-robot m-r-8"></i> &#272;i&#7873;u ph&#7889;i &amp; Ph&#226;n c&#244;ng Chat t&#7921; &#273;&#7897;ng (Giai &#273;o&#7841;n 2 &amp; 3)</h4>
+                    <h4 class="m-b-10 text-apple-main"><i class="fas fa-robot m-r-8"></i> Điều phối &amp; Phân công Chat tự động (Giai đoạn 2 &amp; 3)</h4>
                 </div>
 
                 <div class="form-group form-group-full">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">L&#297;nh v&#7921;c chuy&#234;n m&#244;n ph&#225;p l&#253; (Specialties)</label>
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Lĩnh vực chuyên môn pháp lý (Specialties)</label>
                     <div style="display: flex; flex-wrap: wrap; gap: 15px; background: #f8f9fa; padding: 12px 15px; border-radius: 8px; border: 1px solid #d2d2d7;">
                         <?php
                             $specs = json_decode($employee['specialties'] ?? '[]', true) ?: [];
                             $availableSpecs = [
-                                ['value' => $decodeLabel('&#272;&#7845;t &#273;ai'), 'label' => '&#272;&#7845;t &#273;ai'],
-                                ['value' => $decodeLabel('Ly h&#244;n'), 'label' => 'Ly h&#244;n'],
-                                ['value' => $decodeLabel('Doanh nghi&#7879;p'), 'label' => 'Doanh nghi&#7879;p'],
-                                ['value' => $decodeLabel('H&#236;nh s&#7921;'), 'label' => 'H&#236;nh s&#7921;'],
-                                ['value' => $decodeLabel('D&#226;n s&#7921;'), 'label' => 'D&#226;n s&#7921;'],
-                                ['value' => $decodeLabel('Th&#7911; t&#7909;c'), 'label' => 'Th&#7911; t&#7909;c'],
+                                ['value' => $decodeLabel('Đất đai'), 'label' => 'Đất đai'],
+                                ['value' => $decodeLabel('Ly hôn'), 'label' => 'Ly hôn'],
+                                ['value' => $decodeLabel('Doanh nghiệp'), 'label' => 'Doanh nghiệp'],
+                                ['value' => $decodeLabel('Hình sự'), 'label' => 'Hình sự'],
+                                ['value' => $decodeLabel('Dân sự'), 'label' => 'Dân sự'],
+                                ['value' => $decodeLabel('Thủ tục'), 'label' => 'Thủ tục'],
                             ];
                             foreach ($availableSpecs as $spec) {
                                 $checked = in_array($spec['value'], $specs) ? 'checked' : '';
@@ -225,136 +236,136 @@
                             </label>
                         <?php } ?>
                     </div>
-                    <small style="color: #8e8e93; display: block; margin-top: 4px;">H&#7879; th&#7889;ng s&#7869; t&#7921; &#273;&#7897;ng g&#225;n lead thu&#7897;c c&#225;c l&#297;nh v&#7921;c n&#224;y cho nh&#226;n s&#7921; n&#7871;u tr&#249;ng kh&#7899;p chuy&#234;n m&#244;n.</small>
+                    <small style="color: #8e8e93; display: block; margin-top: 4px;">Hệ thống sẽ tự động gán lead thuộc các lĩnh vực này cho nhân sự nếu trùng khớp chuyên môn.</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="max_workload">Gi&#7899;i h&#7841;n t&#7843;i c&#244;ng vi&#7879;c (Max Workload)</label>
-                    <input type="number" name="max_workload" id="max_workload" min="1" max="100" value="<?= (int)($employee['max_workload'] ?? 15) ?>" placeholder="M&#7863;c &#273;&#7883;nh: 15" <?= $restrictedAttr ?>>
-                    <small style="color: #8e8e93; display: block; margin-top: 4px;">S&#7889; lead chat ch&#432;a ph&#7843;n h&#7891;i t&#7889;i &#273;a nh&#226;n s&#7921; &#273;&#432;&#7907;c nh&#7853;n &#273;&#7891;ng th&#7901;i.</small>
+                    <label for="max_workload">Giới hạn tải công việc (Max Workload)</label>
+                    <input type="number" name="max_workload" id="max_workload" min="1" max="100" value="<?= (int)($employee['max_workload'] ?? 15) ?>" placeholder="Mặc định: 15" <?= $restrictedAttr ?>>
+                    <small style="color: #8e8e93; display: block; margin-top: 4px;">Số lead chat chưa phản hồi tối đa nhân sự được nhận đồng thời.</small>
                 </div>
 
                 <div class="form-group"></div>
 
                 <div class="form-group form-group-full">
-                    <h4 class="m-b-10 text-apple-main"><i class="fas fa-university m-r-8"></i> Th&#244;ng tin T&#224;i ch&#237;nh &amp; Ng&#226;n h&#224;ng</h4>
+                    <h4 class="m-b-10 text-apple-main"><i class="fas fa-university m-r-8"></i> Thông tin Tài chính &amp; Ngân hàng</h4>
                 </div>
 
                 <div class="form-group">
-                    <label for="bank_name">T&#234;n ng&#226;n h&#224;ng</label>
+                    <label for="bank_name">Tên ngân hàng</label>
                     <input type="text" name="bank_name" id="bank_name" value="<?= esc($employee['bank_name'] ?? '') ?>" placeholder="Vietcombank, Techcombank...">
                 </div>
 
                 <div class="form-group">
-                    <label for="bank_account">S&#7889; t&#224;i kho&#7843;n ng&#226;n h&#224;ng</label>
-                    <input type="text" name="bank_account" id="bank_account" value="<?= esc($employee['bank_account'] ?? '') ?>" placeholder="Nh&#7853;p s&#7889; t&#224;i kho&#7843;n...">
+                    <label for="bank_account">Số tài khoản ngân hàng</label>
+                    <input type="text" name="bank_account" id="bank_account" value="<?= esc($employee['bank_account'] ?? '') ?>" placeholder="Nhập số tài khoản...">
                 </div>
 
                 <div class="form-group">
-                    <label for="bank_owner">T&#234;n ch&#7911; t&#224;i kho&#7843;n</label>
-                    <input type="text" name="bank_owner" id="bank_owner" value="<?= esc($employee['bank_owner'] ?? '') ?>" placeholder="VI&#7870;T HOA KH&#212;NG D&#7844;U">
+                    <label for="bank_owner">Tên chủ tài khoản</label>
+                    <input type="text" name="bank_owner" id="bank_owner" value="<?= esc($employee['bank_owner'] ?? '') ?>" placeholder="VIẾT HOA KHÔNG DẤU">
                 </div>
 
                 <div class="form-group">
-                    <label for="salary_base">M&#7913;c l&#432;&#417;ng th&#225;ng (L&#432;&#417;ng CB)</label>
+                    <label for="salary_base">Mức lương tháng (Lương CB)</label>
                     <input type="number" name="salary_base" id="salary_base" required value="<?= (int)$employee['salary_base'] ?>" <?= $restrictedAttr ?>>
                 </div>
 
                 <div class="form-group">
-                    <label for="insurance_salary">L&#432;&#417;ng d&#249;ng B&#7843;o hi&#7875;m</label>
+                    <label for="insurance_salary">Lương dùng Bảo hiểm</label>
                     <input type="number" name="insurance_salary" id="insurance_salary" value="<?= (int)($employee['insurance_salary'] ?? $employee['salary_base']) ?>" <?= $restrictedAttr ?>>
                 </div>
 
                 <div class="form-group">
-                    <label for="diligence_allowance">Ph&#7909; c&#7845;p chuy&#234;n c&#7847;n</label>
+                    <label for="diligence_allowance">Phụ cấp chuyên cần</label>
                     <input type="number" name="diligence_allowance" id="diligence_allowance" value="<?= (int)($employee['diligence_allowance'] ?? 0) ?>" <?= $restrictedAttr ?>>
                 </div>
 
                 <div class="form-group">
-                    <label for="petrol_allowance">Ph&#7909; c&#7845;p x&#259;ng xe</label>
+                    <label for="petrol_allowance">Phụ cấp xăng xe</label>
                     <input type="number" name="petrol_allowance" id="petrol_allowance" value="<?= (int)($employee['petrol_allowance'] ?? 0) ?>" <?= $restrictedAttr ?>>
                 </div>
 
                 <div class="form-group">
-                    <label for="dependent_count">S&#7889; ng&#432;&#7901;i ph&#7909; thu&#7897;c (Gi&#7843;m tr&#7915; thu&#7871;)</label>
+                    <label for="dependent_count">Số người phụ thuộc (Giảm trừ thuế)</label>
                     <input type="number" name="dependent_count" id="dependent_count" value="<?= (int)($employee['dependent_count'] ?? 0) ?>" <?= $restrictedAttr ?>>
                 </div>
 
                 <div class="form-group">
-                    <label for="allowance_base">L&#432;&#417;ng tr&#225;ch nhi&#7879;m (VN&#272;)</label>
-                    <input type="number" name="allowance_base" id="allowance_base" value="<?= (int)($employee['allowance_base'] ?? 0) ?>" <?= $restrictedAttr ?> placeholder="M&#7913;c l&#432;&#417;ng tr&#225;ch nhi&#7879;m...">
+                    <label for="allowance_base">Lương trách nhiệm (VNĐ)</label>
+                    <input type="number" name="allowance_base" id="allowance_base" value="<?= (int)($employee['allowance_base'] ?? 0) ?>" <?= $restrictedAttr ?> placeholder="Mức lương trách nhiệm...">
                 </div>
 
                 <?php if ($canEditSensitive) { ?>
                 <div class="form-group form-group-full probation-section-header">
-                    <h4 class="m-b-10 text-apple-main"><i class="fas fa-user-clock m-r-8"></i> Giai &#273;o&#7841;n th&#7917; vi&#7879;c / Th&#7921;c t&#7853;p</h4>
-                    <p class="probation-section-hint">Thi&#7871;t l&#7853;p h&#7879; s&#7889; l&#432;&#417;ng cho nh&#226;n vi&#234;n &#273;ang trong giai &#273;o&#7841;n th&#7917; vi&#7879;c, th&#7921;c t&#7853;p ho&#7863;c h&#7885;c vi&#7879;c. H&#7879; s&#7889; n&#224;y t&#225;c &#273;&#7897;ng tr&#7921;c ti&#7871;p &#273;&#7871;n t&#237;nh n&#259;ng t&#237;nh l&#432;&#417;ng t&#7921; &#273;&#7897;ng.</p>
+                    <h4 class="m-b-10 text-apple-main"><i class="fas fa-user-clock m-r-8"></i> Giai đoạn thử việc / Thực tập</h4>
+                    <p class="probation-section-hint">Thiết lập hệ số lương cho nhân viên đang trong giai đoạn thử việc, thực tập hoặc học việc. Hệ số này tác động trực tiếp đến tính năng tính lương tự động.</p>
                 </div>
 
                 <div class="form-group">
-                    <label for="probation_rate">H&#7879; s&#7889; l&#432;&#417;ng hi&#7879;n t&#7841;i (%)</label>
+                    <label for="probation_rate">Hệ số lương hiện tại (%)</label>
                     <input type="number" name="probation_rate" id="probation_rate"
                         min="1" max="100" step="0.01"
                         value="<?= (float)($employee['probation_rate'] ?? 100) ?>"
-                        placeholder="100 = ch&#237;nh th&#7913;c">
+                        placeholder="100 = chính thức">
                     <div class="probation-preset-btns">
-                        <button type="button" class="probation-preset-btn" data-rate="40">40% Th&#7921;c t&#7853;p</button>
-                        <button type="button" class="probation-preset-btn" data-rate="60">60% H&#7885;c vi&#7879;c</button>
-                        <button type="button" class="probation-preset-btn" data-rate="85">85% Th&#7917; vi&#7879;c</button>
-                        <button type="button" class="probation-preset-btn probation-preset-official" data-rate="100">100% Ch&#237;nh th&#7913;c</button>
+                        <button type="button" class="probation-preset-btn" data-rate="40">40% Thực tập</button>
+                        <button type="button" class="probation-preset-btn" data-rate="60">60% Học việc</button>
+                        <button type="button" class="probation-preset-btn" data-rate="85">85% Thử việc</button>
+                        <button type="button" class="probation-preset-btn probation-preset-official" data-rate="100">100% Chính thức</button>
                     </div>
-                    <small class="probation-note-text">Nh&#226;n vi&#234;n ch&#237;nh th&#7913;c = 100%. Kh&#244;ng c&#7847;n &#273;i&#7873;n ng&#224;y k&#7871;t th&#250;c b&#234;n d&#432;&#7899;i.</small>
+                    <small class="probation-note-text">Nhân viên chính thức = 100%. Không cần điền ngày kết thúc bên dưới.</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="probation_end_date">Ng&#224;y k&#7871;t th&#250;c giai &#273;o&#7841;n</label>
+                    <label for="probation_end_date">Ngày kết thúc giai đoạn</label>
                     <input type="date" name="probation_end_date" id="probation_end_date"
                         value="<?= esc($employee['probation_end_date'] ?? '') ?>"
-                        placeholder="&#272;&#7875; tr&#7889;ng n&#7871;u &#273;&#227; ch&#237;nh th&#7913;c">
-                    <small class="probation-note-text">Ng&#224;y h&#7879; s&#7889; l&#432;&#417;ng thay &#273;&#7893;i sang m&#7913;c m&#7899;i. Khi ng&#224;y n&#224;y r&#417;i v&#224;o gi&#7919;a th&#225;ng, h&#7879; th&#7889;ng t&#7921; &#273;&#7897;ng chia 2 ph&#7847;n &#273;&#7875; t&#237;nh l&#432;&#417;ng ch&#237;nh x&#225;c.</small>
+                        placeholder="Để trống nếu đã chính thức">
+                    <small class="probation-note-text">Ngày hệ số lương thay đổi sang mức mới. Khi ngày này rơi vào giữa tháng, hệ thống tự động chia 2 phần để tính lương chính xác.</small>
                 </div>
 
                 <div class="form-group" id="new-rate-after-group">
-                    <label for="new_rate_after">H&#7879; s&#7889; l&#432;&#417;ng sau khi k&#7871;t th&#250;c (%)</label>
+                    <label for="new_rate_after">Hệ số lương sau khi kết thúc (%)</label>
                     <input type="number" name="new_rate_after" id="new_rate_after"
                         min="1" max="100" step="0.01"
                         value="<?= (float)($employee['new_rate_after'] ?? 100) ?>"
-                        placeholder="Th&#432;&#7901;ng l&#224; 100 khi chuy&#7875;n sang ch&#237;nh th&#7913;c">
-                    <small class="probation-note-text">H&#7879; s&#7889; l&#432;&#417;ng &#225;p d&#7909;ng cho c&#225;c ng&#224;y l&#224;m vi&#7879;c SAU ng&#224;y k&#7871;t th&#250;c trong c&#249;ng th&#225;ng.</small>
+                        placeholder="Thường là 100 khi chuyển sang chính thức">
+                    <small class="probation-note-text">Hệ số lương áp dụng cho các ngày làm việc SAU ngày kết thúc trong cùng tháng.</small>
                 </div>
                 <?php } ?>
             </div>
 
             <div class="form-actions-row">
                 <button type="submit" class="btn-premium">
-                    <i class="fas fa-save"></i>&nbsp; C&#7853;p nh&#7853;t h&#7891; s&#417;
+                    <i class="fas fa-save"></i>&nbsp; Cập nhật hồ sơ
                 </button>
             </div>
         </form>
 
         <hr class="m-t-30 m-b-30">
 
-        <h3 class="section-header-title m-b-20"><i class="fas fa-shield-alt m-r-8 text-apple-red"></i> &#272;&#7893;i m&#7853;t kh&#7849;u t&#224;i kho&#7843;n</h3>
+        <h3 class="section-header-title m-b-20"><i class="fas fa-shield-alt m-r-8 text-apple-red"></i> Đổi mật khẩu tài khoản</h3>
         <form action="<?= base_url('employees/change-password/' . (int)$employee['id']) ?>" method="POST" class="premium-form">
             <?= csrf_field() ?>
             <input type="hidden" name="employee_id" value="<?= (int)$employee['id'] ?>">
             <div class="form-grid form-grid-3">
                 <div class="form-group">
-                    <label>M&#7853;t kh&#7849;u hi&#7879;n t&#7841;i</label>
-                    <input type="password" name="old_password" <?= !$canEditSensitive ? 'required' : '' ?> placeholder="<?= $canEditSensitive ? 'B&#7887; tr&#7889;ng n&#7871;u &#273;&#7893;i cho nh&#226;n vi&#234;n...' : 'Nh&#7853;p m&#7853;t kh&#7849;u &#273;ang d&#249;ng...' ?>">
+                    <label>Mật khẩu hiện tại</label>
+                    <input type="password" name="old_password" <?= !$canEditSensitive ? 'required' : '' ?> placeholder="<?= $canEditSensitive ? 'Bỏ trống nếu đổi cho nhân viên...' : 'Nhập mật khẩu đang dùng...' ?>">
                 </div>
                 <div class="form-group">
-                    <label>M&#7853;t kh&#7849;u m&#7899;i</label>
-                    <input type="password" name="new_password" required minlength="6" placeholder="T&#7889;i thi&#7875;u 6 k&#253; t&#7921;...">
+                    <label>Mật khẩu mới</label>
+                    <input type="password" name="new_password" required minlength="6" placeholder="Tối thiểu 6 ký tự...">
                 </div>
                 <div class="form-group">
-                    <label>X&#225;c nh&#7853;n m&#7853;t kh&#7849;u m&#7899;i</label>
-                    <input type="password" name="confirm_password" required placeholder="Nh&#7853;p l&#7841;i m&#7853;t kh&#7849;u m&#7899;i...">
+                    <label>Xác nhận mật khẩu mới</label>
+                    <input type="password" name="confirm_password" required placeholder="Nhập lại mật khẩu mới...">
                 </div>
             </div>
             <div class="form-actions-row">
                 <button type="submit" class="btn-premium">
-                    <i class="fas fa-save"></i>&nbsp; C&#7853;p nh&#7853;t m&#7853;t kh&#7849;u
+                    <i class="fas fa-save"></i>&nbsp; Cập nhật mật khẩu
                 </button>
             </div>
         </form>

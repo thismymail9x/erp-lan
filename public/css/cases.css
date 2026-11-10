@@ -1047,6 +1047,25 @@
     margin-bottom: 10px;
 }
 
+.case-payment-date-field {
+    min-width: 0;
+}
+
+.case-payment-date-field label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.case-payment-kpi-field label {
+    color: #b42318;
+}
+
+.case-payment-kpi-field .form-control-premium {
+    border-color: #d92d20;
+}
+
 .payment-row {
     display: grid;
     grid-template-columns: minmax(120px, 1.2fr) minmax(110px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(150px, 2fr) auto auto auto;
@@ -1556,4 +1575,119 @@
 .expense-attachment-actions a:hover {
     background: #dbeafe;
     color: #1d4ed8;
+}
+/* Thanh thao tác theo lựa chọn: gọn sát đầu bảng, không chiếm chỗ khi chưa chọn vụ việc. */
+.case-selection-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 16px; background: #f5f8fc; border-bottom: 1px solid #dce5ef; }
+.case-selection-bar[hidden] { display: none; }
+.case-selection-summary { flex-shrink: 0; color: #64748b; font-size: 12px; white-space: nowrap; }
+.case-selection-summary strong { color: #243447; font-weight: 650; }
+.case-selection-actions, .case-manager-bulk-form { display: flex; align-items: center; gap: 8px; margin: 0; min-width: 0; }
+.case-manager-bulk-select { width: 190px; max-width: 100%; height: 34px; padding: 0 28px 0 10px; border: 1px solid #d5deea; border-radius: 7px; background-color: #fff; color: #334155; font: inherit; font-size: 12px; cursor: pointer; }
+.case-selection-assign, .case-selection-delete, .case-selection-clear { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid transparent; border-radius: 7px; font: inherit; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.case-selection-assign { color: #fff; background: #2563eb; border-color: #2563eb; }
+.case-selection-assign:hover { background: #1d4ed8; border-color: #1d4ed8; }
+.case-selection-delete { color: #a84d4d; background: transparent; }
+.case-selection-delete:hover { color: #b42318; background: #fceceb; }
+.case-selection-clear { width: 30px; padding: 0; color: #64748b; background: transparent; }
+.case-selection-clear:hover { color: #334155; background: #e6edf5; }
+.case-selection-bar select:focus-visible, .case-selection-bar button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.case-filter-manager { min-width: 12rem; }
+@media (max-width: 1024px) {
+    .case-selection-bar { padding: 10px 12px; }
+    .case-filter-manager { min-width: 10rem; }
+}
+@media (max-width: 768px) {
+    .case-selection-bar { flex-wrap: wrap; gap: 8px; }
+    .case-selection-summary { flex: 1 0 100%; }
+    .case-selection-actions { width: 100%; gap: 4px; }
+    .case-manager-bulk-form { flex: 1; gap: 6px; }
+    .case-manager-bulk-select { width: 0; min-width: 0; flex: 1; }
+    .case-selection-bar select, .case-selection-bar button, #case-manager-filter, #case-manager-suggest { min-height: 44px; }
+    .case-selection-clear { min-width: 44px; }
+    .case-selection-delete { padding: 0 8px; }
+}
+
+/* Đợt thu chia hai hàng để đủ chỗ nhập ngày giờ trên màn hình hẹp. */
+.case-form-container .payment-row.payment-row--compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(220px, 1.3fr);
+    align-items: end;
+    gap: 10px 12px;
+    padding: 12px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 10px;
+    background: #fff;
+    overflow: visible;
+}
+
+.payment-row--compact > *,
+.payment-row--compact .form-control-premium {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.payment-row--compact .form-control-premium {
+    width: 100%;
+}
+
+.payment-row--compact .case-payment-note-input {
+    grid-column: span 2;
+}
+
+.payment-row--compact .case-payment-actions {
+    grid-column: span 2;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+}
+
+.case-payment-kpi-badge {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: #fef3f2;
+    font-size: 10px;
+    vertical-align: middle;
+}
+
+@media (max-width: 1200px) {
+    .case-form-container .payment-row.payment-row--compact {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .case-form-container .payment-row.payment-row--compact {
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .payment-row--compact .case-payment-date-field:has(input[type="date"]),
+    .payment-row--compact .case-payment-kpi-field {
+        grid-column: 1 / -1;
+    }
+
+    .payment-row--compact .form-control-premium {
+        min-height: 44px;
+        font-size: 16px;
+    }
+
+    .payment-row--compact .case-payment-actions {
+        justify-content: flex-start;
+        gap: 8px 12px;
+    }
+
+    .payment-row--compact .case-payment-actions .case-payment-check {
+        min-height: 44px;
+    }
+
+    .payment-row--compact .case-payment-actions .case-payment-remove {
+        width: 44px;
+        min-width: 44px;
+        height: 44px;
+        margin-left: auto;
+    }
 }

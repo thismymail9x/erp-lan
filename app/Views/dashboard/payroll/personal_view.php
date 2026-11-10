@@ -102,6 +102,18 @@
                     </div>
                     <hr>
                     <div class="row m-b-15">
+                        <div class="col-6"><strong>Hệ số lương áp dụng:</strong></div>
+                        <div class="col-6 text-right">
+                            <?php if ($transitionBreakdown !== null) { ?>
+                                <span class="pv-probation-badge"><?= $transitionBreakdown['rate_before'] ?>% → <?= $transitionBreakdown['rate_after'] ?>%</span>
+                            <?php } elseif (isset($payroll['probation_rate_snapshot'])) { ?>
+                                <span class="pv-probation-badge"><?= (float)$payroll['probation_rate_snapshot'] ?>% lương CB</span>
+                            <?php } else { ?>
+                                <span class="text-muted">Chưa lưu hệ số</span>
+                            <?php } ?>
+                        </div>
+                    </div>
+                    <div class="row m-b-15">
                         <div class="col-6"><strong>Ngày công chuẩn:</strong></div>
                         <div class="col-6 text-right"><?= $payroll['total_standard_days'] ?? 26 ?> ngày</div>
                     </div>
@@ -109,13 +121,6 @@
                         <div class="col-6"><strong>Lương 1 ngày công:</strong></div>
                         <div class="col-6 text-right">
                             <?= number_format($payroll['salary_per_day'] ?? 0) ?> đ
-                            <?php
-                                // Hiển thị hệ số lương khi nhân viên đang trong giai đoạn thử việc/thực tập
-                                $rateSnap = (float)($payroll['probation_rate_snapshot'] ?? 100);
-                                if ($rateSnap < 100) {
-                                    echo '<span class="pv-probation-badge" title="Lương 1 ngày công đã tính theo hệ số ' . $rateSnap . '% lương cơ bản">' . $rateSnap . '% lương CB</span>';
-                                }
-                            ?>
                         </div>
                     </div>
                     <div class="row m-b-15">

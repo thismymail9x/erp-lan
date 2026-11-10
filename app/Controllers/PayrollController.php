@@ -47,6 +47,14 @@ class PayrollController extends BaseController
      */
     public function index()
     {
+        if (!$this->validateData($this->request->getGet(), [
+            'month' => 'permit_empty|regex_match[/^\d{4}-(0[1-9]|1[0-2])$/]',
+            'department_id' => 'permit_empty|is_natural_no_zero',
+            'employee_id' => 'permit_empty|is_natural_no_zero',
+            'page_consulting' => 'permit_empty|is_natural_no_zero',
+        ])) {
+            return redirect()->to('/payroll')->with('error', 'Bộ lọc bảng lương không hợp lệ.');
+        }
         $role = session()->get('role_name');
         $month = $this->request->getGet('month') ?: date('Y-m');
         $departmentId = $this->request->getGet('department_id');
@@ -57,7 +65,7 @@ class PayrollController extends BaseController
 
         if (has_permission('payroll.manage') || $role === AppConstants::ROLE_ADMIN || session()->get('department_id') == AppConstants::DEPT_HANH_CHINH) {
             // VIEW QUẢN TRỊ
-            $query = $this->payrollModel->select('payrolls.*, employees.full_name, employees.position, departments.name as dept_name')
+            $query = $this->payrollModel->select("payrolls.*, employees.full_name, COALESCE(payrolls.position_snapshot, CASE WHEN payrolls.probation_rate_snapshot < 60 THEN 'Thực tập sinh' WHEN payrolls.probation_rate_snapshot < 85 THEN 'Học việc' WHEN payrolls.probation_rate_snapshot < 100 THEN 'Thử việc' ELSE 'Nhân viên chính thức' END) as position, departments.name as dept_name")
                 ->join('employees', 'employees.id = payrolls.employee_id')
                 ->join('users', 'users.id = employees.user_id', 'inner')
                 ->join('departments', 'departments.id = employees.department_id', 'left')
@@ -99,6 +107,7 @@ class PayrollController extends BaseController
                 'employees' => $employees,
                 'config'   => $config,
                 'payrolls' => $payrolls,
+                'consultingLedger' => $this->payrollService->getConsultingAnnualLedger($month, $departmentId ? (int)$departmentId : null, $employeeId ? (int)$employeeId : null),
                 'payrollConfirmations' => $payrollConfirmations,
                 'pager'    => $this->payrollModel->pager,
                 'isAdmin'  => true
@@ -144,6 +153,7 @@ class PayrollController extends BaseController
 
         $config = $this->configModel->where('month', $month)->first();
         if (!$config) return redirect()->to('/payroll');
+        if (!empty($config['is_closed'])) return redirect()->to('/payroll?month=' . $month)->with('error', 'Tháng đã chốt sổ, không thể sửa cấu hình.');
 
         if (strtolower($this->request->getMethod()) === 'post') {
             
@@ -214,11 +224,37 @@ class PayrollController extends BaseController
     /**
      * Xuất file bảng lương (Excel-HTML format).
      */
+    public function exportQuick($month)
+    {
+        if (!has_permission('payroll.manage')) return redirect()->to('/payroll');
+
+        if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) {
+            return redirect()->to('/payroll');
+        }
+
+        $payrolls = $this->payrollModel
+            ->select('employees.full_name, employees.bank_account, employees.bank_owner, employees.bank_name, payrolls.net_salary')
+            ->join('employees', 'employees.id = payrolls.employee_id')
+            ->join('users', 'users.id = employees.user_id', 'inner')
+            ->where('payrolls.month', $month)
+            ->where('users.active_status', 1)
+            ->where('users.deleted_at', null)
+            ->orderBy('payrolls.net_salary', 'DESC')
+            ->orderBy('employees.full_name', 'ASC')
+            ->findAll();
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/vnd.ms-excel; charset=UTF-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="BangLuongNhanh_' . $month . '.xls"')
+            ->setHeader('Cache-Control', 'max-age=0')
+            ->setBody(view('dashboard/payroll/export_quick', ['payrolls' => $payrolls]));
+    }
+
     public function export($month)
     {
         if (!has_permission('payroll.manage')) return redirect()->to('/payroll');
 
-        $payrolls = $this->payrollModel->select('payrolls.*, employees.full_name, employees.position, departments.name as dept_name')
+        $payrolls = $this->payrollModel->select("payrolls.*, employees.full_name, COALESCE(payrolls.position_snapshot, CASE WHEN payrolls.probation_rate_snapshot < 60 THEN 'Thực tập sinh' WHEN payrolls.probation_rate_snapshot < 85 THEN 'Học việc' WHEN payrolls.probation_rate_snapshot < 100 THEN 'Thử việc' ELSE 'Nhân viên chính thức' END) as position, departments.name as dept_name")
             ->join('employees', 'employees.id = payrolls.employee_id')
             ->join('users', 'users.id = employees.user_id', 'inner')
             ->join('departments', 'departments.id = employees.department_id', 'left')
@@ -362,12 +398,19 @@ class PayrollController extends BaseController
      * Tích hợp xử lý manual_adjust_days: khi Admin điều chỉnh ngày công bù,
      * hệ thống tự tính lại taxable_income = (actual_working_days + manual_adjust_days) × salary_per_day.
      */
+    private function isPayrollClosed(array $payroll): bool
+    {
+        $config = $this->configModel->where('month', $payroll['month'])->first();
+        return !empty($config['is_closed']) || ($payroll['status'] ?? '') === 'approved';
+    }
+
     public function updateItem($id)
     {
         if (!has_permission('payroll.manage')) return $this->response->setJSON(['code' => 1, 'error' => 'Permission denied']);
 
         $payroll = $this->payrollModel->find($id);
         if (!$payroll) return $this->response->setJSON(['code' => 1, 'error' => 'Not found']);
+        if ($this->isPayrollClosed($payroll)) return $this->response->setJSON(['code' => 1, 'error' => 'Tháng đã chốt sổ, không thể chỉnh sửa.']);
 
         $bonus     = (float)$this->request->getPost('salary_bonus');
         $kpi       = (float)$this->request->getPost('salary_kpi');
@@ -450,6 +493,8 @@ class PayrollController extends BaseController
         $payroll = $this->payrollModel->find($id);
         if (!$payroll) return $this->response->setJSON(['code' => 1, 'msg' => 'Không tìm thấy']);
 
+        if ($this->isPayrollClosed($payroll)) return $this->response->setJSON(['code' => 1, 'msg' => 'Tháng đã chốt sổ, không thể chỉnh sửa.']);
+
         if (!has_permission('payroll.manage') && $payroll['employee_id'] != session()->get('employee_id')) {
             return $this->response->setJSON(['code' => 1, 'msg' => 'Không có quyền truy cập bảng lương này']);
         }
@@ -465,6 +510,7 @@ class PayrollController extends BaseController
         if (json_last_error() !== JSON_ERROR_NONE) {
             $notesJson = '[]';
         }
+        $notesJson = $this->payrollService->preserveConsultingNote($payroll, $notesJson);
         $petrol = $this->request->getPost('petrol_allowance');
         
         $data = [

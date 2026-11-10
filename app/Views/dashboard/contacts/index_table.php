@@ -16,6 +16,7 @@
                 <th class="contacts-col-area">Địa bàn / Khu vực</th>
                 <th class="contacts-col-notes">Ghi chú</th>
                 <th class="contacts-col-province">Tỉnh thành</th>
+                <th>Ngày tạo (Người tạo)</th>
                 <?php if ($isAdmin){ ?>
                 <th>Trạng thái</th>
                 <?php } ?>
@@ -25,7 +26,7 @@
         <tbody>
             <?php if (empty($contacts)) { ?>
             <tr>
-                <td colspan="<?= $isAdmin ? 11 : 10 ?>" class="table-empty-container">
+                <td colspan="<?= $isAdmin ? 12 : 11 ?>" class="table-empty-container">
                     <i class="fas fa-address-book table-empty-icon"></i>
                     Không tìm thấy kết quả nào phù hợp.
                 </td>
@@ -62,6 +63,11 @@
                     <td class="text-xs text-muted"><?= esc($contact['area'] ?? '---') ?></td>
                     <td class="text-xs italic"><?= esc($contact['notes'] ?? '---') ?></td>
                     <td><span class="contact-province-badge"><?= esc($contact['province'] ?? '---') ?></span></td>
+                    <td class="text-sm text-nowrap">
+                        <?php $createdAt = !empty($contact['created_at']) ? strtotime($contact['created_at']) : false; ?>
+                        <?= $createdAt !== false ? date('d/m/Y', $createdAt) : '---' ?>
+                        <span class="text-muted">(<?= esc($contact['creator_name'] ?? 'Chưa xác định') ?>)</span>
+                    </td>
                     <?php if ($isAdmin) { ?>
                     <td>
                         <?php if ($contact['is_private']) { ?>

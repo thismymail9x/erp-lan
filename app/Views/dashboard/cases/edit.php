@@ -23,6 +23,7 @@
         <?= csrf_field() ?>
         
         <div class="form-grid case-edit-form-grid">
+            <?= $this->include('dashboard/cases/manager_selector') ?>
             <div class="form-group-premium">
                 <label for="title">Tên vụ việc / Tiêu đề hồ sơ</label>
                 <input type="text" name="title" id="title" required class="form-control-premium" value="<?= esc($case['title']) ?>">
@@ -83,6 +84,9 @@
                     <select name="assignees[]" id="assignees" class="form-control-premium select2-multi" multiple="multiple">
                         <?php 
                         $currentAssigneeIds = array_column(array_filter($members, function($m) { return $m['role_in_case'] === 'assignee'; }), 'employee_id');
+                        if ($currentAssigneeIds === []) {
+                            $currentAssigneeIds = array_filter([$case['assigned_lawyer_id'] ?: $case['assigned_staff_id']]);
+                        }
                         foreach ($staffs as $s) { ?>
                             <option value="<?= $s['id'] ?>" <?= in_array($s['id'], $currentAssigneeIds) ? 'selected' : '' ?>><?= esc($s['full_name']) ?></option>
                         <?php } ?>
@@ -101,26 +105,7 @@
                 </div>
             </div>
 
-            <?php if (has_permission('sys.admin') || has_permission('kpi.consulting')) { ?>
-                <div class="form-group-premium case-kpi-section">
-                    <h4 class="text-apple-main font-weight-600 m-b-15"><i class="fas fa-chart-line m-r-8 text-apple-blue"></i> KPI tư vấn</h4>
-                </div>
-                <div class="form-group-premium">
-                    <label for="consultant_id">Nhân sự tư vấn chốt khách</label>
-                    <select name="consultant_id" id="consultant_id" class="form-control-premium select2-enable" data-search="true">
-                        <option value="">-- Chưa ghi nhận --</option>
-                        <?php foreach ($staffs as $s) { ?>
-                            <option value="<?= $s['id'] ?>" <?= (int)($case['consultant_id'] ?? 0) === (int)$s['id'] ? 'selected' : '' ?>><?= esc($s['full_name']) ?> (<?= esc($s['position']) ?>)</option>
-                        <?php } ?>
-                    </select>
-                </div>
-                <div class="form-group-premium">
-                    <label for="consultation_closed_at">Ngày ghi nhận chốt</label>
-                    <?php $closedAtValue = !empty($case['consultation_closed_at']) ? date('Y-m-d', strtotime($case['consultation_closed_at'])) : ''; ?>
-                    <input type="date" name="consultation_closed_at" id="consultation_closed_at" class="form-control-premium" value="<?= esc($closedAtValue) ?>">
-                    <small class="text-muted-dark m-t-4 case-kpi-note">KPI tháng được tính theo ngày ghi nhận chốt và giá trị hợp đồng.</small>
-                </div>
-            <?php } ?>
+            <?= view('dashboard/cases/consulting_fields', ['case' => $case, 'staffs' => $staffs]) ?>
 
             <div class="form-group-premium case-edit-span-2">
                 <label for="description">Kế hoạch vụ việc</label>
@@ -128,13 +113,14 @@
             </div>
 
             <?php
-            $isHanhChinhOrAdmin = (session()->get('role_name') === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
+            $isHanhChinhOrAdmin = (new \App\Services\CaseAccountingAccess())->canManage($case);
             if ($isHanhChinhOrAdmin) { 
             ?>
                 <div class="form-group-premium case-edit-span-2 case-edit-section-heading">
                     <h4 class="text-apple-main font-weight-600 m-b-15"><i class="fas fa-file-invoice-dollar m-r-8 text-apple-blue"></i> Chuyên mục Hành chính - Kế toán</h4>
                 </div>
                 <div class="form-group-premium case-edit-span-2">
+                    <input type="hidden" name="accounting_section" value="1">
                     <label for="contract_value">Giá trị hợp đồng (VNĐ)</label>
                     <input type="text" name="contract_value" id="contract_value" class="form-control-premium case-money-input js-vnd-input" value="<?= isset($case['contract_value']) ? number_format($case['contract_value'], 0, ',', '.') : '' ?>">
                     <small class="text-muted-dark m-t-4 case-note-block">Nhập số tiền đã chốt theo hợp đồng. Hệ thống sẽ tự động định dạng. Nhân viên pháp lý không nhìn thấy số liệu này.</small>
@@ -164,6 +150,7 @@
 
 <?= $this->section('scripts') ?>
 <script src="<?= base_url('js/cases_edit.js') ?>?v=<?= time() ?>"></script>
+<script src="<?= base_url('js/case_manager.js') ?>"></script>
 <?= $this->endSection() ?>
 
 

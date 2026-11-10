@@ -75,11 +75,13 @@ $routes->group('attendance', function($routes) {
     $routes->get('get-office-token', 'AttendanceController::getOfficeToken'); // Lấy mã token văn phòng
 });
 
+
 // Case Management Routes
-$routes->group('cases', function($routes) {
+$routes->group('cases', ['filter' => 'caseManager'], function($routes) {
     $routes->get('/', 'CaseController::index'); // Danh sách vụ việc
     $routes->get('create', 'CaseController::create'); // Form tạo vụ việc mới
     $routes->post('store', 'CaseController::store'); // Lưu vụ việc mới
+    $routes->post('assign-managers', 'CaseController::assignManagers'); // Giao quản lý cho các vụ được chọn.
     $routes->get('show/(:num)', 'CaseController::show/$1'); // Chi tiết vụ việc
     $routes->post('update-status/(:num)', 'CaseController::updateStatus/$1'); // Cập nhật trạng thái vụ việc
     $routes->post('update-members/(:num)', 'CaseController::updateMembers/$1'); // Cập nhật thành viên tham gia vụ việc
@@ -299,6 +301,7 @@ $routes->group('payroll', function($routes) {
     $routes->post('calculate/(:any)', 'PayrollController::calculate/$1'); // Tính toán, chốt số liệu lương (POST cho chọn nhân sự)
     $routes->get('close/(:any)', 'PayrollController::close/$1'); // Chốt sổ bảng lương tháng
     $routes->get('export/(:any)', 'PayrollController::export/$1'); // Xuất file excel bảng lương
+    $routes->get('export-quick/(:any)', 'PayrollController::exportQuick/$1');
     $routes->post('update-item/(:num)', 'PayrollController::updateItem/$1'); // Cập nhật thủ công một mục lương
     $routes->get('notes/(:num)', 'PayrollController::getNotes/$1'); // Lấy ghi chú của bảng lương cá nhân
     $routes->post('save-notes/(:num)', 'PayrollController::saveNotes/$1'); // Lưu ghi chú lương cá nhân

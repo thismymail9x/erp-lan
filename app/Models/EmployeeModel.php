@@ -22,7 +22,7 @@ class EmployeeModel extends BaseModel
         'position', 'bank_name', 'bank_account', 'bank_owner', 'personal_email', 'phone_number',
         'specialties', 'max_workload', 'annual_leave_start_date',
         // Hệ số lương theo giai đoạn: thử việc, thực tập, học việc
-        'probation_rate', 'probation_end_date', 'new_rate_after',
+        'probation_rate', 'probation_end_date', 'new_rate_after', 'initial_position',
     ];
 
     // Dates
@@ -36,6 +36,7 @@ class EmployeeModel extends BaseModel
     protected $validationRules      = [
         'full_name' => 'required|min_length[3]|max_length[255]',
         'position'  => 'required',
+        'initial_position' => 'permit_empty|in_list[Thực tập sinh,Học việc,Thử việc,Nhân viên chính thức,Trưởng phòng,Admin,Mod]',
     ];
     protected $validationMessages   = [];
     protected $skipValidation       = false;

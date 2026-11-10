@@ -20,6 +20,12 @@ class EmployeeService extends BaseService
     protected $employeeModel;
     protected $userModel;
     protected $logService;
+    protected $stageService;
+
+    private function employeeStages(): EmployeeStageService
+    {
+        return $this->stageService ??= new EmployeeStageService();
+    }
 
     public function __construct()
     {
@@ -136,14 +142,21 @@ class EmployeeService extends BaseService
      */
     public function createEmployee(array $data)
     {
+        if (empty($data['initial_position'])) {
+            $user = $this->userModel->find($data['user_id'] ?? 0);
+            $role = $user ? (new \App\Models\RoleModel())->find($user['role_id']) : null;
+            $data['initial_position'] = array_key_exists($data['position'] ?? '', \Config\AppConstants::PROBATION_RATE_DEFAULT)
+                ? $data['position'] : ($role['name'] ?? $data['position'] ?? '');
+        }
         $data = $this->normalizeAnnualLeaveStart($data);
 
         // Thực hiện ghi dữ liệu mới vào DB
         if ($this->employeeModel->insert($data)) {
             $empId = $this->employeeModel->getInsertID();
+            $this->employeeStages()->synchronize((int) $empId);
             
             // Ghi nhận hành động vào Nhật ký hệ thống (Audit Trail)
-            $this->logService->log('CREATE', 'Employees', $empId, ['full_name' => $data['full_name']]);
+            $this->logService->log('CREATE', 'Employees', $empId, ['full_name' => $data['full_name'], 'initial_position' => $data['initial_position']]);
             
             return $this->success(['id' => $empId], 'Hồ sơ nhân sự đã được thiết lập thành công.');
         }
@@ -162,6 +175,11 @@ class EmployeeService extends BaseService
         // 1. Sao lưu dữ liệu cũ để phục vụ đối soát thay đổi
         $oldData = $this->employeeModel->find($id);
 
+        if ($oldData && empty($data['initial_position'])) {
+            $data['initial_position'] = $oldData['initial_position']
+                ?: $this->employeeStages()->findEntryPosition($oldData);
+        }
+
         if ($oldData && !empty($data['probation_end_date']) && array_key_exists('probation_rate', $data)) {
             $oldRate = (float)($oldData['probation_rate'] ?? 100);
             $postedRate = (float)$data['probation_rate'];
@@ -176,6 +194,7 @@ class EmployeeService extends BaseService
         
         // 2. Thực thi cập nhật
         if ($this->employeeModel->update($id, $data)) {
+            $this->employeeStages()->synchronize($id);
             $newData = $this->employeeModel->find($id);
             
             // 3. Tính toán sự khác biệt (Chỉ lấy các trường thực sự bị sửa đổi)
@@ -189,7 +208,7 @@ class EmployeeService extends BaseService
             
             return $this->success(null, 'Hồ sơ nhân sự đã được cập nhật chính xác.');
         }
-        return $this->fail('Lệnh cập nhật bị từ chối bởi Cơ sở dữ liệu.');
+        return $this->fail('Lệnh cập nhật bị từ chối bởi Cơ sở dữ liệu. ' . implode(' ', $this->employeeModel->errors()));
     }
 
     /**

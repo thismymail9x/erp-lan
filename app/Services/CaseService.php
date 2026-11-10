@@ -35,7 +35,7 @@ class CaseService extends BaseService
      * @param string $search Từ khóa tìm kiếm đa năng.
      * @return array Danh sách vụ việc đã được lọc và làm sạch dữ liệu.
      */
-    public function getCases(string $sort = 'id', string $order = 'desc', int $perPage = 20, string $search = '', array $lawyerIds = [], string $status = '', int $tagId = 0, int $month = 0, int $year = 0, string $paymentStatus = '', bool $isFinance = false, ?array $allowedCaseIds = null)
+    public function getCases(string $sort = 'id', string $order = 'desc', int $perPage = 20, string $search = '', array $lawyerIds = [], string $status = '', int $tagId = 0, int $month = 0, int $year = 0, string $paymentStatus = '', bool $isFinance = false, ?array $allowedCaseIds = null, int $caseManagerId = 0)
     {
         // 1. Phân tích bối cảnh người dùng (Authentication Context)
         $roleName = session()->get('role_name');
@@ -79,6 +79,10 @@ class CaseService extends BaseService
         if ($isHanhChinhOrAdmin) {
             $selectData .= ', cases.contract_value, cases.payment_progress';
         }
+        $managerAccess = new CaseManagementService();
+        if ($managerAccess->ready()) {
+            $selectData .= ', cases.case_manager_id, case_manager.full_name AS case_manager_name';
+        }
 
         // 3. Xây dựng Query Builder cốt lõi
         $query = $this->caseModel->select($selectData)
@@ -92,6 +96,10 @@ class CaseService extends BaseService
 
         // 4. Áp dụng cơ chế Phân quyền dữ liệu (Security Scoping)
         $this->applyAccessLimit($query);
+        if ($managerAccess->ready()) {
+            $query->join('employees case_manager', 'case_manager.id = cases.case_manager_id AND case_manager.deleted_at IS NULL', 'left');
+            $this->applyManagerFilter($query, $caseManagerId);
+        }
 
         // 5. Lọc theo trạng thái hồ sơ cụ thể (Nếu được yêu cầu)
         if (!empty($status)) {
@@ -242,9 +250,20 @@ class CaseService extends BaseService
         if (!$case) {
             return $this->fail('Dữ liệu hồ sơ này không tồn tại hoặc đã bị xóa khỏi hệ thống.');
         }
+        // Vụ đã giao đầu mối dùng cùng phạm vi quản lý với danh sách và bộ lọc URL.
+        $teamService = new CaseManagementService();
+        if ($teamService->ready() && (!empty($case['case_manager_id']) || $teamService->canViewAll())) {
+            if (!$teamService->canView($case) && !(new CaseAccountingAccess())->canManage($case)) {
+                return $this->fail('Bạn không có quyền truy cập vụ việc này.');
+            }
+            if (!(new CaseAccountingAccess())->canManage($case)) {
+                unset($case['contract_value'], $case['payment_progress']);
+            }
+            return $this->success($case);
+        }
         $roleName = session()->get('role_name');
         // Kiểm duyệt bảo mật dữ liệu nhạy cảm (Tài chính)
-        $isHanhChinhOrAdmin = ($roleName === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
+        $isHanhChinhOrAdmin = (new CaseAccountingAccess())->canManage($case);
         if (!$isHanhChinhOrAdmin) {
             unset($case['contract_value'], $case['payment_progress']);
         }
@@ -252,7 +271,7 @@ class CaseService extends BaseService
         // 2. Kiểm duyệt quyền truy cập hồ sơ (Strict Access Check)
 
         $isHanhChinh = (session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
-        if (!$this->accessControl->canViewAllData($roleName) && !$isHanhChinh) {
+        if (!$this->accessControl->canViewAllData($roleName) && !$isHanhChinh && !$isHanhChinhOrAdmin) {
             $userId = session()->get('user_id');
             $employee = model('EmployeeModel')->where('user_id', $userId)->first();
             
@@ -287,14 +306,15 @@ class CaseService extends BaseService
     /**
      * Tính toán bộ chỉ số thống kê (Stats) dựa trên quyền hạn và bộ lọc hiện tại.
      */
-    public function getStats(string $search = '', array $lawyerIds = [], int $tagId = 0, int $month = 0, int $year = 0)
+    public function getStats(string $search = '', array $lawyerIds = [], int $tagId = 0, int $month = 0, int $year = 0, int $caseManagerId = 0)
     {
         $session = session();
         $roleName = $session->get('role_name');
         $now = date('Y-m-d H:i:s');
         $overdueSubquery = "SELECT DISTINCT case_id FROM case_steps WHERE status = 'active' AND deadline < '$now' AND deleted_at IS NULL";
         
-        $isAdminView = ($this->accessControl->canViewAllData($roleName) || $session->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
+        $isAdminView = ($this->accessControl->canViewAllData($roleName) || $session->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH
+            || (new CaseManagementService())->hasManagedCases());
         if (!$isAdminView) {
             $myEmpId = (int)$session->get('employee_id');
             if ($myEmpId > 0) {
@@ -302,12 +322,13 @@ class CaseService extends BaseService
             }
         }
 
-        $buildBaseQuery = function() use ($search, $lawyerIds, $tagId, $month, $year) {
+        $buildBaseQuery = function() use ($search, $lawyerIds, $tagId, $month, $year, $caseManagerId) {
             $query = $this->caseModel->select('cases.id')
                 ->join('customers', 'customers.id = cases.customer_id', 'left')
                 ->join('employees', 'employees.id = cases.assigned_lawyer_id', 'left');
             
             $this->applyAccessLimit($query);
+            $this->applyManagerFilter($query, $caseManagerId);
             $this->applyFilters($query, $search, $lawyerIds, $tagId, $month, $year);
             return $query;
         };
@@ -324,6 +345,18 @@ class CaseService extends BaseService
                                 ->where("cases.id IN ($overdueSubquery)")
                                 ->countAllResults()
         ];
+    }
+
+    /** Bộ lọc chỉ thu hẹp phạm vi đã được cấp quyền, giá trị -1 dùng cho hồ sơ chưa có đầu mối. */
+    private function applyManagerFilter($query, int $managerId): void
+    {
+        if ((new CaseManagementService())->ready()) {
+            if ($managerId === -1) {
+                $query->where('cases.case_manager_id', null);
+            } elseif ($managerId > 0) {
+                $query->where('cases.case_manager_id', $managerId);
+            }
+        }
     }
 
     /**
@@ -422,8 +455,35 @@ class CaseService extends BaseService
         $employeeId = $session->get('employee_id');
 
         // Nếu là Admin/Mod hoặc người có quyền xem toàn hệ thống hoặc là phòng ban Hành chính Kế toán -> Trả về luôn để lấy Full data
-        if ($this->accessControl->canViewAllData($roleName) || $session->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH) {
+        if (has_permission('sys.admin') || has_permission('case.edit_all') || has_permission('case.view_all') || $session->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH) {
             return;
+        }
+
+        // Vụ đã giao quản lý dùng phân công trực tiếp, vụ chưa phân loại giữ quyền hiện hữu.
+        $teamService = new CaseManagementService();
+        if ($teamService->ready() && !$teamService->canViewAll()) {
+            $query->groupStart()->groupStart()->where('cases.case_manager_id !=', null);
+            $teamService->scope($query);
+            $query->groupEnd()->orGroupStart()->where('cases.case_manager_id', null);
+            $this->applyLegacyAccessLimit($query);
+            $query->groupEnd()->groupEnd();
+            return;
+        }
+        if ($teamService->ready() && $teamService->canViewAll()) {
+            return;
+        }
+        $this->applyLegacyAccessLimit($query);
+    }
+
+    /** Giữ phạm vi hiện hữu cho các hồ sơ chưa chọn người quản lý trong giai đoạn chuyển đổi. */
+    private function applyLegacyAccessLimit(&$query)
+    {
+        $session = session();
+        $roleName = $session->get('role_name');
+        $employeeId = $session->get('employee_id');
+        $includeCreatedCases = has_permission(CaseAccountingAccess::PERMISSION) && (int) $session->get('user_id') > 0;
+        if ($includeCreatedCases) {
+            $query->groupStart()->where(CaseAccountingAccess::creatorSql() . ' = ' . (int) $session->get('user_id'), null, false)->orGroupStart();
         }
 
         if ($employeeId) {
@@ -471,6 +531,9 @@ class CaseService extends BaseService
             }
         } else {
             $query->where('1 = 0'); 
+        }
+        if ($includeCreatedCases) {
+            $query->groupEnd()->groupEnd();
         }
     }
     /**

@@ -21,6 +21,7 @@ use Config\AppConstants;
  */
 class PayrollService extends BaseService
 {
+    public const CONSULTING_START_MONTH = '2026-10';
     private const EMPLOYEE_CONFIRMATION_TYPE = 'employee_payroll_confirmation';
 
     protected $payrollModel;
@@ -59,6 +60,39 @@ class PayrollService extends BaseService
         return array_values(array_filter($this->decodeNotes($notesJson), function ($note) {
             return ($note['type'] ?? '') !== self::EMPLOYEE_CONFIRMATION_TYPE;
         }));
+    }
+
+    /**
+     * Tổng hợp các phiếu lương đã tính trong năm, giữ cả nhân sự đã nghỉ để không mất nghĩa vụ chi.
+     * Chỉ cộng snapshot từng tháng, không áp bậc thưởng lên doanh thu cộng dồn cả năm.
+     */
+    public function getConsultingAnnualLedger(string $month, ?int $departmentId = null, ?int $employeeId = null): array
+    {
+        $year = substr($month, 0, 4);
+        $start = max($year . '-01', self::CONSULTING_START_MONTH);
+        if ($start > $year . '-12') {
+            return ['rows' => [], 'total' => 0, 'pager' => null];
+        }
+        $query = (new PayrollModel())
+            ->join('employees', 'employees.id = payrolls.employee_id')
+            ->where('employees.deleted_at', null)
+            ->where('payrolls.deleted_at', null)
+            ->where('payrolls.month >=', $start)
+            ->where('payrolls.month <=', $year . '-12')
+            ->where('payrolls.consulting_annual >', 0);
+        if ($departmentId) {
+            $query->where('employees.department_id', $departmentId);
+        }
+        if ($employeeId) {
+            $query->where('payrolls.employee_id', $employeeId);
+        }
+        // Tổng quỹ lấy trên toàn bộ bộ lọc, độc lập với trang chi tiết hiện tại.
+        $totalQuery = clone $query->builder();
+        $total = $totalQuery->selectSum('payrolls.consulting_annual', 'annual_total')->get()->getRowArray();
+        $rows = $query->select('payrolls.*, employees.full_name')
+            ->orderBy('employees.full_name')->orderBy('payrolls.month')
+            ->paginate(20, 'consulting');
+        return ['rows' => $rows, 'total' => (float)($total['annual_total'] ?? 0), 'pager' => $query->pager];
     }
 
     public function canEmployeeConfirmPayroll(?array $payroll, string $month, array $config): bool
@@ -115,6 +149,39 @@ class PayrollService extends BaseService
         return is_array($notes) ? $notes : [];
     }
 
+    /** Giữ khoản Khác nhập tay; gỡ phần tự động cũ trước khi tính lại để tránh cộng trùng. */
+    private function getManualOtherAmount(array $existing): float
+    {
+        $other = (float)($existing['salary_other'] ?? 0)
+            - (float)($existing['consulting_monthly'] ?? 0)
+            - (float)($existing['consulting_milestone'] ?? 0);
+        foreach ($this->decodeNotes($existing['notes_json'] ?? '[]') as $note) {
+            if (str_contains($note['text'] ?? '', '[Truy lĩnh tự động]')) {
+                // Phiếu cũ chưa có amount: lấy số tiền cuối ghi chú truy lĩnh theo định dạng sẵn có.
+                if (isset($note['amount'])) {
+                    $other -= (float)$note['amount'];
+                } elseif (preg_match('/=\s*([\d,.]+)\s*đ/u', $note['text'], $match)) {
+                    $other -= (float)str_replace([',', '.'], '', $match[1]);
+                }
+            }
+        }
+        return $other;
+    }
+
+    /** Ghi chú KPI là căn cứ của khoản cộng tự động, luôn lấy lại từ bản lưu trên máy chủ. */
+    public function preserveConsultingNote(array $payroll, string $notesJson): string
+    {
+        $notes = array_values(array_filter($this->decodeNotes($notesJson), static function ($note) {
+            return !str_contains($note['text'] ?? '', '[KPI tư vấn]');
+        }));
+        foreach ($this->decodeNotes($payroll['notes_json'] ?? '[]') as $note) {
+            if (str_contains($note['text'] ?? '', '[KPI tư vấn]')) {
+                $notes[] = $note;
+            }
+        }
+        return json_encode($notes, JSON_UNESCAPED_UNICODE);
+    }
+
     private function removeEmployeeConfirmationFromNotes(array $notes): array
     {
         return array_values(array_filter($notes, function ($note) {
@@ -131,6 +198,7 @@ class PayrollService extends BaseService
             'manual_adjust_days', 'probation_rate_snapshot', 'taxable_income',
             'si_employee', 'dependent_deduction', 'pit_tax', 'total_deductions',
             'net_salary',
+            'consulting_revenue', 'consulting_monthly', 'consulting_annual', 'consulting_milestone',
         ];
 
         foreach ($fields as $field) {
@@ -150,6 +218,25 @@ class PayrollService extends BaseService
         }
 
         return false;
+    }
+
+    public function getPayrollStageLabel(float $rate): string
+    {
+        return match (true) {
+            $rate < 60 => AppConstants::ROLE_THUC_TAP_SINH,
+            $rate < 85 => AppConstants::ROLE_HOC_VIEC,
+            $rate < 100 => AppConstants::ROLE_THU_VIEC,
+            default => 'Nhân viên chính thức',
+        };
+    }
+
+    private function normalizeEmployeeProbationStageForPayroll(array $emp, string $month): array
+    {
+        if (empty($emp['initial_position'])) {
+            // Resolve legacy entry roles without changing today's profile or account role.
+            $emp['initial_position'] = (new EmployeeStageService())->findEntryPosition($emp);
+        }
+        return (new EmployeeStageService())->resolve($emp, $month . '-01');
     }
 
     /**
@@ -268,20 +355,6 @@ class PayrollService extends BaseService
         $rateBefore = $probationRate;
         $rateAfter  = $newRateAfter > 0 ? $newRateAfter : $probationRate;
 
-        if (abs($rateBefore - $rateAfter) < 0.01) {
-            $previousPayroll = $this->payrollModel
-                ->where('employee_id', $emp['id'])
-                ->where('month <', $month)
-                ->orderBy('month', 'DESC')
-                ->orderBy('id', 'DESC')
-                ->first();
-
-            $previousRate = (float)($previousPayroll['probation_rate_snapshot'] ?? 0);
-            if ($previousRate > 0 && abs($previousRate - $rateAfter) >= 0.01) {
-                $rateBefore = $previousRate;
-            }
-        }
-
         $daysBefore = 0;
         $daysAfter  = 0;
 
@@ -356,6 +429,7 @@ class PayrollService extends BaseService
      */
     private function detectAndCalcRetroPayroll(array $emp, string $currentMonth): ?array
     {
+        $emp = $this->normalizeEmployeeProbationStageForPayroll($emp, date('Y-m', strtotime($currentMonth . '-01 -1 month')));
         $joinDate = $emp['join_date'] ?? null;
         if (empty($joinDate)) {
             return null;
@@ -562,6 +636,10 @@ class PayrollService extends BaseService
         $workingDays = json_decode($config['working_days_json'], true) ?: [];
         $holidays    = json_decode($config['holidays_json'], true) ?: [];
         
+        // Dùng cùng nguồn thực thu và phân quyền nhân sự với báo cáo KPI tư vấn.
+        $consultingStats = $month >= self::CONSULTING_START_MONTH
+            ? array_column((new KpiService())->getConsultingAllEmployeesStats(['month' => $month]), null, 'id')
+            : [];
         $results = [];
 
         foreach ($employees as $emp) {
@@ -569,6 +647,8 @@ class PayrollService extends BaseService
             if (!empty($selectedEmployeeIds) && !in_array($emp['id'], $selectedEmployeeIds)) {
                 continue;
             }
+
+            $emp = $this->normalizeEmployeeProbationStageForPayroll($emp, $month);
 
             // ---- BƯỚC 1: Thu thập dữ liệu chấm công ----
             $lastDayOfMonth  = date('t', strtotime($month . '-01'));
@@ -694,6 +774,10 @@ class PayrollService extends BaseService
                 ->where(['employee_id' => $emp['id'], 'month' => $month])
                 ->first();
 
+            if (($existing['status'] ?? '') === 'approved') {
+                continue;
+            }
+
             // Bảo toàn ngày công bù thủ công (Admin đã nhập) — không reset khi tính lại
             $manualAdjustDays = (float)($existing['manual_adjust_days'] ?? 0);
 
@@ -707,12 +791,11 @@ class PayrollService extends BaseService
             $dependentDeduction   = $dependentCount * AppConstants::DEPENDENT_DEDUCTION_AMOUNT;
             
             // Bảo toàn Thưởng và Thuế TNCN đã nhập tay; KPI reset theo hồ sơ nhân sự.
-            // LƯU Ý: salary_other KHÔNG được lấy từ existing vì nó đã bao gồm truy lĩnh tự động kỳ trước.
-            // Truy lĩnh luôn được tính lại từ đầu mỗi lần, do đó reset $other về 0 để tránh cộng dồn.
+            // Tách khoản nhập tay khỏi truy lĩnh/KPI cũ trước khi cộng lại số liệu tự động mới.
             $kpiReward = $responsibilitySalary;
             if ($existing) {
                 $bonus  = (float)($existing['salary_bonus'] ?? 0);
-                $other  = 0; // Sẽ được cộng vào bởi detectAndCalcRetroPayroll() bên dưới nếu đủ điều kiện
+                $other  = $this->getManualOtherAmount($existing);
                 $pitTax = (float)($existing['pit_tax'] ?? 0);
             } else {
                 $bonus  = 0;
@@ -744,6 +827,13 @@ class PayrollService extends BaseService
                 $other += $retroResult['amount'];
             }
 
+            $consulting = $consultingStats[$emp['id']] ?? [];
+            $consultingMonthly = (float)($consulting['monthly_payout'] ?? 0);
+            $consultingAnnual = (float)($consulting['annual_accrual'] ?? 0);
+            $consultingMilestone = (float)($consulting['milestone_bonus'] ?? 0);
+            // Tính lại từ nguồn, không cộng trên tiền KPI đã lưu nên không bị nhân đôi.
+            $other += $consultingMonthly + $consultingMilestone;
+
             // ---- BƯỚC 6: Tổng hợp tài chính ----
             // Bảo hiểm xã hội tính trên lương đóng BH (không phụ thuộc hệ số probation)
             $siEmployer = $insuranceSalary * AppConstants::SI_RATE_EMPLOYER;
@@ -773,7 +863,8 @@ class PayrollService extends BaseService
             $notes = array_values(array_filter($notes, function($n) {
                 $text = $n['text'] ?? '';
                 return (strpos($text, '[Chuyển hạng]') === false)
-                    && (strpos($text, '[Truy lĩnh tự động]') === false);
+                    && (strpos($text, '[Truy lĩnh tự động]') === false)
+                    && (strpos($text, '[KPI tư vấn]') === false);
             }));
 
             // Thêm ghi chú chuyển hạng nếu có
@@ -795,6 +886,16 @@ class PayrollService extends BaseService
                     ),
                     'date' => $autoNoteDate,
                     'auto' => true,
+                    'amount' => $retroResult['amount'],
+                ];
+            }
+
+            if ($consultingMonthly > 0 || $consultingAnnual > 0 || $consultingMilestone > 0) {
+                $notes[] = [
+                    'type' => 'consulting_kpi',
+                    'text' => sprintf('[KPI tư vấn] Tháng %s: trả tháng 40%% %s đ; vượt mốc %s đ; tích lũy năm 60%% %s đ.', $month, number_format($consultingMonthly), number_format($consultingMilestone), number_format($consultingAnnual)),
+                    'date' => $autoNoteDate,
+                    'auto' => true,
                 ];
             }
 
@@ -802,6 +903,7 @@ class PayrollService extends BaseService
             $payrollData = [
                 'employee_id'             => $emp['id'],
                 'month'                   => $month,
+                'position_snapshot'       => $this->getPayrollStageLabel($probationRateSnapshot),
                 'salary_base'             => $salaryBase,
                 'insurance_salary'        => $insuranceSalary,
                 'salary_kpi'              => $kpiReward,
@@ -810,6 +912,10 @@ class PayrollService extends BaseService
                 'salary_bonus'            => $bonus,
                 'salary_deduction'        => 0, // Đã loại bỏ phạt trực tiếp
                 'salary_other'            => $other,
+                'consulting_revenue'      => (float)($consulting['contract_value'] ?? 0),
+                'consulting_monthly'      => $consultingMonthly,
+                'consulting_annual'       => $consultingAnnual,
+                'consulting_milestone'    => $consultingMilestone,
                 'notes_json'              => json_encode($notes, JSON_UNESCAPED_UNICODE),
                 'total_standard_days'     => $standardDays,
                 'salary_per_day'          => $salaryPerDay,

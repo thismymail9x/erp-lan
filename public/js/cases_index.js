@@ -9,6 +9,15 @@ $(document).ready(function () {
     const tableContainer = document.getElementById('cases-table-container');
     let searchTimeout;
 
+    // Giữ đầu mối quản lý trong URL khi lọc, sắp xếp và phân trang danh sách sẵn có.
+    $(document).on('change', '#case-manager-filter', function () {
+        const url = new URL(window.location.href);
+        url.searchParams.set('case_manager_id', this.value);
+        url.searchParams.set('page', 1);
+        // Tải lại trang để các thẻ thống kê cũng đổi theo người quản lý vừa chọn.
+        window.location.assign(url.toString());
+    });
+
     if (searchInput) {
         searchInput.addEventListener('input', function () {
             clearTimeout(searchTimeout);
@@ -190,6 +199,10 @@ $(document).ready(function () {
             }
 
             // Đồng bộ tháng/năm vào URL
+            const managerFilter = document.getElementById('case-manager-filter');
+            if (!url.searchParams.has('case_manager_id') && managerFilter) {
+                url.searchParams.set('case_manager_id', managerFilter.value);
+            }
             const monthYearFilter = document.getElementById('month-year-filter');
             if (!url.searchParams.has('month') && monthYearFilter && monthYearFilter.value) {
                 const parts = monthYearFilter.value.split('-');

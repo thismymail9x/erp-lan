@@ -18,7 +18,7 @@
     }
     
     // Quyền chỉnh sửa tổng thể
-    $canEditCase = has_permission('sys.admin') || has_permission('case.manage') || has_permission('case.edit_all') || $isPrimaryAssignee;
+    $canEditCase = has_permission('sys.admin') || has_permission('case.manage') || has_permission('case.edit_all') || $isPrimaryAssignee || (new \App\Services\CaseAccountingAccess())->canManage($case) || (new \App\Services\CaseManagementService())->canManage($case);
     $currentUserId = (int)session()->get('user_id');
     $canManageDocuments = has_permission('sys.admin') || has_permission('document.manage');
 ?>
@@ -34,6 +34,9 @@
                 <?= esc($case['code']) ?>
             </span>
             <h2 class="content-title"><?= esc($case['title']) ?></h2>
+            <?php if (!empty($caseManager)) { ?>
+                <p class="content-subtitle">Người quản lý: <?= esc($caseManager['full_name']) ?></p>
+            <?php } ?>
             <p class="content-subtitle">Khách hàng: 
                 <a href="<?= base_url('customers/show/' . $case['customer_id']) ?>" class="link-premium font-weight-700">
                     <?= esc($case['customer_name']) ?>
@@ -304,7 +307,7 @@
                 <?php } ?>
 
                 <?php
-                $isHanhChinhOrAdmin = (session()->get('role_name') === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
+                $isHanhChinhOrAdmin = (new \App\Services\CaseAccountingAccess())->canManage($case);
                 if ($isHanhChinhOrAdmin) { 
                 ?>
                 <div class="premium-card p-20 m-b-24 case-finance-card">
@@ -369,7 +372,7 @@
                             <div class="info-item case-info-wide">
                                 <label class="text-muted-dark text-xs font-weight-600 uppercase case-member-header">
                                     <span>Đội ngũ phụ trách</span>
-                                    <?php if (in_array(session()->get('role_name'), ['Admin', 'Trưởng phòng'])) { ?>
+                                    <?php if ((new \App\Services\CaseManagementService())->canManage($case)) { ?>
                                         <a href="javascript:void(0)"
                                            data-modal-open="assignMembersModal"
                                            class="text-apple-blue font-weight-500 case-tags-edit-link"><i

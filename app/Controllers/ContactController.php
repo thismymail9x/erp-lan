@@ -124,8 +124,9 @@ class ContactController extends BaseController
         // Loại bỏ CSRF token nếu có trong data POST
         unset($data['csrf_test_name']);
 
-        $userId = session()->get('employee_id') ?? session()->get('user_id');
-        $result = $this->contactService->saveContact($data, $userId, $id);
+        // Existing contacts store the employee ID when the account has an employee profile.
+        $creatorId = session()->get('employee_id') ?? session()->get('user_id');
+        $result = $this->contactService->saveContact($data, $creatorId, $id);
 
         return $this->response->setJSON($result);
     }

@@ -33,10 +33,10 @@ class FeatureGuidelines extends BaseConfig
             ]
         ],
         'payroll' => [
-            'launch_date' => '2026-06-01',
+            'launch_date' => '2026-11-04',
             'guidance'    => [
-                'title'   => 'Hướng dẫn Bảng lương nâng cao',
-                'content' => "• Bảng lương hiển thị chi tiết các khoản thu nhập: Lương cứng, phụ cấp, thưởng và các khoản khấu trừ bảo hiểm, thuế.\n• MỚI: Hệ thống tự động áp dụng hệ số lương (%) theo từng giai đoạn: 85% Thử việc, 40% Thực tập, 60% Học việc, 100% Chính thức.\n• MỚI: Khi nhân viên hết thử việc vào giữa tháng, hệ thống tự chia 2 phần và tính lương chính xác theo từng mức.\n• MỚI: Nhân viên mới vào tháng trước sẽ được tự động tính truy lĩnh và cộng vào cột 'Khác' tháng hiện tại.\n• MỚI: Admin có thể thêm ngày công bù thủ công (cột 'Ngày bù') để xử lý delay chấm công cho nhân viên mới.\n• Thiết lập hệ số lương trong Hồ sơ nhân viên → mục 'Giai đoạn thử việc / Thực tập'."
+                'title'   => 'Bảng lương và KPI tư vấn',
+                'content' => "• Từ kỳ lương 10/2026, Tính toán lương tự cộng 40% KPI tư vấn và thưởng vượt mốc vào Khác, kèm ghi chú KPI tư vấn.\n• Mở KPI tư vấn tại trang Bảng lương để xem quỹ tích lũy 60% cuối năm và đối chiếu từng nhân sự/tháng; dùng bộ lọc tháng để chọn năm.\n• Quỹ 60% là khoản cần chi, chưa phải xác nhận đã thanh toán. Chỉ kỳ chưa chốt mới được tính lại.\n• Bảng lương hiển thị chi tiết các khoản thu nhập: Lương cứng, phụ cấp, thưởng và các khoản khấu trừ bảo hiểm, thuế.\n• MỚI: Hệ thống tự động áp dụng hệ số lương (%) theo từng giai đoạn: 85% Thử việc, 40% Thực tập, 60% Học việc, 100% Chính thức.\n• MỚI: Khi nhân viên hết thử việc vào giữa tháng, hệ thống tự chia 2 phần và tính lương chính xác theo từng mức.\n• MỚI: Nhân viên mới vào tháng trước sẽ được tự động tính truy lĩnh và cộng vào cột 'Khác' tháng hiện tại.\n• MỚI: Admin có thể thêm ngày công bù thủ công (cột 'Ngày bù') để xử lý delay chấm công cho nhân viên mới.\n• Thiết lập hệ số lương trong Hồ sơ nhân viên → mục 'Giai đoạn thử việc / Thực tập'."
             ]
         ],
         'kpi' => [
@@ -47,10 +47,10 @@ class FeatureGuidelines extends BaseConfig
             ]
         ],
         'cases' => [
-            'launch_date' => '2026-01-01',
+            'launch_date' => '2026-10-30',
             'guidance'    => [
                 'title'   => 'Hướng dẫn Quản lý Vụ việc',
-                'content' => "• Theo dõi danh sách các vụ việc pháp lý bạn đang tham gia.\n• Sau khi được phân vụ việc thì chuyển trạng thái sang 'Đang xử lý' ở nút cập nhật trong chi tiết vụ việc.\n• Click vào từng vụ việc để xem chi tiết tiến độ, các bước thực hiện và tài liệu đính kèm.\n• Cập nhật kết quả công việc theo đúng quy trình đã đề ra."
+                'content' => "• Chọn người quản lý vụ việc từ danh sách nhân sự pháp lý hiện có. Hệ thống gợi ý theo chuyên môn nhân sự.\n• Người được giao quản lý xem toàn bộ vụ mình quản lý và dùng nút Phân công để thêm người thực hiện, hỗ trợ hoặc duyệt. Nhân sự tham gia không bắt buộc có chức danh quản lý.\n• Quản lý toàn bộ có thể chọn nhiều vụ để giao đầu mối hàng loạt. Lọc theo người quản lý ngay tại danh sách.\n• Nhân viên chỉ xem vụ mình tham gia; giám đốc chuyên môn có thể dùng quyền case.view_all sẵn có.\n• Dùng trạng thái Chờ tiếp nhận / Đang xử lý và các bước công việc hiện có để theo dõi tiến độ."
             ]
         ],
         'case-kpi-override' => [

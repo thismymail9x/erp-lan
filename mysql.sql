@@ -1713,3 +1713,57 @@ ALTER TABLE `violation_funds`
     MODIFY COLUMN `created_by` INT(11) UNSIGNED NULL COMMENT 'Nhan su tao ban ghi vi pham, co the rong neu tai khoan chua lien ket ho so nhan su',
     MODIFY COLUMN `updated_by` INT(11) UNSIGNED NULL COMMENT 'Nhan su cap nhat gan nhat, co the rong neu tai khoan chua lien ket ho so nhan su',
     ADD CONSTRAINT `fk_violation_funds_created_by` FOREIGN KEY (`created_by`) REFERENCES `employees` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- ----------------------------
+-- UPDATE LOG: 27/10/2026 - Lưu hạng theo tháng lương và vai trò lúc vào làm
+-- Chỉ chạy khối bên dưới trên database hiện có.
+-- Bản cập nhật độc lập: app/Database/Migrations/20261027_payroll_employee_stages.sql
+-- ----------------------------
+SET @erp_stage_sql = IF(
+    EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'payrolls'
+          AND COLUMN_NAME = 'position_snapshot'
+    ),
+    'SELECT ''payrolls.position_snapshot already exists'' AS migration_status',
+    'ALTER TABLE `payrolls` ADD COLUMN `position_snapshot` VARCHAR(100) NULL'
+);
+PREPARE erp_stage_stmt FROM @erp_stage_sql;
+EXECUTE erp_stage_stmt;
+DEALLOCATE PREPARE erp_stage_stmt;
+
+SET @erp_stage_sql = IF(
+    EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'employees'
+          AND COLUMN_NAME = 'initial_position'
+    ),
+    'SELECT ''employees.initial_position already exists'' AS migration_status',
+    'ALTER TABLE `employees` ADD COLUMN `initial_position` VARCHAR(100) NULL'
+);
+PREPARE erp_stage_stmt FROM @erp_stage_sql;
+EXECUTE erp_stage_stmt;
+DEALLOCATE PREPARE erp_stage_stmt;
+
+-- Giữ NULL cho dữ liệu cũ để ứng dụng đối chiếu lịch sử vai trò.
+-- Không tính lại lương hoặc thay đổi vai trò trong migration này.
+
+-- UPDATE LOG: 27/10/2026 - Quyền kế toán cho vụ việc do chính user tạo
+INSERT INTO permissions (name, module_group, description, created_at, updated_at)
+SELECT 'case.accounting_own', 'Vụ việc pháp lý',
+       'Hành chính - Kế toán: Xem và cập nhật vụ việc do mình tạo', NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'case.accounting_own');
+
+-- 30/10/2026: Chỉ bổ sung đầu mối quản lý, dùng lại employees và case_members.
+ALTER TABLE cases
+    ADD COLUMN case_manager_id INT UNSIGNED DEFAULT NULL COMMENT 'Nhân sự quản lý và điều phối vụ việc, độc lập với người trực tiếp xử lý',
+    ADD INDEX idx_cases_manager (case_manager_id, deleted_at);
+
+-- 04/11/2026: Lưu KPI tư vấn trong bảng lương, áp dụng từ 01/10/2026.
+ALTER TABLE `payrolls`
+    ADD COLUMN IF NOT EXISTS `consulting_revenue` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Doanh thu thực thu dùng tính KPI tư vấn tháng lương',
+    ADD COLUMN IF NOT EXISTS `consulting_monthly` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'KPI tư vấn 40% cộng vào lương tháng',
+    ADD COLUMN IF NOT EXISTS `consulting_annual` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'KPI tư vấn 60% tích lũy phải chi cuối năm',
+    ADD COLUMN IF NOT EXISTS `consulting_milestone` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Thưởng vượt mốc KPI tư vấn cộng vào lương tháng';

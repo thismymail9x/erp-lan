@@ -108,13 +108,26 @@ function initPaymentRepeater() {
         const isVatHtml = data && data.is_vat == '1' ? 'checked' : '';
 
         const row = document.createElement('div');
-        row.className = 'payment-row m-b-8';
+        row.className = 'payment-row payment-row--compact m-b-8';
         row.innerHTML = `
-            <input type="text" name="payments[${rowCount}][title]" class="form-control-premium text-sm" value="${escapeHtml(title)}" placeholder="Tiêu đề (VD: Lần 1, Đặt cọc)">
-            <input type="text" name="payments[${rowCount}][amount]" class="form-control-premium text-sm font-weight-600 text-apple-blue js-vnd-input" value="${escapeHtml(amount)}" placeholder="Số tiền">
-            <input type="date" name="payments[${rowCount}][deadline]" class="form-control-premium text-sm" value="${escapeHtml(deadline)}" title="Thời hạn (Không bắt buộc)">
-            <input type="text" name="payments[${rowCount}][note]" class="form-control-premium text-sm" value="${escapeHtml(note)}" placeholder="Ghi chú đợt thanh toán (nếu có)">
-            <input type="datetime-local" name="payments[${rowCount}][paid_at]" class="form-control-premium text-sm" value="${escapeHtml(paidAt)}" title="Ngày thực thu">
+            <div class="case-payment-date-field">
+                <label for="payment_title_${rowCount}">Đợt thu</label>
+                <input type="text" id="payment_title_${rowCount}" name="payments[${rowCount}][title]" class="form-control-premium text-sm" value="${escapeHtml(title)}" placeholder="Lần 1, Đặt cọc…">
+            </div>
+            <div class="case-payment-date-field">
+                <label for="payment_amount_${rowCount}">Số tiền (đ)</label>
+                <input type="text" id="payment_amount_${rowCount}" name="payments[${rowCount}][amount]" class="form-control-premium text-sm font-weight-600 text-apple-blue js-vnd-input" value="${escapeHtml(amount)}" placeholder="0" inputmode="numeric">
+            </div>
+            <div class="case-payment-date-field">
+                <label for="payment_deadline_${rowCount}">Hạn thanh toán</label>
+                <input type="date" id="payment_deadline_${rowCount}" name="payments[${rowCount}][deadline]" class="form-control-premium text-sm" value="${escapeHtml(deadline)}" title="Hạn thanh toán (không bắt buộc)">
+            </div>
+            <div class="case-payment-date-field case-payment-kpi-field">
+                <label for="payment_paid_at_${rowCount}" title="Cần nhập ngày thực thu để ghi nhận KPI tư vấn">Thực thu <span class="case-payment-kpi-badge">KPI</span></label>
+                <input type="datetime-local" id="payment_paid_at_${rowCount}" name="payments[${rowCount}][paid_at]" class="form-control-premium text-sm" value="${escapeHtml(paidAt)}" title="Ngày thực thu: cần nhập để ghi nhận KPI tư vấn">
+            </div>
+            <input type="text" name="payments[${rowCount}][note]" class="form-control-premium text-sm case-payment-note-input" value="${escapeHtml(note)}" placeholder="Ghi chú" aria-label="Ghi chú đợt thanh toán">
+            <div class="case-payment-actions">
             <div class="case-payment-check">
                 <input type="checkbox" name="payments[${rowCount}][is_paid]" value="1" id="paid_${rowCount}" class="case-payment-checkbox" ${isPaidHtml}>
                 <label for="paid_${rowCount}" class="text-apple-main case-payment-check-label">Đã thu</label>
@@ -123,7 +136,8 @@ function initPaymentRepeater() {
                 <input type="checkbox" name="payments[${rowCount}][is_vat]" value="1" id="vat_${rowCount}" class="case-payment-checkbox" ${isVatHtml}>
                 <label for="vat_${rowCount}" class="text-apple-main case-payment-check-label">Đã xuất VAT</label>
             </div>
-            <button type="button" class="btn-secondary-sm text-apple-red case-payment-remove" title="Xóa đợt thanh toán"><i class="fas fa-trash"></i></button>
+            <button type="button" class="btn-secondary-sm text-apple-red case-payment-remove" title="Xóa đợt thanh toán" aria-label="Xóa đợt thanh toán"><i class="fas fa-trash" aria-hidden="true"></i></button>
+            </div>
         `;
 
         container.appendChild(row);

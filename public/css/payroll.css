@@ -292,3 +292,67 @@ input[data-field="manual_adjust_days"] {
 .day-sun span {
     color: var(--apple-red);
 }
+
+/* Đối chiếu KPI giữ bảng riêng để không ảnh hưởng tương tác bảng lương. */
+.consulting-payroll-ledger summary {
+    cursor: pointer;
+    line-height: 1.5;
+}
+
+.consulting-payroll-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.consulting-payroll-table {
+    width: 100%;
+    min-width: 650px;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.consulting-payroll-table th,
+.consulting-payroll-table td {
+    padding: 8px;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: right;
+}
+
+.consulting-payroll-table th:first-child,
+.consulting-payroll-table td:first-child {
+    text-align: left;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 1024px) {
+    .consulting-payroll-ledger {
+        padding: 12px;
+    }
+
+    .consulting-payroll-table th,
+    .consulting-payroll-table td {
+        padding: 6px;
+    }
+}
+
+@media (max-width: 768px) {
+    .consulting-payroll-ledger summary {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px;
+        min-height: 44px;
+        font-size: 13px;
+    }
+
+    .consulting-payroll-ledger .pagination a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        min-height: 44px;
+    }
+}

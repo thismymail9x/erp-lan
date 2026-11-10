@@ -30,6 +30,10 @@ class ContactService extends BaseService
     public function getContactList(array $filters = [], int $perPage = 20)
     {
         $builder = $this->contactModel->builder();
+        $builder->select('contacts.*')->select("COALESCE(
+            (SELECT NULLIF(e.full_name, '') FROM employees e WHERE e.id = contacts.created_by LIMIT 1),
+            (SELECT u.email FROM users u WHERE u.id = contacts.created_by)
+        ) AS creator_name", false);
         
         // QUY TẮC VÀNG (Số 6): Luôn kiểm tra deleted_at IS NULL
         $builder->where('deleted_at IS NULL');
@@ -74,9 +78,9 @@ class ContactService extends BaseService
     public function saveContact(array $data, int $userId, $id = null)
     {
         try {
-            $data['created_by'] = $userId;
-            
             if ($id) {
+                // Updating a contact must preserve its original creator.
+                unset($data['created_by']);
                 // Kiểm tra tồn tại và chưa xóa
                 $existing = $this->contactModel->where('id', $id)->where('deleted_at IS NULL')->first();
                 if (!$existing) {
@@ -87,6 +91,7 @@ class ContactService extends BaseService
                     return $this->success($id, 'Cập nhật liên hệ thành công.');
                 }
             } else {
+                $data['created_by'] = $userId;
                 if ($newId = $this->contactModel->insert($data)) {
                     return $this->success($newId, 'Thêm liên hệ mới thành công.');
                 }

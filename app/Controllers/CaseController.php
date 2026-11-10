@@ -30,6 +30,7 @@ class CaseController extends BaseController
     public static $modulePermissions = [
         'group' => 'Vụ việc pháp lý',
         'permissions' => [
+            'case.accounting_own' => 'Hành chính - Kế toán: Xem và cập nhật vụ việc do mình tạo',
             'case.view'     => 'Xem danh sách hồ sơ cơ bản (Phòng ban/Cá nhân)',
             'case.manage'   => 'Sửa đổi, phân công, xoá hồ sơ cơ bản',
             'case.approve'  => 'Phê duyệt, duyệt chuyển bước công việc',
@@ -55,6 +56,19 @@ class CaseController extends BaseController
     protected $customerModel;
     protected $roleModel;
     protected $userModel;
+    protected $permissionService;
+
+    public function initController(\CodeIgniter\HTTP\RequestInterface $request, \CodeIgniter\HTTP\ResponseInterface $response, \Psr\Log\LoggerInterface $logger)
+    {
+        parent::initController($request, $response, $logger);
+        $userId = (int) $this->session->get('user_id');
+        $roleId = (int) $this->session->get('role_id');
+        if ($userId > 0 && $roleId > 0) {
+            // Another administrator may have granted or revoked permissions since login.
+            $permissions = $this->permissionService ??= new \App\Services\PermissionService();
+            $permissions->loadUserPermissions($userId, $roleId);
+        }
+    }
 
     public function __construct()
     {
@@ -105,8 +119,15 @@ class CaseController extends BaseController
         $tagId = (int)($this->request->getGet('tag_id') ?? 0);
         $month = (int)($this->request->getGet('month') ?? 0);
         $year = (int)($this->request->getGet('year') ?? 0);
+        $managerAccess = new \App\Services\CaseManagementService();
+        $caseManagerFilter = $this->request->getGet('case_manager_id') ?? 0;
+        if (!$this->validateData(['manager' => $caseManagerFilter], ['manager' => 'integer|greater_than_equal_to[-1]'])) {
+            return $this->response->setStatusCode(400)->setBody('Người quản lý cần lọc không hợp lệ.');
+        }
+        $caseManagerId = (int) $caseManagerFilter;
+        $canCoordinateCases = $managerAccess->canAssignManager() || $managerAccess->hasManagedCases();
         $perPage = 20;
-        $cases = $caseService->getCases($sort, $order, $perPage, $search, $lawyerIds, $status, $tagId, $month, $year);
+        $cases = $caseService->getCases($sort, $order, $perPage, $search, $lawyerIds, $status, $tagId, $month, $year, '', false, null, $caseManagerId);
         
         // PHÂN QUYỀN TRUY XUẤT NHÂN SỰ ĐỂ LỌC:
         // Admin hoặc người có quyền quản lý/xem tất cả: Xem tất cả. Trưởng phòng: Xem nhân viên thuộc phòng mình.
@@ -119,7 +140,7 @@ class CaseController extends BaseController
         $availableLawyers = get_available_employees($isRestricted && $isManager ? $deptId : null);
         
         // Nếu là nhân viên thường, chỉ cho lọc chính mình trong danh sách phân công
-        if ($isRestricted && !$isManager) {
+        if ($isRestricted && !$isManager && !$canCoordinateCases) {
             $myEmpId = session()->get('employee_id');
             $availableLawyers = array_filter($availableLawyers, function($e) use ($myEmpId) {
                 return $e['id'] == $myEmpId;
@@ -130,7 +151,11 @@ class CaseController extends BaseController
         $data = [
             'cases'         => $cases,
             'pager'         => $caseService->getPager(),
-            'stats'         => $this->getStats($search, $lawyerIds, $tagId, $month, $year),
+            'stats'         => $caseService->getStats($search, $lawyerIds, $tagId, $month, $year, $caseManagerId),
+            'managerChoices' => $managerAccess->choices(),
+            'canAssignManager' => $managerAccess->canAssignManager() && $managerAccess->ready(),
+            'canCoordinateCases' => $canCoordinateCases,
+            'currentCaseManagerId' => $caseManagerId,
             'search'        => $search,
             'lawyerIds'     => $lawyerIds,
             'currentStatus' => $status,
@@ -210,6 +235,7 @@ class CaseController extends BaseController
     {
         $templateModel = new \App\Models\WorkflowTemplateModel();
         $data = [
+            'managerChoices' => (new \App\Services\CaseManagementService())->choices(),
             'customers' => get_active_customers(), // Core Function
             'lawyers'   => get_available_employees(3), // Phòng Pháp lý (ID=3) - Core Function
             'staffs'    => get_available_employees(), // Tất cả nhân sự - Core Function
@@ -229,6 +255,8 @@ class CaseController extends BaseController
         
         // --- BẢO VỆ DỮ LIỆU (Data Validation & Normalization) ---
         $input = $postData;
+        // This endpoint always creates a new case; posted IDs cannot target another case.
+        unset($input['id']);
         
         // 1. QUY TẮC ĐỊNH DANH (Standard ID Coding): Tìm mã số cao nhất đang có và +1
         if (empty($input['code'])) {
@@ -262,10 +290,15 @@ class CaseController extends BaseController
 
         $input['assigned_lawyer_id']   = !empty($postData['assigned_lawyer_id']) ? $postData['assigned_lawyer_id'] : $primaryAssignee;
         $input['assigned_staff_id']    = !empty($postData['assigned_staff_id']) ? $postData['assigned_staff_id'] : null;
+        try {
+            (new \App\Services\CaseManagementService())->validateCreation($input, $postData);
+        } catch (\InvalidArgumentException $error) {
+            return redirect()->back()->withInput()->with('error', $error->getMessage());
+        }
         $this->normalizeConsultingKpiInput($input);
 
         $roleName = session()->get('role_name');
-        $isHanhChinhOrAdmin = ($roleName === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
+        $isHanhChinhOrAdmin = (new \App\Services\CaseAccountingAccess())->canManage();
         if (!$isHanhChinhOrAdmin) {
             unset($input['contract_value'], $input['payment_progress'], $input['payments']);
         } else {
@@ -396,7 +429,8 @@ class CaseController extends BaseController
         $roleName = session()->get('role_name');
         $myEmpId = session()->get('employee_id');
         
-        if (!has_permission('sys.admin') && !has_permission('case.edit_all') && !has_permission('case.view_all')) {
+        if (!has_permission('sys.admin') && !has_permission('case.edit_all') && !has_permission('case.view_all') && !(new \App\Services\CaseAccountingAccess())->canManage($case)
+            && !(new \App\Services\CaseManagementService())->canView($case)) {
             $isAssigned = ($case['assigned_lawyer_id'] == $myEmpId || $case['assigned_staff_id'] == $myEmpId);
             $isMember = model('CaseMemberModel')->where('case_id', $id)->where('employee_id', $myEmpId)->first();
             
@@ -457,12 +491,13 @@ class CaseController extends BaseController
         $data = [
             'case'      => $case,
             'history'   => $this->historyModel->where('case_id', $id)->orderBy('created_at', 'DESC')->findAll(),
+            'caseManager' => (new \App\Services\CaseManagementService())->managerInfo($case),
             'documents' => $this->documentModel->where('case_id', $id)->findAll(),
             'steps'     => $steps,
             'active_step' => $this->stepModel->getCurrentStep($id),
             'comments'  => $this->commentModel->getCommentsByCase($id),
             'lawyers'   => get_available_employees(3), // Core Function
-            'staffs'    => get_available_employees(), // Core Function
+            'staffs'    => get_available_employees(null, true), // Cho phép nhân sự chưa có vai trò tham gia.
             'members'   => $members,
             'memberGroups' => $memberGroups,
             'tags'      => $this->tagService->getTagsByEntity($id, 'cases'),
@@ -546,6 +581,19 @@ class CaseController extends BaseController
     /**
      * Giao diện chỉnh sửa thông tin vụ việc.
      */
+    private function canEditGeneralCase(array $case): bool
+    {
+        if ((new \App\Services\CaseManagementService())->canManage($case)) {
+            return true;
+        }
+        if (has_permission('sys.admin') || has_permission('case.edit_all')) return true;
+        $employeeId = (int) session()->get('employee_id');
+        if ($employeeId > 0 && (in_array($employeeId, [(int) $case['assigned_lawyer_id'], (int) $case['assigned_staff_id']], true)
+            || model('CaseMemberModel')->where(['case_id' => $case['id'], 'employee_id' => $employeeId, 'role_in_case' => 'assignee'])->countAllResults() > 0)) return true;
+        return session()->get('role_name') === \Config\AppConstants::ROLE_TRUONG_PHONG
+            && (int) session()->get('department_id') === \Config\AppConstants::DEPT_PHAP_LY;
+    }
+
     public function edit($id)
     {
         $case = $this->caseModel->find($id);
@@ -553,8 +601,20 @@ class CaseController extends BaseController
             return redirect()->to(base_url('cases'))->with('error', 'Hồ sơ không tồn tại.');
         }
 
+        $accounting = new \App\Services\CaseAccountingAccess();
+        $canManageAccounting = $accounting->canManage($case);
+        $canEditGeneral = $this->canEditGeneralCase($case);
+        if ($canManageAccounting && !$canEditGeneral) {
+            return view('dashboard/cases/accounting_edit', [
+                'case' => $case,
+                'staffs' => has_permission('kpi.consulting') ? get_available_employees(null, true) : [],
+                'title' => $case['code'],
+            ]);
+        }
+
         // --- BẢO MẬT: KIỂM TRA QUYỀN (Chỉ Admin, Quản lý hoặc người phụ trách chính) ---
-        if (!has_permission('sys.admin') && !has_permission('case.edit_all')) {
+        if (!has_permission('sys.admin') && !has_permission('case.edit_all')
+            && !(new \App\Services\CaseManagementService())->canManage($case)) {
             $myEmpId = session()->get('employee_id');
             $roleName = session()->get('role_name');
 
@@ -580,6 +640,10 @@ class CaseController extends BaseController
             }
         }
 
+        if (!$canManageAccounting) {
+            unset($case['contract_value'], $case['payment_progress']);
+        }
+
         $templateModel = new \App\Models\WorkflowTemplateModel();
         $caseMemberModel = model('CaseMemberModel');
         $members = $caseMemberModel->where('case_id', $id)->findAll();
@@ -588,7 +652,9 @@ class CaseController extends BaseController
             'case'      => $case,
             'customers' => get_active_customers(), // Core Function
             'lawyers'   => get_available_employees(3), // Core Function
-            'staffs'    => get_available_employees(), // Core Function
+            'staffs'    => get_available_employees(null, true), // Nhân sự tham gia không bắt buộc có vai trò.
+            'managerChoices' => (new \App\Services\CaseManagementService())->canAssignManager()
+                ? (new \App\Services\CaseManagementService())->choices() : [],
             'templates' => $templateModel->where('is_active', 1)->findAll(),
             'members'   => $members,
             'title'     => 'Chỉnh sửa hồ sơ: ' . $case['code'] . ' | L.A.N ERP'
@@ -608,8 +674,29 @@ class CaseController extends BaseController
         $case = $this->caseModel->find($id);
         if (!$case) return redirect()->to(base_url('cases'));
 
+        $accounting = new \App\Services\CaseAccountingAccess();
+        if ($accounting->canManage($case) && !$this->canEditGeneralCase($case)) {
+            $data = $accounting->normalizeInput($this->request->getPost());
+            if (has_permission('kpi.consulting')) {
+                $consulting = array_intersect_key($this->request->getPost(), array_flip(['consultant_id', 'consultation_closed_at']));
+                if (array_key_exists('consultant_id', $consulting)) {
+                    $this->normalizeConsultingKpiInput($consulting);
+                    $data = array_merge($data, $consulting);
+                }
+            }
+            if (!$data || !$this->caseModel->update($id, $data)) {
+                return redirect()->back()->withInput()->with('errors', $this->caseModel->errors());
+            }
+            if (array_key_exists('payment_progress', $data)) {
+                (new \App\Services\PartnerCommissionService())->syncCaseCommissions((int) $id);
+            }
+            $this->logHistory($id, 'update_accounting', null, null, 'Cập nhật chuyên mục Hành chính - Kế toán.');
+            return redirect()->to(base_url('cases/show/' . $id))->with('success', 'Đã cập nhật Hành chính - Kế toán.');
+        }
+
         // --- BẢO MẬT: KIỂM TRA QUYỀN TRƯỚC KHI LƯU ---
-        if (!has_permission('sys.admin') && !has_permission('case.edit_all')) {
+        if (!has_permission('sys.admin') && !has_permission('case.edit_all')
+            && !(new \App\Services\CaseManagementService())->canManage($case)) {
             $myEmpId = session()->get('employee_id');
 
             $isDirectlyAssigned = ($case['assigned_lawyer_id'] == $myEmpId || $case['assigned_staff_id'] == $myEmpId);
@@ -645,6 +732,12 @@ class CaseController extends BaseController
             return redirect()->back()->withInput()->with('errors', $this->caseModel->errors());
         }
         
+        try {
+            (new \App\Services\CaseManagementService())->validateUpdate($case, $input);
+        } catch (\InvalidArgumentException $error) {
+            return redirect()->back()->withInput()->with('error', $error->getMessage());
+        }
+
         // Data Normalization
         // --- BỘ ĐIỀU HƯỚNG: PHÁT HIỆN & XỬ LÝ ĐỔI QUY TRÌNH KHI SỬA HỒ SƠ ---
         $isWorkflowChanging = false;
@@ -686,10 +779,15 @@ class CaseController extends BaseController
         $input['customer_id']          = !empty($input['customer_id']) ? $input['customer_id'] : null;
         $input['assigned_lawyer_id']   = !empty($input['assigned_lawyer_id']) ? $input['assigned_lawyer_id'] : $primaryAssignee;
         $input['assigned_staff_id']    = !empty($input['assigned_staff_id']) ? $input['assigned_staff_id'] : null;
+        // Người thực hiện sửa thông tin vẫn giữ phân công cũ, chỉ đầu mối được thay đổi nhân sự.
+        if (!empty($case['case_manager_id']) && !(new \App\Services\CaseManagementService())->canManage($case)) {
+            $input['assigned_lawyer_id'] = $case['assigned_lawyer_id'];
+            $input['assigned_staff_id'] = $case['assigned_staff_id'];
+        }
         $this->normalizeConsultingKpiInput($input);
 
         // BẢO MẬT TÀI CHÍNH: Chỉ Hành chính & Admin được cập nhật giá trị hợp đồng
-        $isHanhChinhOrAdmin = ($roleName === \Config\AppConstants::ROLE_ADMIN || session()->get('department_id') == \Config\AppConstants::DEPT_HANH_CHINH);
+        $isHanhChinhOrAdmin = (new \App\Services\CaseAccountingAccess())->canManage($case);
         if (!$isHanhChinhOrAdmin) {
             unset($input['contract_value'], $input['payment_progress']);
         } else {
@@ -718,12 +816,17 @@ class CaseController extends BaseController
         }
 
         if ($this->caseModel->update($id, $input)) {
+            if (array_key_exists('case_manager_id', $input)) {
+                (new \App\Services\CaseManagementService())->recordChange($case, $input['case_manager_id']);
+            }
             // Đồng bộ nhân sự tham gia
             $caseMemberModel = model('CaseMemberModel');
             $caseMemberModel->syncMembers($id, 'approver', $this->request->getPost('approvers') ?? []);
             $caseMemberModel->syncMembers($id, 'assignee', $this->request->getPost('assignees') ?? []);
             $caseMemberModel->syncMembers($id, 'supporter', $this->request->getPost('supporters') ?? []);
-            $this->syncUnfinishedStepAssignee($id, $assignees, $input);
+            if (empty($case['case_manager_id']) || (new \App\Services\CaseManagementService())->canManage($case)) {
+                $this->syncUnfinishedStepAssignee($id, $assignees, $input);
+            }
             if (array_key_exists('payment_progress', $input)) {
                 (new \App\Services\PartnerCommissionService())->syncCaseCommissions((int)$id);
             }
@@ -1036,32 +1139,28 @@ class CaseController extends BaseController
 
     /**
      * Quản lý Phân công nhân sự tham gia (Resource Management).
-     * Cho phép Quản trị viên thay đổi cơ cấu nhân sự xử lý hồ sơ.
+     * Cho phép người được giao quản lý hoặc quản trị phân nhân sự từ danh mục hiện có.
      */
     public function updateMembers($id)
     {
-        // Kiểm tra quyền hạn manage hồ sơ
-        if (!has_permission('sys.admin') && !has_permission('case.edit_all')) {
-            return redirect()->back()->with('error', 'Bạn không được phân quyền để thay đổi nhân sự vụ việc này.');
+        try {
+            (new \App\Services\CaseManagementService())->updateMembers((int) $id, $this->request->getPost());
+        } catch (\InvalidArgumentException $error) {
+            return redirect()->back()->withInput()->with('error', $error->getMessage());
         }
+        return redirect()->back()->with('success', 'Đã cập nhật nhân sự tham gia vụ việc.');
+    }
 
-        $approvers = $this->request->getPost('approvers') ?? [];
-        $assignees = $this->request->getPost('assignees') ?? [];
-        $supporters = $this->request->getPost('supporters') ?? [];
-
-        // --- AUDIT LOGGING ---
-        // Ghi lại danh sách nạp vào để đối soát nếu xảy ra lỗi không lưu được dữ liệu.
-        log_message('info', "[CASE_MEMBER] Syncing Case ID: $id | Approvers: " . json_encode($approvers) . " | Assignees: " . json_encode($assignees) . " | Supporters: " . json_encode($supporters));
-
-        $caseMemberModel = model('CaseMemberModel');
-        $caseMemberModel->syncMembers($id, 'approver', $approvers);
-        $caseMemberModel->syncMembers($id, 'assignee', $assignees);
-        $caseMemberModel->syncMembers($id, 'supporter', $supporters);
-        $this->syncUnfinishedStepAssignee($id, $assignees);
-
-        $this->logHistory($id, 'phan_cong_nhan_su', null, null, 'Cập nhật danh sách đội ngũ tham gia xử lý vụ việc.');
-
-        return redirect()->back()->with('success', 'Đã cập nhật danh sách nhân sự tham gia hồ sơ thành công.');
+    /** Giao/chuyển quản lý hàng loạt tại màn hình vụ việc, tái sử dụng quyền quản lý hiện có. */
+    public function assignManagers()
+    {
+        service('security')->verify($this->request);
+        try {
+            (new \App\Services\CaseManagementService())->assignManagers($this->request->getPost());
+        } catch (\InvalidArgumentException $error) {
+            return redirect()->back()->withInput()->with('error', $error->getMessage());
+        }
+        return redirect()->back()->with('success', 'Đã cập nhật người quản lý cho các vụ được chọn.');
     }
 
     /**
@@ -1312,7 +1411,8 @@ class CaseController extends BaseController
         if (!$case) return redirect()->back()->with('error', 'Không tìm thấy hồ sơ vụ việc.');
 
         // Kiểm tra quyền (Phải là thành viên vụ việc hoặc có quyền edit_all)
-        if (!has_permission('sys.admin') && !has_permission('case.edit_all')) {
+        if (!has_permission('sys.admin') && !has_permission('case.edit_all')
+            && !(new \App\Services\CaseManagementService())->canManage($case)) {
             $myEmpId = session()->get('employee_id');
             
             // 1. Kiểm tra gán trực tiếp

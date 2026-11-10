@@ -63,15 +63,20 @@ if (!function_exists('get_available_employees')) {
      * @param int|null $deptId ID phòng ban cần lọc
      * @return array
      */
-    function get_available_employees(?int $deptId = null): array
+    function get_available_employees(?int $deptId = null, bool $includeUnlinked = false): array
     {
         $model = new \App\Models\EmployeeModel();
         $query = $model->select('employees.*, roles.name as role_name')
-                       ->join('users', 'users.id = employees.user_id', 'inner')
-                       ->join('roles', 'roles.id = users.role_id', 'inner')
+                       ->join('users', 'users.id = employees.user_id', $includeUnlinked ? 'left' : 'inner')
+                       ->join('roles', 'roles.id = users.role_id', $includeUnlinked ? 'left' : 'inner')
                        ->where('employees.deleted_at', null)
-                       ->where('users.active_status', 1)
                        ->where('users.deleted_at', null);
+        // Điều phối được thêm nhân sự chưa có tài khoản/vai trò, vẫn loại tài khoản đã khóa.
+        if ($includeUnlinked) {
+            $query->groupStart()->where('users.active_status', 1)->orWhere('users.id', null)->groupEnd();
+        } else {
+            $query->where('users.active_status', 1);
+        }
 
         if ($deptId !== null) {
             $query->where('employees.department_id', $deptId);

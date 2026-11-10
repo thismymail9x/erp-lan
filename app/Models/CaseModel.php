@@ -24,6 +24,7 @@ class CaseModel extends BaseModel
 
     // 2. Các trường được phép chỉnh sửa
     protected $allowedFields    = [
+        'case_manager_id',
         'customer_id', 'title', 'code', 'description', 
         'status', 'deadline', 'current_step', 'priority', 
         'assigned_lawyer_id', 'assigned_staff_id', 'consultant_id', 'consultation_closed_at', 'start_date', 'end_date',
